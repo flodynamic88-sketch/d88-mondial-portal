@@ -70,7 +70,9 @@ export default async function DashboardPage() {
         <h2 className="text-lg font-semibold text-gray-800">Getting started</h2>
         <ul className="mt-2 list-inside list-disc space-y-1 text-sm text-gray-600">
           <li>Use &quot;Encode Invoices&quot; to add Consignment, Outright, and Mercury Drug invoices.</li>
-          <li>Route Plan, Deliveries Fulfillment, Billing, Mondial Confirmation, and Final Billing are placeholders for now.</li>
+          <li>Assign encoded invoices to trucks in &quot;Route Plan&quot;, then dispatch and mark delivered.</li>
+          <li>Track fulfillment rate and CTS per truck in &quot;Deliveries Fulfillment&quot;.</li>
+          <li>Delivered invoices flow automatically into &quot;Billing&quot;, then &quot;Mondial Confirmation&quot;, and finally &quot;Final Billing&quot; once confirmed.</li>
         </ul>
       </div>
     </div>
