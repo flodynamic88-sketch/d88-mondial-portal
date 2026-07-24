@@ -139,6 +139,12 @@ export interface VBilling {
   zone: ZoneType;
   is_dc: boolean;
   amount: number;
+  company_name: string | null;
+  branch_address: string | null;
+  plan_date: string | null;
+  posting_date: string | null;
+  transmittal_received_date: string | null;
+  billing_period: string | null;
   delivered_at: string | null;
   service_rate_pct: number | null;
   service_fee: number | null;

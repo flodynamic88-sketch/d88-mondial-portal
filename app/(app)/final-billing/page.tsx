@@ -4,13 +4,13 @@ import { useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import RequireRole from "@/components/RequireRole";
 import { exportToExcel } from "@/lib/exportExcel";
-import type { InvoiceCategory, VFinalBilling } from "@/types/database";
+import type { InvoiceCategory, VFinalBilling, ZoneType } from "@/types/database";
 
-const CATEGORY_ORDER: { value: InvoiceCategory; label: string }[] = [
-  { value: "CONSIGNMENT", label: "Consignment" },
-  { value: "OUTRIGHT", label: "Outright" },
-  { value: "MERCURY_DRUG", label: "Mercury Drug" },
-];
+const ZONE_LABELS: Record<ZoneType, string> = {
+  NCR: "NCR",
+  FAR_NORTH_SOUTH: "Far North / South",
+  VIZMIN: "VisMin",
+};
 
 function formatMoney(value: number) {
   return value.toLocaleString(undefined, {
@@ -18,6 +18,72 @@ function formatMoney(value: number) {
     maximumFractionDigits: 2,
   });
 }
+
+function formatDate(value: string | null) {
+  return value ? new Date(value).toLocaleDateString() : "—";
+}
+
+function formatMonth(value: string | null) {
+  return value
+    ? new Date(value).toLocaleDateString(undefined, { month: "long", year: "numeric" })
+    : "—";
+}
+
+// Every row that reaches v_final_billing has already been confirmed by the
+// Mondial Team, so the Remarks column is always the same fixed note.
+const CONFIRMED_REMARKS = "Validated from Invoicing";
+
+interface ReportColumn {
+  header: string;
+  render: (row: VFinalBilling) => string;
+}
+
+const CONSIGNMENT_COLUMNS: ReportColumn[] = [
+  { header: "Indicator", render: (r) => ZONE_LABELS[r.zone] },
+  { header: "CD #", render: (r) => r.document_no },
+  { header: "Plan Date", render: (r) => formatDate(r.plan_date) },
+  { header: "Delivery Date", render: (r) => formatDate(r.delivered_at) },
+  { header: "Month", render: (r) => formatMonth(r.billing_period) },
+  { header: "Posting Date", render: (r) => formatDate(r.posting_date) },
+  { header: "Retail Chain", render: (r) => r.company_name ?? "—" },
+  { header: "Branch/Store Address", render: (r) => r.branch_address ?? "—" },
+  { header: "Amount", render: (r) => formatMoney(r.amount) },
+  { header: "Transmittal Forward Date", render: (r) => formatDate(r.transmittal_received_date) },
+  { header: "Remarks", render: () => CONFIRMED_REMARKS },
+];
+
+const OUTRIGHT_COLUMNS: ReportColumn[] = [
+  { header: "Indicator", render: (r) => ZONE_LABELS[r.zone] },
+  { header: "Plan Del. Date", render: (r) => formatDate(r.plan_date) },
+  { header: "Delivery Date", render: (r) => formatDate(r.delivered_at) },
+  { header: "Month", render: (r) => formatMonth(r.billing_period) },
+  { header: "Invoice No.", render: (r) => r.document_no },
+  { header: "Account", render: (r) => r.company_name ?? "—" },
+  { header: "Branch/Store Address", render: (r) => r.branch_address ?? "—" },
+  { header: "Amount", render: (r) => formatMoney(r.amount) },
+  { header: "Transmittal Forward Date", render: (r) => formatDate(r.transmittal_received_date) },
+  { header: "Remarks", render: () => CONFIRMED_REMARKS },
+];
+
+const MERCURY_COLUMNS: ReportColumn[] = [
+  { header: "Indicator", render: (r) => ZONE_LABELS[r.zone] },
+  { header: "Invoice No.", render: (r) => r.document_no },
+  { header: "Plan Date", render: (r) => formatDate(r.plan_date) },
+  { header: "Delivery Date", render: (r) => formatDate(r.delivered_at) },
+  { header: "Month", render: (r) => formatMonth(r.billing_period) },
+  { header: "Posting Date", render: (r) => formatDate(r.posting_date) },
+  { header: "Retail Chain", render: (r) => r.company_name ?? "—" },
+  { header: "Branch/Store Address", render: (r) => r.branch_address ?? "—" },
+  { header: "Amount", render: (r) => formatMoney(r.amount) },
+  { header: "Transmittal Forward Date", render: (r) => formatDate(r.transmittal_received_date) },
+  { header: "Remarks", render: () => CONFIRMED_REMARKS },
+];
+
+const CATEGORY_CONFIG: { value: InvoiceCategory; label: string; columns: ReportColumn[] }[] = [
+  { value: "CONSIGNMENT", label: "Consignment", columns: CONSIGNMENT_COLUMNS },
+  { value: "OUTRIGHT", label: "Outright", columns: OUTRIGHT_COLUMNS },
+  { value: "MERCURY_DRUG", label: "FLO-Mercury", columns: MERCURY_COLUMNS },
+];
 
 export default function FinalBillingPage() {
   const [startDate, setStartDate] = useState("");
@@ -69,23 +135,20 @@ export default function FinalBillingPage() {
   }
 
   const grandTotalAmount = rows.reduce((sum, r) => sum + (r.amount ?? 0), 0);
-  const grandTotalFee = rows.reduce((sum, r) => sum + (r.service_fee ?? 0), 0);
 
   function handleExport() {
-    const sheets: { name: string; rows: Record<string, unknown>[] }[] = CATEGORY_ORDER.map(
+    const sheets: { name: string; rows: Record<string, unknown>[] }[] = CATEGORY_CONFIG.map(
       (cat) => {
         const catRows = rows.filter((r) => r.category === cat.value);
         return {
           name: cat.label,
-          rows: catRows.map((row) => ({
-            "Document No.": row.document_no,
-            Zone: row.zone,
-            DC: row.is_dc ? "Yes" : "No",
-            Amount: row.amount,
-            "Rate %": row.service_rate_pct ?? "",
-            "Service Fee": row.service_fee ?? 0,
-            Delivered: row.delivered_at ? new Date(row.delivered_at).toLocaleDateString() : "",
-          })),
+          rows: catRows.map((row) => {
+            const record: Record<string, unknown> = {};
+            cat.columns.forEach((col) => {
+              record[col.header] = col.render(row);
+            });
+            return record;
+          }),
         };
       }
     ).filter((sheet) => sheet.rows.length > 0);
@@ -94,13 +157,8 @@ export default function FinalBillingPage() {
       name: "Summary",
       rows: [
         {
-          "Document No.": "",
-          Zone: "",
-          DC: "",
-          Amount: grandTotalAmount,
-          "Rate %": "",
-          "Service Fee": grandTotalFee,
-          Delivered: `${startDate} to ${endDate}`,
+          "Delivery Period": `${startDate} to ${endDate}`,
+          "Grand Total Amount": grandTotalAmount,
         },
       ],
     });
@@ -179,12 +237,12 @@ export default function FinalBillingPage() {
 
           {rows.length > 0 && (
             <div className="mt-4 space-y-8">
-              {CATEGORY_ORDER.map((cat) => {
+              {CATEGORY_CONFIG.map((cat) => {
                 const catRows = rows.filter((r) => r.category === cat.value);
                 if (catRows.length === 0) return null;
 
                 const subtotalAmount = catRows.reduce((sum, r) => sum + (r.amount ?? 0), 0);
-                const subtotalFee = catRows.reduce((sum, r) => sum + (r.service_fee ?? 0), 0);
+                const amountColIndex = cat.columns.findIndex((c) => c.header === "Amount");
 
                 return (
                   <div key={cat.value}>
@@ -193,43 +251,39 @@ export default function FinalBillingPage() {
                       <table className="min-w-full divide-y divide-gray-200 text-sm">
                         <thead>
                           <tr className="text-left text-xs font-semibold uppercase text-gray-500">
-                            <th className="py-2 pr-4">Document No.</th>
-                            <th className="py-2 pr-4">Zone</th>
-                            <th className="py-2 pr-4">DC</th>
-                            <th className="py-2 pr-4">Amount</th>
-                            <th className="py-2 pr-4">Rate %</th>
-                            <th className="py-2 pr-4">Service Fee</th>
-                            <th className="py-2 pr-4">Delivered</th>
+                            {cat.columns.map((col) => (
+                              <th key={col.header} className="whitespace-nowrap py-2 pr-4">
+                                {col.header}
+                              </th>
+                            ))}
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-gray-100">
                           {catRows.map((row) => (
                             <tr key={row.invoice_id}>
-                              <td className="py-2 pr-4 font-medium text-gray-800">
-                                {row.document_no}
-                              </td>
-                              <td className="py-2 pr-4">{row.zone}</td>
-                              <td className="py-2 pr-4">{row.is_dc ? "Yes" : "No"}</td>
-                              <td className="py-2 pr-4">{formatMoney(row.amount)}</td>
-                              <td className="py-2 pr-4">{row.service_rate_pct ?? "—"}</td>
-                              <td className="py-2 pr-4">{formatMoney(row.service_fee ?? 0)}</td>
-                              <td className="py-2 pr-4">
-                                {row.delivered_at
-                                  ? new Date(row.delivered_at).toLocaleDateString()
-                                  : "—"}
-                              </td>
+                              {cat.columns.map((col, idx) => (
+                                <td
+                                  key={col.header}
+                                  className={`whitespace-nowrap py-2 pr-4 ${
+                                    idx === 0 ? "font-medium text-gray-800" : ""
+                                  }`}
+                                >
+                                  {col.render(row)}
+                                </td>
+                              ))}
                             </tr>
                           ))}
                         </tbody>
                         <tfoot>
                           <tr className="border-t-2 border-gray-300 font-semibold text-gray-800">
-                            <td className="py-2 pr-4" colSpan={3}>
+                            <td className="py-2 pr-4" colSpan={amountColIndex}>
                               Subtotal — {cat.label}
                             </td>
                             <td className="py-2 pr-4">{formatMoney(subtotalAmount)}</td>
-                            <td className="py-2 pr-4"></td>
-                            <td className="py-2 pr-4">{formatMoney(subtotalFee)}</td>
-                            <td className="py-2 pr-4"></td>
+                            <td
+                              className="py-2 pr-4"
+                              colSpan={cat.columns.length - amountColIndex - 1}
+                            ></td>
                           </tr>
                         </tfoot>
                       </table>
@@ -239,14 +293,8 @@ export default function FinalBillingPage() {
               })}
 
               <div className="flex flex-col items-end gap-1 border-t-2 border-gray-300 pt-4">
-                <p className="text-sm text-gray-500">
-                  Grand Total Amount:{" "}
-                  <span className="font-semibold text-gray-800">
-                    {formatMoney(grandTotalAmount)}
-                  </span>
-                </p>
                 <p className="text-lg font-bold text-brand-700">
-                  Grand Total Service Fee Due: {formatMoney(grandTotalFee)}
+                  Grand Total Amount: {formatMoney(grandTotalAmount)}
                 </p>
               </div>
             </div>
