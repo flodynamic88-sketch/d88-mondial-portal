@@ -4,13 +4,18 @@ import { useCallback, useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import DocumentLookup from "@/components/DocumentLookup";
 import AddTruckForm from "@/components/AddTruckForm";
+import { findOrCreateDeliveryReason } from "@/lib/invoiceHelpers";
 import type {
   RoutePlanTruck,
   RoutePlanInvoice,
   Invoice,
   DeliveryReason,
+  ReasonType,
   VTruckCts,
 } from "@/types/database";
+
+const CUSTOM_DISCREPANCY = "__custom_discrepancy__";
+const CUSTOM_BACKLOAD = "__custom_backload__";
 
 interface AssignedInvoiceRow extends RoutePlanInvoice {
   invoice: Invoice | null;
@@ -41,6 +46,12 @@ export default function TruckCard({
   const [dispatching, setDispatching] = useState(false);
   const [showAddConvoy, setShowAddConvoy] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
+  const [customEntry, setCustomEntry] = useState<{
+    rowId: string;
+    type: ReasonType;
+    text: string;
+  } | null>(null);
+  const [savingCustom, setSavingCustom] = useState(false);
 
   const loadAssigned = useCallback(async () => {
     setLoadingRows(true);
@@ -129,7 +140,7 @@ export default function TruckCard({
       const nowIso = new Date().toISOString();
       const { error } = await supabase
         .from("route_plan_invoices")
-        .update({ delivered_at: nowIso, reason_id: null })
+        .update({ delivered_at: nowIso })
         .eq("id", row.id);
 
       if (error) {
@@ -154,7 +165,7 @@ export default function TruckCard({
       const supabase = createClient();
       const { error } = await supabase
         .from("route_plan_invoices")
-        .update({ reason_id: reasonId || null, delivered_at: null })
+        .update({ reason_id: reasonId || null })
         .eq("id", rowId);
 
       if (error) {
@@ -164,6 +175,41 @@ export default function TruckCard({
       }
     } catch {
       setActionError("Could not save the reported issue. Make sure a Supabase project is connected.");
+    }
+  }
+
+  function handleReasonSelect(rowId: string, value: string) {
+    if (value === CUSTOM_DISCREPANCY) {
+      setCustomEntry({ rowId, type: "DISCREPANCY", text: "" });
+      return;
+    }
+    if (value === CUSTOM_BACKLOAD) {
+      setCustomEntry({ rowId, type: "BACKLOAD", text: "" });
+      return;
+    }
+    setCustomEntry(null);
+    handleReasonChange(rowId, value);
+  }
+
+  async function handleSaveCustomReason() {
+    if (!customEntry) return;
+    const text = customEntry.text.trim();
+    if (!text) {
+      setActionError("Type a reason before saving.");
+      return;
+    }
+    setSavingCustom(true);
+    setActionError(null);
+    try {
+      const reasonId = await findOrCreateDeliveryReason(customEntry.type, text);
+      if (!reasonId) {
+        setActionError("Failed to save the custom reason.");
+        return;
+      }
+      await handleReasonChange(customEntry.rowId, reasonId);
+      setCustomEntry(null);
+    } finally {
+      setSavingCustom(false);
     }
   }
 
@@ -268,18 +314,22 @@ export default function TruckCard({
                       />
                     </td>
                     <td className="py-2 pr-4">
-                      {row.delivered_at ? (
-                        <span className="text-green-600">
-                          Delivered {new Date(row.delivered_at).toLocaleDateString()}
-                        </span>
-                      ) : row.reason_id ? (
-                        <span className="text-amber-600">
-                          {deliveryReasons.find((r) => r.id === row.reason_id)?.label ??
-                            "Issue reported"}
-                        </span>
-                      ) : (
-                        <span className="text-gray-400">Pending</span>
-                      )}
+                      <div className="flex flex-col gap-1">
+                        {row.delivered_at && (
+                          <span className="text-green-600">
+                            Delivered {new Date(row.delivered_at).toLocaleDateString()}
+                          </span>
+                        )}
+                        {row.reason_id && (
+                          <span className="text-amber-600">
+                            {deliveryReasons.find((r) => r.id === row.reason_id)?.label ??
+                              "Issue reported"}
+                          </span>
+                        )}
+                        {!row.delivered_at && !row.reason_id && (
+                          <span className="text-gray-400">Pending</span>
+                        )}
+                      </div>
                     </td>
                     <td className="py-2 pr-4">
                       <div className="flex flex-col gap-1 sm:flex-row sm:items-center">
@@ -293,16 +343,21 @@ export default function TruckCard({
                         </button>
                         <select
                           className="input"
-                          value={row.reason_id ?? ""}
-                          onChange={(e) => handleReasonChange(row.id, e.target.value)}
+                          value={
+                            customEntry?.rowId === row.id ? "" : row.reason_id ?? ""
+                          }
+                          onChange={(e) => handleReasonSelect(row.id, e.target.value)}
                         >
-                          <option value="">Report Issue…</option>
+                          <option value="">
+                            {row.reason_id ? "Clear Issue" : "Report Issue…"}
+                          </option>
                           <optgroup label="Discrepancy">
                             {discrepancyReasons.map((r) => (
                               <option key={r.id} value={r.id}>
                                 {r.label}
                               </option>
                             ))}
+                            <option value={CUSTOM_DISCREPANCY}>+ Type new reason…</option>
                           </optgroup>
                           <optgroup label="Backload">
                             {backloadReasons.map((r) => (
@@ -310,8 +365,42 @@ export default function TruckCard({
                                 {r.label}
                               </option>
                             ))}
+                            <option value={CUSTOM_BACKLOAD}>+ Type new reason…</option>
                           </optgroup>
                         </select>
+                        {customEntry?.rowId === row.id && (
+                          <div className="flex items-center gap-1">
+                            <input
+                              type="text"
+                              className="input"
+                              autoFocus
+                              placeholder={
+                                customEntry.type === "DISCREPANCY"
+                                  ? "New discrepancy reason"
+                                  : "New backload reason"
+                              }
+                              value={customEntry.text}
+                              onChange={(e) =>
+                                setCustomEntry({ ...customEntry, text: e.target.value })
+                              }
+                            />
+                            <button
+                              type="button"
+                              className="btn-primary"
+                              onClick={handleSaveCustomReason}
+                              disabled={savingCustom}
+                            >
+                              {savingCustom ? "Saving…" : "Save"}
+                            </button>
+                            <button
+                              type="button"
+                              className="tab-button tab-button-inactive"
+                              onClick={() => setCustomEntry(null)}
+                            >
+                              Cancel
+                            </button>
+                          </div>
+                        )}
                       </div>
                     </td>
                   </tr>

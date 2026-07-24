@@ -16,6 +16,8 @@ export default function RecentInvoicesTable({
   const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [loading, setLoading] = useState(true);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -60,6 +62,37 @@ export default function RecentInvoicesTable({
     };
   }, [category, refreshKey]);
 
+  async function handleDelete(inv: Invoice) {
+    const confirmed = window.confirm(
+      `Sigurado ka bang gusto mong i-delete ang invoice ${inv.document_no}? Hindi na ito mababawi.`
+    );
+    if (!confirmed) return;
+
+    setDeletingId(inv.id);
+    setDeleteError(null);
+    try {
+      const supabase = createClient();
+      const { error } = await supabase.from("invoices").delete().eq("id", inv.id);
+
+      if (error) {
+        if (error.code === "23503") {
+          setDeleteError(
+            `Hindi pwedeng i-delete ang ${inv.document_no} kasi naka-assign na ito sa isang route plan/truck. Alisin muna ito sa route plan bago i-delete.`
+          );
+        } else {
+          setDeleteError(`Failed to delete ${inv.document_no}: ${error.message}`);
+        }
+        return;
+      }
+
+      setInvoices((prev) => prev.filter((row) => row.id !== inv.id));
+    } catch {
+      setDeleteError("Could not delete invoice. Make sure a Supabase project is connected.");
+    } finally {
+      setDeletingId(null);
+    }
+  }
+
   return (
     <div className="card mt-6">
       <h2 className="text-lg font-semibold text-gray-800">
@@ -73,6 +106,7 @@ export default function RecentInvoicesTable({
       {!loading && !errorMsg && invoices.length === 0 && (
         <p className="mt-3 text-sm text-gray-400">No invoices encoded yet.</p>
       )}
+      {deleteError && <p className="mt-3 text-sm text-red-600">{deleteError}</p>}
 
       {!loading && !errorMsg && invoices.length > 0 && (
         <div className="mt-3 overflow-x-auto">
@@ -87,6 +121,7 @@ export default function RecentInvoicesTable({
                 <th className="py-2 pr-4">Amount</th>
                 <th className="py-2 pr-4">Plan Date</th>
                 <th className="py-2 pr-4">Status</th>
+                <th className="py-2 pr-4"></th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
@@ -107,6 +142,16 @@ export default function RecentInvoicesTable({
                   </td>
                   <td className="py-2 pr-4">{inv.plan_date ?? "—"}</td>
                   <td className="py-2 pr-4">{inv.status}</td>
+                  <td className="py-2 pr-4">
+                    <button
+                      type="button"
+                      className="text-xs font-medium text-red-600 hover:text-red-800 disabled:opacity-50"
+                      onClick={() => handleDelete(inv)}
+                      disabled={deletingId === inv.id}
+                    >
+                      {deletingId === inv.id ? "Deleting…" : "Delete"}
+                    </button>
+                  </td>
                 </tr>
               ))}
             </tbody>

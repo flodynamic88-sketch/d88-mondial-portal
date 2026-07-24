@@ -1,4 +1,5 @@
 import { createClient } from "@/lib/supabase/client";
+import type { ReasonType } from "@/types/database";
 
 /**
  * Finds an existing company by exact (case-insensitive) name match, or
@@ -63,5 +64,44 @@ export async function findOrCreateBranchAddress(
       .insert({ address: trimmed, company_id: companyId });
   } catch {
     // Non-fatal: autocomplete reference data only.
+  }
+}
+
+/**
+ * Finds an existing delivery reason by type + exact (case-insensitive) label
+ * match, or creates a new one so it becomes available in the dropdown going
+ * forward. Returns the reason id, or null if the label is blank or the
+ * operation fails.
+ */
+export async function findOrCreateDeliveryReason(
+  type: ReasonType,
+  label: string
+): Promise<string | null> {
+  const trimmed = label.trim();
+  if (!trimmed) return null;
+
+  const supabase = createClient();
+
+  try {
+    const { data: existing } = await supabase
+      .from("delivery_reasons")
+      .select("id")
+      .eq("type", type)
+      .ilike("label", trimmed)
+      .limit(1)
+      .maybeSingle();
+
+    if (existing?.id) return existing.id;
+
+    const { data: created, error: insertError } = await supabase
+      .from("delivery_reasons")
+      .insert({ type, label: trimmed })
+      .select("id")
+      .single();
+
+    if (insertError) return null;
+    return created?.id ?? null;
+  } catch {
+    return null;
   }
 }

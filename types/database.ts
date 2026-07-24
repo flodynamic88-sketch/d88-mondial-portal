@@ -59,6 +59,10 @@ export interface RoutePlan {
   label: string | null;
   created_by: string | null;
   created_at: string | null;
+  prepared_by: string | null;
+  checked_by: string | null;
+  approved_by: string | null;
+  approved_at: string | null;
 }
 
 export interface RoutePlanTruck {
