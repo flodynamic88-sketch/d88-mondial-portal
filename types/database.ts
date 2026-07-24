@@ -5,6 +5,21 @@ export type InvoiceCategory = "CONSIGNMENT" | "OUTRIGHT" | "MERCURY_DRUG";
 export type ZoneType = "NCR" | "FAR_NORTH_SOUTH" | "VIZMIN";
 export type InvoiceStatus = "PENDING" | "DISPATCHED" | "DELIVERED" | "CANCELLED";
 export type ReasonType = "DISCREPANCY" | "BACKLOAD";
+export type UserRole =
+  | "ADMIN"
+  | "LOGISTICS_OFFICER"
+  | "JMD_PLANNER"
+  | "MONDIAL_TEAM"
+  | "LOGISTICS_ASSOCIATE"
+  | "GENERAL_MANAGER";
+
+export interface UserProfile {
+  id: string;
+  username: string;
+  full_name: string | null;
+  role: UserRole;
+  created_at: string | null;
+}
 
 export interface Company {
   id: string;
@@ -113,6 +128,8 @@ export interface VTruckCts {
   truck_rate: number | null;
   total_invoice_amount: number | null;
   cts_pct: number | null;
+  /** true = passing (<=5%), false = over threshold (flag red), null = no data yet */
+  cts_pass: boolean | null;
 }
 
 export interface VBilling {
@@ -194,12 +211,19 @@ export interface Database {
         Update: Partial<MondialConfirmation>;
         Relationships: [];
       };
+      user_profiles: {
+        Row: UserProfile;
+        Insert: Partial<UserProfile> & { id: string; username: string; role: UserRole };
+        Update: Partial<UserProfile>;
+        Relationships: [];
+      };
     };
     Views: {
       v_fulfillment_summary: { Row: VFulfillmentSummary; Relationships: [] };
       v_truck_cts: { Row: VTruckCts; Relationships: [] };
       v_billing: { Row: VBilling; Relationships: [] };
       v_final_billing: { Row: VFinalBilling; Relationships: [] };
+      v_route_plan_trucks: { Row: RoutePlanTruck; Relationships: [] };
     };
     Functions: Record<string, never>;
   };

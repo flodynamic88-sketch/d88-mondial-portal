@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
+import { exportToExcel } from "@/lib/exportExcel";
 import type { Invoice, InvoiceCategory } from "@/types/database";
 
 interface RecentInvoicesTableProps {
@@ -93,11 +94,40 @@ export default function RecentInvoicesTable({
     }
   }
 
+  function handleExport() {
+    exportToExcel(`recent-invoices-${category.toLowerCase()}`, [
+      {
+        name: category.replace("_", " "),
+        rows: invoices.map((inv) => ({
+          "Document No.": inv.document_no,
+          Zone: inv.zone,
+          DC: inv.is_dc ? "Yes" : "No",
+          Company: inv.company_name_raw ?? "",
+          "Branch/Store": inv.branch_address ?? "",
+          Amount: inv.amount,
+          "Plan Date": inv.plan_date ?? "",
+          Status: inv.status,
+        })),
+      },
+    ]);
+  }
+
   return (
     <div className="card mt-6">
-      <h2 className="text-lg font-semibold text-gray-800">
-        Recently Encoded ({category.replace("_", " ")})
-      </h2>
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <h2 className="text-lg font-semibold text-gray-800">
+          Recently Encoded ({category.replace("_", " ")})
+        </h2>
+        {invoices.length > 0 && (
+          <button
+            type="button"
+            className="tab-button tab-button-inactive"
+            onClick={handleExport}
+          >
+            Export to Excel
+          </button>
+        )}
+      </div>
 
       {loading && <p className="mt-3 text-sm text-gray-400">Loading…</p>}
       {!loading && errorMsg && (

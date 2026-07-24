@@ -2,6 +2,8 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
+import RequireRole from "@/components/RequireRole";
+import { exportToExcel } from "@/lib/exportExcel";
 import type { VBilling, MondialConfirmation } from "@/types/database";
 
 interface MergedRow extends VBilling {
@@ -98,12 +100,33 @@ export default function MondialConfirmationPage() {
     }
   }
 
+  function handleExport() {
+    exportToExcel("mondial-confirmation", [
+      {
+        name: "Delivered Invoices",
+        rows: rows.map((row) => ({
+          "Document No.": row.document_no,
+          Category: row.category.replace("_", " "),
+          Amount: row.amount,
+          "Service Fee": row.service_fee ?? 0,
+          Delivered: row.delivered_at ? new Date(row.delivered_at).toLocaleDateString() : "",
+          Status: row.confirmed ? "Confirmed" : "Unconfirmed",
+        })),
+      },
+    ]);
+  }
+
   return (
+    <RequireRole roles={["ADMIN", "MONDIAL_TEAM"]}>
     <div>
-      <h1 className="text-2xl font-semibold text-gray-800">Mondial Confirmation</h1>
-      <p className="mt-1 text-sm text-gray-500">
-        Let Mondial&apos;s invoice department confirm delivered invoices before final billing.
-      </p>
+      <div className="page-header border-b-0 pb-0">
+        <div>
+          <h1 className="page-title">Mondial Confirmation</h1>
+          <p className="page-subtitle">
+            Let Mondial&apos;s invoice department confirm delivered invoices before final billing.
+          </p>
+        </div>
+      </div>
 
       <div className="card mt-6">
         <label className="label" htmlFor="confirmedBy">
@@ -125,7 +148,18 @@ export default function MondialConfirmationPage() {
       {actionError && <p className="mt-4 text-sm text-red-600">{actionError}</p>}
 
       <div className="card mt-6">
-        <h2 className="text-lg font-semibold text-gray-800">Delivered Invoices</h2>
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <h2 className="text-lg font-semibold text-gray-800">Delivered Invoices</h2>
+          {rows.length > 0 && (
+            <button
+              type="button"
+              className="tab-button tab-button-inactive"
+              onClick={handleExport}
+            >
+              Export to Excel
+            </button>
+          )}
+        </div>
         {loading && <p className="mt-3 text-sm text-gray-400">Loading…</p>}
         {!loading && errorMsg && <p className="mt-3 text-sm text-gray-400">{errorMsg}</p>}
         {!loading && !errorMsg && rows.length === 0 && (
@@ -184,5 +218,6 @@ export default function MondialConfirmationPage() {
         )}
       </div>
     </div>
+    </RequireRole>
   );
 }

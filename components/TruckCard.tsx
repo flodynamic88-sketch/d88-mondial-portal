@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import DocumentLookup from "@/components/DocumentLookup";
 import AddTruckForm from "@/components/AddTruckForm";
+import { useAuth } from "@/components/AuthProvider";
 import { findOrCreateDeliveryReason } from "@/lib/invoiceHelpers";
 import type {
   RoutePlanTruck,
@@ -38,6 +39,18 @@ export default function TruckCard({
   onRefreshTrucks,
   isConvoy = false,
 }: TruckCardProps) {
+  const profile = useAuth();
+  const role = profile?.role;
+  // Matches the server-side RLS/trigger rules in 0003_user_management.sql —
+  // the UI hides actions the backend would reject, but the DB is still the
+  // real enforcement point.
+  const canSeeTruckRate = role === "ADMIN" || role === "LOGISTICS_OFFICER";
+  const canDispatch = role === "ADMIN" || role === "JMD_PLANNER" || role === "LOGISTICS_OFFICER";
+  const canUpdateDelivery =
+    role === "ADMIN" || role === "LOGISTICS_OFFICER" || role === "LOGISTICS_ASSOCIATE";
+  const canAddCustomReason = role === "ADMIN" || role === "LOGISTICS_ASSOCIATE";
+  const canAddConvoy = role === "ADMIN" || role === "JMD_PLANNER" || role === "LOGISTICS_OFFICER";
+
   const [rows, setRows] = useState<AssignedInvoiceRow[]>([]);
   const [loadingRows, setLoadingRows] = useState(true);
   const [rowsError, setRowsError] = useState<string | null>(null);
@@ -229,23 +242,40 @@ export default function TruckCard({
           <p className="text-xs text-gray-500">{truck.carrier ?? "No carrier specified"}</p>
           <p className="text-xs text-gray-500">
             Truck Rate:{" "}
-            {(truck.truck_rate ?? 0).toLocaleString(undefined, {
-              minimumFractionDigits: 2,
-              maximumFractionDigits: 2,
-            })}
+            {canSeeTruckRate
+              ? (truck.truck_rate ?? 0).toLocaleString(undefined, {
+                  minimumFractionDigits: 2,
+                  maximumFractionDigits: 2,
+                })
+              : "—"}
           </p>
         </div>
         <div className="flex items-center gap-3">
           {cts && (
-            <span className="rounded-full bg-brand-50 px-3 py-1 text-xs font-medium text-brand-700">
-              CTS: {cts.cts_pct !== null && cts.cts_pct !== undefined ? `${cts.cts_pct}%` : "—"}
+            <span
+              className={`rounded-full px-3 py-1 text-xs font-medium ${
+                cts.cts_pass === null || cts.cts_pass === undefined
+                  ? "bg-gray-100 text-gray-500"
+                  : cts.cts_pass
+                    ? "bg-green-50 text-green-700"
+                    : "bg-red-50 text-red-700"
+              }`}
+            >
+              CTS: {canSeeTruckRate && cts.cts_pct !== null && cts.cts_pct !== undefined
+                ? `${cts.cts_pct}% · `
+                : ""}
+              {cts.cts_pass === null || cts.cts_pass === undefined
+                ? "No data"
+                : cts.cts_pass
+                  ? "Pass"
+                  : "Not Pass"}
             </span>
           )}
           {truck.dispatched_at ? (
             <span className="text-xs font-medium text-green-600">
               Dispatched on {new Date(truck.dispatched_at).toLocaleString()}
             </span>
-          ) : (
+          ) : canDispatch ? (
             <button
               type="button"
               className="btn-primary"
@@ -254,16 +284,20 @@ export default function TruckCard({
             >
               {dispatching ? "Dispatching…" : "Dispatch"}
             </button>
+          ) : (
+            <span className="text-xs text-gray-400">Not yet dispatched</span>
           )}
         </div>
       </div>
 
-      <div className="mt-4">
-        <DocumentLookup
-          routePlanTruckId={truck.id}
-          onAssigned={() => setRefreshKey((k) => k + 1)}
-        />
-      </div>
+      {(role === "ADMIN" || role === "JMD_PLANNER") && (
+        <div className="mt-4">
+          <DocumentLookup
+            routePlanTruckId={truck.id}
+            onAssigned={() => setRefreshKey((k) => k + 1)}
+          />
+        </div>
+      )}
 
       {actionError && <p className="mt-2 text-sm text-red-600">{actionError}</p>}
 
@@ -304,14 +338,22 @@ export default function TruckCard({
                       })}
                     </td>
                     <td className="py-2 pr-4">
-                      <input
-                        type="number"
-                        step="0.01"
-                        min="0"
-                        className="input w-20"
-                        defaultValue={row.service_rate_pct ?? ""}
-                        onBlur={(e) => handleRateChange(row.id, e.target.value)}
-                      />
+                      {canSeeTruckRate ? (
+                        <input
+                          type="number"
+                          step="0.01"
+                          min="0"
+                          className="input w-20"
+                          defaultValue={row.service_rate_pct ?? ""}
+                          onBlur={(e) => handleRateChange(row.id, e.target.value)}
+                        />
+                      ) : (
+                        <span className="text-gray-400">
+                          {row.service_rate_pct !== null && row.service_rate_pct !== undefined
+                            ? `${row.service_rate_pct}%`
+                            : "—"}
+                        </span>
+                      )}
                     </td>
                     <td className="py-2 pr-4">
                       <div className="flex flex-col gap-1">
@@ -333,6 +375,8 @@ export default function TruckCard({
                     </td>
                     <td className="py-2 pr-4">
                       <div className="flex flex-col gap-1 sm:flex-row sm:items-center">
+                        {canUpdateDelivery ? (
+                          <>
                         <button
                           type="button"
                           className="btn-primary"
@@ -357,7 +401,9 @@ export default function TruckCard({
                                 {r.label}
                               </option>
                             ))}
-                            <option value={CUSTOM_DISCREPANCY}>+ Type new reason…</option>
+                            {canAddCustomReason && (
+                              <option value={CUSTOM_DISCREPANCY}>+ Type new reason…</option>
+                            )}
                           </optgroup>
                           <optgroup label="Backload">
                             {backloadReasons.map((r) => (
@@ -365,10 +411,16 @@ export default function TruckCard({
                                 {r.label}
                               </option>
                             ))}
-                            <option value={CUSTOM_BACKLOAD}>+ Type new reason…</option>
+                            {canAddCustomReason && (
+                              <option value={CUSTOM_BACKLOAD}>+ Type new reason…</option>
+                            )}
                           </optgroup>
                         </select>
-                        {customEntry?.rowId === row.id && (
+                          </>
+                        ) : (
+                          <span className="text-xs text-gray-400">View only</span>
+                        )}
+                        {canUpdateDelivery && customEntry?.rowId === row.id && (
                           <div className="flex items-center gap-1">
                             <input
                               type="text"
@@ -411,7 +463,7 @@ export default function TruckCard({
         )}
       </div>
 
-      {!isConvoy && (
+      {!isConvoy && canAddConvoy && (
         <div className="mt-4 border-t border-gray-100 pt-4">
           {showAddConvoy ? (
             <AddTruckForm

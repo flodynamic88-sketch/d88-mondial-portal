@@ -2,6 +2,8 @@
 
 import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
+import RequireRole from "@/components/RequireRole";
+import { exportToExcel } from "@/lib/exportExcel";
 import type {
   VFulfillmentSummary,
   VTruckCts,
@@ -143,12 +145,56 @@ export default function DeliveriesPage() {
   const discrepancies = issues.filter((row) => row.reason?.type === "DISCREPANCY");
   const backloads = issues.filter((row) => row.reason?.type === "BACKLOAD");
 
+  function issueRows(rows: IssueRow[]) {
+    return rows.map((row) => ({
+      "Document No.": row.invoice?.document_no ?? "",
+      Company: row.invoice?.company_name_raw ?? "",
+      "Branch/Store": row.invoice?.branch_address ?? "",
+      Amount: row.invoice?.amount ?? 0,
+      Reason: row.reason?.label ?? "",
+      "Plate No.": row.truck?.plate_number ?? "",
+      "Route Date": row.truck?.route_plan?.route_date ?? "",
+    }));
+  }
+
+  function handleExport() {
+    exportToExcel("deliveries-fulfillment", [
+      { name: "Discrepancies", rows: issueRows(discrepancies) },
+      { name: "Backloads", rows: issueRows(backloads) },
+      {
+        name: "CTS by Truck",
+        rows: ctsRows.map((row) => ({
+          "Route Date": row.route_date ?? "",
+          "Plate No.": row.plate_number ?? "",
+          "Truck Rate": row.truck_rate ?? "",
+          "Total Invoice Amount": row.total_invoice_amount ?? "",
+          "CTS %": row.cts_pct ?? "",
+          Status: row.cts_pass === null || row.cts_pass === undefined
+            ? "No data"
+            : row.cts_pass
+              ? "Pass"
+              : "Not Pass",
+        })),
+      },
+    ]);
+  }
+
   return (
+    <RequireRole
+      roles={["ADMIN", "LOGISTICS_OFFICER", "JMD_PLANNER", "LOGISTICS_ASSOCIATE", "GENERAL_MANAGER"]}
+    >
     <div>
-      <h1 className="text-2xl font-semibold text-gray-800">Deliveries Fulfillment</h1>
-      <p className="mt-1 text-sm text-gray-500">
-        Track delivered, discrepancy, and backload counts, and cost efficiency per truck.
-      </p>
+      <div className="page-header">
+        <div>
+          <h1 className="page-title">Deliveries Fulfillment</h1>
+          <p className="page-subtitle">
+            Track delivered, discrepancy, and backload counts, and cost efficiency per truck.
+          </p>
+        </div>
+        <button type="button" className="btn-secondary" onClick={handleExport}>
+          Export to Excel
+        </button>
+      </div>
 
       {summaryError && <p className="mt-4 text-sm text-gray-400">{summaryError}</p>}
 
@@ -273,6 +319,7 @@ export default function DeliveriesPage() {
                   <th className="py-2 pr-4">Truck Rate</th>
                   <th className="py-2 pr-4">Total Invoice Amount</th>
                   <th className="py-2 pr-4">CTS %</th>
+                  <th className="py-2 pr-4">Status</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
@@ -297,6 +344,23 @@ export default function DeliveriesPage() {
                     <td className="py-2 pr-4">
                       {row.cts_pct !== null && row.cts_pct !== undefined ? `${row.cts_pct}%` : "—"}
                     </td>
+                    <td className="py-2 pr-4">
+                      <span
+                        className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${
+                          row.cts_pass === null || row.cts_pass === undefined
+                            ? "bg-gray-100 text-gray-500"
+                            : row.cts_pass
+                              ? "bg-green-100 text-green-700"
+                              : "bg-red-100 text-red-700"
+                        }`}
+                      >
+                        {row.cts_pass === null || row.cts_pass === undefined
+                          ? "No data"
+                          : row.cts_pass
+                            ? "Pass"
+                            : "Not Pass"}
+                      </span>
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -305,5 +369,6 @@ export default function DeliveriesPage() {
         )}
       </div>
     </div>
+    </RequireRole>
   );
 }

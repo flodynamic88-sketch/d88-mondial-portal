@@ -2,6 +2,8 @@
 
 import { useState } from "react";
 import { createClient } from "@/lib/supabase/client";
+import RequireRole from "@/components/RequireRole";
+import { exportToExcel } from "@/lib/exportExcel";
 import type { InvoiceCategory, VFinalBilling } from "@/types/database";
 
 const CATEGORY_ORDER: { value: InvoiceCategory; label: string }[] = [
@@ -69,12 +71,54 @@ export default function FinalBillingPage() {
   const grandTotalAmount = rows.reduce((sum, r) => sum + (r.amount ?? 0), 0);
   const grandTotalFee = rows.reduce((sum, r) => sum + (r.service_fee ?? 0), 0);
 
+  function handleExport() {
+    const sheets: { name: string; rows: Record<string, unknown>[] }[] = CATEGORY_ORDER.map(
+      (cat) => {
+        const catRows = rows.filter((r) => r.category === cat.value);
+        return {
+          name: cat.label,
+          rows: catRows.map((row) => ({
+            "Document No.": row.document_no,
+            Zone: row.zone,
+            DC: row.is_dc ? "Yes" : "No",
+            Amount: row.amount,
+            "Rate %": row.service_rate_pct ?? "",
+            "Service Fee": row.service_fee ?? 0,
+            Delivered: row.delivered_at ? new Date(row.delivered_at).toLocaleDateString() : "",
+          })),
+        };
+      }
+    ).filter((sheet) => sheet.rows.length > 0);
+
+    sheets.push({
+      name: "Summary",
+      rows: [
+        {
+          "Document No.": "",
+          Zone: "",
+          DC: "",
+          Amount: grandTotalAmount,
+          "Rate %": "",
+          "Service Fee": grandTotalFee,
+          Delivered: `${startDate} to ${endDate}`,
+        },
+      ],
+    });
+
+    exportToExcel(`final-billing-${startDate}_to_${endDate}`, sheets);
+  }
+
   return (
+    <RequireRole roles={["ADMIN", "LOGISTICS_OFFICER", "GENERAL_MANAGER"]}>
     <div>
-      <h1 className="text-2xl font-semibold text-gray-800">Final Billing</h1>
-      <p className="mt-1 text-sm text-gray-500">
-        Generate the Mondial-confirmed billing statement for a delivery period.
-      </p>
+      <div className="page-header border-b-0 pb-0">
+        <div>
+          <h1 className="page-title">Final Billing</h1>
+          <p className="page-subtitle">
+            Generate the Mondial-confirmed billing statement for a delivery period.
+          </p>
+        </div>
+      </div>
 
       <form onSubmit={handleGenerate} className="card mt-6 flex flex-wrap items-end gap-4">
         <div>
@@ -106,7 +150,16 @@ export default function FinalBillingPage() {
 
       {hasGenerated && !generating && !errorMsg && (
         <div className="card mt-6">
-          <div className="border-b border-gray-200 pb-4 text-center">
+          <div className="relative border-b border-gray-200 pb-4 text-center">
+            {rows.length > 0 && (
+              <button
+                type="button"
+                className="tab-button tab-button-inactive absolute right-0 top-0"
+                onClick={handleExport}
+              >
+                Export to Excel
+              </button>
+            )}
             <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">
               Billing Statement
             </p>
@@ -201,5 +254,6 @@ export default function FinalBillingPage() {
         </div>
       )}
     </div>
+    </RequireRole>
   );
 }

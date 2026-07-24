@@ -2,6 +2,8 @@
 
 import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
+import RequireRole from "@/components/RequireRole";
+import { exportToExcel } from "@/lib/exportExcel";
 import type { InvoiceCategory, VBilling } from "@/types/database";
 
 const TABS: { value: InvoiceCategory; label: string }[] = [
@@ -63,11 +65,39 @@ function BillingTable({ category }: { category: InvoiceCategory }) {
   const totalAmount = rows.reduce((sum, r) => sum + (r.amount ?? 0), 0);
   const totalFee = rows.reduce((sum, r) => sum + (r.service_fee ?? 0), 0);
 
+  function handleExport() {
+    exportToExcel(`billing-${category.toLowerCase()}`, [
+      {
+        name: category.replace("_", " "),
+        rows: rows.map((row) => ({
+          "Document No.": row.document_no,
+          Zone: row.zone,
+          DC: row.is_dc ? "Yes" : "No",
+          Amount: row.amount,
+          "Rate %": row.service_rate_pct ?? "",
+          "Service Fee": row.service_fee ?? 0,
+          Delivered: row.delivered_at ? new Date(row.delivered_at).toLocaleDateString() : "",
+        })),
+      },
+    ]);
+  }
+
   return (
     <div className="card mt-6">
-      <h2 className="text-lg font-semibold text-gray-800">
-        Delivered Invoices — {category.replace("_", " ")}
-      </h2>
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <h2 className="text-lg font-semibold text-gray-800">
+          Delivered Invoices — {category.replace("_", " ")}
+        </h2>
+        {rows.length > 0 && (
+          <button
+            type="button"
+            className="tab-button tab-button-inactive"
+            onClick={handleExport}
+          >
+            Export to Excel
+          </button>
+        )}
+      </div>
 
       {loading && <p className="mt-3 text-sm text-gray-400">Loading…</p>}
       {!loading && errorMsg && <p className="mt-3 text-sm text-gray-400">{errorMsg}</p>}
@@ -126,11 +156,16 @@ export default function BillingPage() {
   const [activeTab, setActiveTab] = useState<InvoiceCategory>("CONSIGNMENT");
 
   return (
+    <RequireRole roles={["ADMIN", "LOGISTICS_OFFICER", "GENERAL_MANAGER"]}>
     <div>
-      <h1 className="text-2xl font-semibold text-gray-800">Billing</h1>
-      <p className="mt-1 text-sm text-gray-500">
-        Computed service fees for delivered invoices, ordered by delivery date.
-      </p>
+      <div className="page-header border-b-0 pb-0">
+        <div>
+          <h1 className="page-title">Billing</h1>
+          <p className="page-subtitle">
+            Computed service fees for delivered invoices, ordered by delivery date.
+          </p>
+        </div>
+      </div>
 
       <div className="mt-6 flex gap-2 border-b border-gray-200 pb-2">
         {TABS.map((tab) => (
@@ -149,5 +184,6 @@ export default function BillingPage() {
 
       <BillingTable key={activeTab} category={activeTab} />
     </div>
+    </RequireRole>
   );
 }

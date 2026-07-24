@@ -4,6 +4,7 @@ import { useState } from "react";
 import InvoiceForm from "@/components/InvoiceForm";
 import BulkEncodeGrid from "@/components/BulkEncodeGrid";
 import RecentInvoicesTable from "@/components/RecentInvoicesTable";
+import RequireRole from "@/components/RequireRole";
 import type { InvoiceCategory } from "@/types/database";
 
 const TABS: { value: InvoiceCategory; label: string }[] = [
@@ -20,12 +21,17 @@ export default function EncodeInvoicesPage() {
   const [refreshKey, setRefreshKey] = useState(0);
 
   return (
+    <RequireRole roles={["ADMIN", "JMD_PLANNER"]}>
     <div>
-      <h1 className="text-2xl font-semibold text-gray-800">Encode Invoices</h1>
-      <p className="mt-1 text-sm text-gray-500">
-        Add new invoices by category. Company and branch/store fields
-        autocomplete against previously encoded records.
-      </p>
+      <div className="page-header border-b-0 pb-0">
+        <div>
+          <h1 className="page-title">Encode Invoices</h1>
+          <p className="page-subtitle">
+            Add new invoices by category. Company and branch/store fields
+            autocomplete against previously encoded records.
+          </p>
+        </div>
+      </div>
 
       <div className="mt-6 flex flex-wrap items-center justify-between gap-3 border-b border-gray-200 pb-2">
         <div className="flex gap-2">
@@ -77,5 +83,6 @@ export default function EncodeInvoicesPage() {
         )}
       </div>
     </div>
+    </RequireRole>
   );
 }

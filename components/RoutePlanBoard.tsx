@@ -92,8 +92,11 @@ export default function RoutePlanBoard() {
     setTrucksError(null);
     try {
       const supabase = createClient();
+      // Read through the masked view (not the raw table) so truck_rate comes
+      // back null for roles other than Admin/Logistics Officer, matching the
+      // server-side RLS grants (raw table SELECT no longer includes truck_rate).
       const { data, error } = await supabase
-        .from("route_plan_trucks")
+        .from("v_route_plan_trucks")
         .select("*")
         .eq("route_plan_id", selectedId)
         .order("created_at", { ascending: true });
@@ -234,10 +237,14 @@ export default function RoutePlanBoard() {
 
   return (
     <div>
-      <h1 className="text-2xl font-semibold text-gray-800">Route Plan</h1>
-      <p className="mt-1 text-sm text-gray-500">
-        Build daily route plans, assign trucks and convoys, and load invoices onto each run.
-      </p>
+      <div className="page-header border-b-0 pb-0">
+        <div>
+          <h1 className="page-title">Route Plan</h1>
+          <p className="page-subtitle">
+            Build daily route plans, assign trucks and convoys, and load invoices onto each run.
+          </p>
+        </div>
+      </div>
 
       <div className="mt-6 grid grid-cols-1 gap-6 lg:grid-cols-4">
         <div className="card lg:col-span-1">

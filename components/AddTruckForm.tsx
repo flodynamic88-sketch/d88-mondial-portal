@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { createClient } from "@/lib/supabase/client";
+import { useAuth } from "@/components/AuthProvider";
 
 interface AddTruckFormProps {
   routePlanId: string;
@@ -17,6 +18,9 @@ export default function AddTruckForm({
   onCreated,
   onCancel,
 }: AddTruckFormProps) {
+  const profile = useAuth();
+  const canSetTruckRate = profile?.role === "ADMIN" || profile?.role === "LOGISTICS_OFFICER";
+
   const [plateNumber, setPlateNumber] = useState("");
   const [carrier, setCarrier] = useState("");
   const [truckRate, setTruckRate] = useState("");
@@ -84,17 +88,19 @@ export default function AddTruckForm({
         <label className="label">Carrier</label>
         <input className="input" value={carrier} onChange={(e) => setCarrier(e.target.value)} />
       </div>
-      <div>
-        <label className="label">Truck Rate</label>
-        <input
-          type="number"
-          step="0.01"
-          min="0"
-          className="input"
-          value={truckRate}
-          onChange={(e) => setTruckRate(e.target.value)}
-        />
-      </div>
+      {canSetTruckRate && (
+        <div>
+          <label className="label">Truck Rate</label>
+          <input
+            type="number"
+            step="0.01"
+            min="0"
+            className="input"
+            value={truckRate}
+            onChange={(e) => setTruckRate(e.target.value)}
+          />
+        </div>
+      )}
       <div className="flex gap-2">
         <button type="submit" className="btn-primary" disabled={submitting}>
           {submitting ? "Adding…" : mainTruckId ? "Add Convoy Truck" : "Add Truck"}

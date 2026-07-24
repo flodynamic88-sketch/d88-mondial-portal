@@ -51,14 +51,16 @@ export default async function DashboardPage() {
 
   return (
     <div>
-      <h1 className="text-2xl font-semibold text-gray-800">Dashboard</h1>
-      <p className="mt-1 text-sm text-gray-500">
-        Overview of Mondial delivery operations.
-      </p>
+      <div className="page-header">
+        <div>
+          <h1 className="page-title">Dashboard</h1>
+          <p className="page-subtitle">Overview of Mondial delivery operations.</p>
+        </div>
+      </div>
 
       <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
         {kpis.map((kpi) => (
-          <div key={kpi.label} className="card">
+          <div key={kpi.label} className="card hover:shadow-card-hover">
             <p className="text-sm font-medium text-gray-500">{kpi.label}</p>
             <p className="mt-2 text-3xl font-bold text-brand-700">{kpi.value}</p>
             {kpi.hint && <p className="mt-1 text-xs text-gray-400">{kpi.hint}</p>}
