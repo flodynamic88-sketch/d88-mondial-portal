@@ -1,0 +1,78 @@
+import { createClient } from "@/lib/supabase/server";
+
+interface Kpi {
+  label: string;
+  value: string;
+  hint?: string;
+}
+
+async function getKpis(): Promise<Kpi[]> {
+  // Best-effort live counts. Falls back to placeholders if Supabase isn't
+  // configured yet (no project created) or the query fails for any reason.
+  try {
+    const supabase = createClient();
+
+    const [{ count: total }, { count: pending }, { count: delivered }] =
+      await Promise.all([
+        supabase.from("invoices").select("*", { count: "exact", head: true }),
+        supabase
+          .from("invoices")
+          .select("*", { count: "exact", head: true })
+          .eq("status", "PENDING"),
+        supabase
+          .from("invoices")
+          .select("*", { count: "exact", head: true })
+          .eq("status", "DELIVERED"),
+      ]);
+
+    const totalCount = total ?? 0;
+    const deliveredCount = delivered ?? 0;
+    const fulfillmentRate =
+      totalCount > 0 ? ((deliveredCount / totalCount) * 100).toFixed(1) : "0.0";
+
+    return [
+      { label: "Total Invoices", value: String(totalCount) },
+      { label: "Pending", value: String(pending ?? 0) },
+      { label: "Delivered", value: String(deliveredCount) },
+      { label: "Fulfillment Rate", value: `${fulfillmentRate}%` },
+    ];
+  } catch {
+    return [
+      { label: "Total Invoices", value: "—", hint: "Connect Supabase to see live data" },
+      { label: "Pending", value: "—", hint: "Connect Supabase to see live data" },
+      { label: "Delivered", value: "—", hint: "Connect Supabase to see live data" },
+      { label: "Fulfillment Rate", value: "—", hint: "Connect Supabase to see live data" },
+    ];
+  }
+}
+
+export default async function DashboardPage() {
+  const kpis = await getKpis();
+
+  return (
+    <div>
+      <h1 className="text-2xl font-semibold text-gray-800">Dashboard</h1>
+      <p className="mt-1 text-sm text-gray-500">
+        Overview of Mondial delivery operations.
+      </p>
+
+      <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        {kpis.map((kpi) => (
+          <div key={kpi.label} className="card">
+            <p className="text-sm font-medium text-gray-500">{kpi.label}</p>
+            <p className="mt-2 text-3xl font-bold text-brand-700">{kpi.value}</p>
+            {kpi.hint && <p className="mt-1 text-xs text-gray-400">{kpi.hint}</p>}
+          </div>
+        ))}
+      </div>
+
+      <div className="card mt-6">
+        <h2 className="text-lg font-semibold text-gray-800">Getting started</h2>
+        <ul className="mt-2 list-inside list-disc space-y-1 text-sm text-gray-600">
+          <li>Use &quot;Encode Invoices&quot; to add Consignment, Outright, and Mercury Drug invoices.</li>
+          <li>Route Plan, Deliveries Fulfillment, Billing, Mondial Confirmation, and Final Billing are placeholders for now.</li>
+        </ul>
+      </div>
+    </div>
+  );
+}
