@@ -4,12 +4,18 @@ import { useCallback, useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import RequireRole from "@/components/RequireRole";
 import { exportToExcel } from "@/lib/exportExcel";
-import type { VBilling, MondialConfirmation } from "@/types/database";
+import type { VBilling, MondialConfirmation, InvoiceCategory } from "@/types/database";
 
 interface MergedRow extends VBilling {
   confirmed: boolean;
   confirmed_at: string | null;
 }
+
+const TABS: { value: InvoiceCategory; label: string }[] = [
+  { value: "CONSIGNMENT", label: "Consignment" },
+  { value: "OUTRIGHT", label: "Outright" },
+  { value: "MERCURY_DRUG", label: "FLO-Mercury" },
+];
 
 function formatMoney(value: number) {
   return value.toLocaleString(undefined, {
@@ -19,6 +25,7 @@ function formatMoney(value: number) {
 }
 
 export default function MondialConfirmationPage() {
+  const [activeTab, setActiveTab] = useState<InvoiceCategory>("CONSIGNMENT");
   const [confirmedBy, setConfirmedBy] = useState("");
   const [rows, setRows] = useState<MergedRow[]>([]);
   const [loading, setLoading] = useState(true);
@@ -100,13 +107,14 @@ export default function MondialConfirmationPage() {
     }
   }
 
+  const visibleRows = rows.filter((row) => row.category === activeTab);
+
   function handleExport() {
-    exportToExcel("mondial-confirmation", [
+    exportToExcel(`mondial-confirmation-${activeTab.toLowerCase()}`, [
       {
-        name: "Delivered Invoices",
-        rows: rows.map((row) => ({
+        name: activeTab.replace("_", " "),
+        rows: visibleRows.map((row) => ({
           "Document No.": row.document_no,
-          Category: row.category.replace("_", " "),
           Amount: row.amount,
           "Service Fee": row.service_fee ?? 0,
           Delivered: row.delivered_at ? new Date(row.delivered_at).toLocaleDateString() : "",
@@ -150,7 +158,7 @@ export default function MondialConfirmationPage() {
       <div className="card mt-6">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <h2 className="text-lg font-semibold text-gray-800">Delivered Invoices</h2>
-          {rows.length > 0 && (
+          {visibleRows.length > 0 && (
             <button
               type="button"
               className="tab-button tab-button-inactive"
@@ -160,18 +168,33 @@ export default function MondialConfirmationPage() {
             </button>
           )}
         </div>
+
+        <div className="mt-3 flex gap-2 border-b border-gray-200 pb-2">
+          {TABS.map((tab) => (
+            <button
+              key={tab.value}
+              type="button"
+              onClick={() => setActiveTab(tab.value)}
+              className={`tab-button ${
+                activeTab === tab.value ? "tab-button-active" : "tab-button-inactive"
+              }`}
+            >
+              {tab.label}
+            </button>
+          ))}
+        </div>
+
         {loading && <p className="mt-3 text-sm text-gray-400">Loading…</p>}
         {!loading && errorMsg && <p className="mt-3 text-sm text-gray-400">{errorMsg}</p>}
-        {!loading && !errorMsg && rows.length === 0 && (
+        {!loading && !errorMsg && visibleRows.length === 0 && (
           <p className="mt-3 text-sm text-gray-400">No delivered invoices yet.</p>
         )}
-        {!loading && !errorMsg && rows.length > 0 && (
+        {!loading && !errorMsg && visibleRows.length > 0 && (
           <div className="mt-3 overflow-x-auto">
             <table className="min-w-full divide-y divide-gray-200 text-sm">
               <thead>
                 <tr className="text-left text-xs font-semibold uppercase text-gray-500">
                   <th className="py-2 pr-4">Document No.</th>
-                  <th className="py-2 pr-4">Category</th>
                   <th className="py-2 pr-4">Amount</th>
                   <th className="py-2 pr-4">Service Fee</th>
                   <th className="py-2 pr-4">Delivered</th>
@@ -180,10 +203,9 @@ export default function MondialConfirmationPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
-                {rows.map((row) => (
+                {visibleRows.map((row) => (
                   <tr key={row.invoice_id} className={row.confirmed ? "bg-green-50" : undefined}>
                     <td className="py-2 pr-4 font-medium text-gray-800">{row.document_no}</td>
-                    <td className="py-2 pr-4">{row.category.replace("_", " ")}</td>
                     <td className="py-2 pr-4">{formatMoney(row.amount)}</td>
                     <td className="py-2 pr-4">{formatMoney(row.service_fee ?? 0)}</td>
                     <td className="py-2 pr-4">
