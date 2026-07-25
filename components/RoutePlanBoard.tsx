@@ -23,6 +23,13 @@ export default function RoutePlanBoard() {
   const [savingSignoff, setSavingSignoff] = useState(false);
   const [signoffError, setSignoffError] = useState<string | null>(null);
 
+  const [editingHeader, setEditingHeader] = useState(false);
+  const [editRouteDate, setEditRouteDate] = useState("");
+  const [editLabel, setEditLabel] = useState("");
+  const [editPreparedBy, setEditPreparedBy] = useState("");
+  const [savingHeader, setSavingHeader] = useState(false);
+  const [headerError, setHeaderError] = useState<string | null>(null);
+
   const [trucks, setTrucks] = useState<RoutePlanTruck[]>([]);
   const [loadingTrucks, setLoadingTrucks] = useState(false);
   const [trucksError, setTrucksError] = useState<string | null>(null);
@@ -126,6 +133,45 @@ export default function RoutePlanBoard() {
     setApprovedByInput(selectedPlanForSync?.approved_by ?? "");
     setSignoffError(null);
   }, [selectedPlanForSync]);
+
+  useEffect(() => {
+    setEditingHeader(false);
+    setEditRouteDate(selectedPlanForSync?.route_date ?? "");
+    setEditLabel(selectedPlanForSync?.label ?? "");
+    setEditPreparedBy(selectedPlanForSync?.prepared_by ?? "");
+    setHeaderError(null);
+  }, [selectedPlanForSync]);
+
+  async function handleSaveHeader() {
+    if (!selectedId) return;
+    if (!editRouteDate) {
+      setHeaderError("Route date is required.");
+      return;
+    }
+    setSavingHeader(true);
+    setHeaderError(null);
+    try {
+      const supabase = createClient();
+      const { error } = await supabase
+        .from("route_plans")
+        .update({
+          route_date: editRouteDate,
+          label: editLabel.trim() || null,
+          prepared_by: editPreparedBy.trim() || null,
+        })
+        .eq("id", selectedId);
+      if (error) {
+        setHeaderError(`Failed to save: ${error.message}`);
+        return;
+      }
+      setEditingHeader(false);
+      await loadRoutePlans(selectedId);
+    } catch {
+      setHeaderError("Could not save. Make sure a Supabase project is connected.");
+    } finally {
+      setSavingHeader(false);
+    }
+  }
 
   async function handleSaveSignoff() {
     if (!selectedId) return;
@@ -328,23 +374,90 @@ export default function RoutePlanBoard() {
             <>
               <div className="card">
                 <div className="flex flex-wrap items-center justify-between gap-2">
-                  <h2 className="text-sm font-semibold text-gray-700">
-                    {selectedPlan.route_date}
-                    {selectedPlan.label && ` — ${selectedPlan.label}`}
-                  </h2>
-                  {selectedPlan.approved_at ? (
-                    <span className="rounded-full bg-green-50 px-3 py-1 text-xs font-medium text-green-700">
-                      Approved by {selectedPlan.approved_by} on{" "}
-                      {new Date(selectedPlan.approved_at).toLocaleDateString()}
-                    </span>
+                  {editingHeader ? (
+                    <div className="grid flex-1 grid-cols-1 gap-3 sm:grid-cols-3">
+                      <div>
+                        <label className="label">Route Date</label>
+                        <input
+                          type="date"
+                          className="input"
+                          value={editRouteDate}
+                          onChange={(e) => setEditRouteDate(e.target.value)}
+                        />
+                      </div>
+                      <div>
+                        <label className="label">Label</label>
+                        <input
+                          type="text"
+                          className="input"
+                          placeholder="e.g. NCR Morning Run"
+                          value={editLabel}
+                          onChange={(e) => setEditLabel(e.target.value)}
+                        />
+                      </div>
+                      <div>
+                        <label className="label">Prepared By</label>
+                        <input
+                          type="text"
+                          className="input"
+                          placeholder="Name of preparer"
+                          value={editPreparedBy}
+                          onChange={(e) => setEditPreparedBy(e.target.value)}
+                        />
+                      </div>
+                    </div>
                   ) : (
-                    <span className="rounded-full bg-amber-50 px-3 py-1 text-xs font-medium text-amber-700">
-                      Not yet approved — excluded from Billing
-                    </span>
+                    <h2 className="text-sm font-semibold text-gray-700">
+                      {selectedPlan.route_date}
+                      {selectedPlan.label && ` — ${selectedPlan.label}`}
+                    </h2>
                   )}
+
+                  <div className="flex items-center gap-2">
+                    {editingHeader ? (
+                      <>
+                        <button
+                          type="button"
+                          className="tab-button tab-button-inactive"
+                          onClick={() => setEditingHeader(false)}
+                          disabled={savingHeader}
+                        >
+                          Cancel
+                        </button>
+                        <button
+                          type="button"
+                          className="btn-primary"
+                          onClick={handleSaveHeader}
+                          disabled={savingHeader}
+                        >
+                          {savingHeader ? "Saving…" : "Save"}
+                        </button>
+                      </>
+                    ) : (
+                      <button
+                        type="button"
+                        className="tab-button tab-button-inactive"
+                        onClick={() => setEditingHeader(true)}
+                      >
+                        Edit
+                      </button>
+                    )}
+                    {selectedPlan.approved_at ? (
+                      <span className="rounded-full bg-green-50 px-3 py-1 text-xs font-medium text-green-700">
+                        Approved by {selectedPlan.approved_by} on{" "}
+                        {new Date(selectedPlan.approved_at).toLocaleDateString()}
+                      </span>
+                    ) : (
+                      <span className="rounded-full bg-amber-50 px-3 py-1 text-xs font-medium text-amber-700">
+                        Not yet approved — excluded from Billing
+                      </span>
+                    )}
+                  </div>
                 </div>
 
-                {selectedPlan.prepared_by && (
+                {headerError && <p className="mt-2 text-sm text-red-600">{headerError}</p>}
+
+                {!editingHeader && selectedPlan.prepared_by && (
                   <p className="mt-1 text-xs text-gray-500">
                     Prepared by {selectedPlan.prepared_by}
                   </p>

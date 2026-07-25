@@ -50,6 +50,16 @@ export default function DocumentLookup({ routePlanTruckId, onAssigned }: Documen
         return;
       }
 
+      // Consignment/Outright rates depend on Zone + DC, which are set later
+      // from Recently Encoded (not at initial encode time). Mercury Drug
+      // uses one flat rate regardless of zone, so it's unaffected.
+      if (data.category !== "MERCURY_DRUG" && !data.zone) {
+        setSearchError(
+          `${data.document_no} doesn't have a Zone set yet. Go to Encode Invoices → Recently Encoded and set its Zone (and DC, if applicable) first.`
+        );
+        return;
+      }
+
       setInvoice(data);
 
       let rate: number | null = null;

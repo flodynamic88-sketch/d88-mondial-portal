@@ -52,7 +52,7 @@ export interface Invoice {
   id: string;
   document_no: string;
   category: InvoiceCategory;
-  zone: ZoneType;
+  zone: ZoneType | null;
   is_dc: boolean;
   company_id: string | null;
   company_name_raw: string | null;

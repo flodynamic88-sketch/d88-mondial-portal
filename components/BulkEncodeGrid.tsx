@@ -3,32 +3,37 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { findOrCreateBranchAddress, findOrCreateCompany } from "@/lib/invoiceHelpers";
-import type { InvoiceCategory, ZoneType } from "@/types/database";
+import type { InvoiceCategory } from "@/types/database";
 
 interface BulkEncodeGridProps {
   category: InvoiceCategory;
   onSaved?: () => void;
 }
 
+// Fields collected at initial encode time. Zone, DC, Plan Date, and
+// Transmittal Date are filled in later from Recently Encoded, once the
+// invoice is being scheduled for delivery.
 interface GridRow {
   key: string;
   documentNo: string;
-  zone: ZoneType | "";
-  isDc: boolean;
   companyName: string;
   branchAddress: string;
   amount: string;
-  planDate: string;
   postingDate: string;
-  transmittalReceivedDate: string;
   billingPeriod: string;
   remarks: string;
 }
 
-const ZONE_OPTIONS: { value: ZoneType; label: string }[] = [
-  { value: "NCR", label: "NCR" },
-  { value: "FAR_NORTH_SOUTH", label: "Far North / South" },
-  { value: "VIZMIN", label: "VisMin" },
+type TextColumnKey = Exclude<keyof GridRow, "key">;
+
+const COLUMNS: { key: TextColumnKey; label: string; type: "text" | "number" | "date"; minWidth: string }[] = [
+  { key: "documentNo", label: "Document No.", type: "text", minWidth: "140px" },
+  { key: "companyName", label: "Retail Chain / Account", type: "text", minWidth: "180px" },
+  { key: "branchAddress", label: "Branch/Store Address", type: "text", minWidth: "200px" },
+  { key: "amount", label: "Amount", type: "number", minWidth: "110px" },
+  { key: "postingDate", label: "Posting Date", type: "date", minWidth: "140px" },
+  { key: "billingPeriod", label: "Month", type: "date", minWidth: "140px" },
+  { key: "remarks", label: "Remarks", type: "text", minWidth: "160px" },
 ];
 
 let rowCounter = 0;
@@ -41,14 +46,10 @@ function emptyRow(): GridRow {
   return {
     key: makeKey(),
     documentNo: "",
-    zone: "",
-    isDc: false,
     companyName: "",
     branchAddress: "",
     amount: "",
-    planDate: "",
     postingDate: "",
-    transmittalReceivedDate: "",
     billingPeriod: "",
     remarks: "",
   };
@@ -61,10 +62,12 @@ function makeInitialRows(count: number): GridRow[] {
 /**
  * Mimics Excel's fill-handle: detects a trailing numeric run in the seed
  * value and increments it per step, preserving prefix and zero-padding.
- * e.g. "CD_00123" + step 1 -> "CD_00124". Values with no trailing digits
- * are just repeated as-is (matching Excel's behavior for non-numeric fill).
+ * e.g. "CD_00123" + step 1 -> "CD_00124". A date string like "2026-07-24"
+ * has its trailing "24" incremented the same way, which conveniently
+ * advances it by a day per row. Values with no trailing digits are just
+ * repeated as-is (matching Excel's behavior for non-numeric fill).
  */
-function incrementDocNo(seed: string, step: number): string {
+function dragFillValue(seed: string, step: number): string {
   const match = seed.match(/^(.*?)(\d+)$/);
   if (!match) return seed;
   const [, prefix, numStr] = match;
@@ -82,9 +85,11 @@ export default function BulkEncodeGrid({ category, onSaved }: BulkEncodeGridProp
     { type: "success" | "error"; message: string } | null
   >(null);
 
-  const dragSourceRef = useRef<number | null>(null);
+  // Tracks the cell (row + column) the current fill-handle drag started from.
+  const dragSourceRef = useRef<{ index: number; column: TextColumnKey } | null>(null);
   const dragSeedRef = useRef<string>("");
   const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
+  const [dragColumn, setDragColumn] = useState<TextColumnKey | null>(null);
   const rowsRef = useRef<GridRow[]>(rows);
   rowsRef.current = rows;
 
@@ -129,16 +134,17 @@ export default function BulkEncodeGrid({ category, onSaved }: BulkEncodeGridProp
   const finishDrag = useCallback(() => {
     const source = dragSourceRef.current;
     const target = dragOverIndex;
-    if (source !== null && target !== null && target > source) {
+    if (source !== null && target !== null && target > source.index) {
+      const { index: sourceIndex, column } = source;
       setRows((prev) => {
         let next = [...prev];
         if (target >= next.length) {
           next = [...next, ...makeInitialRows(target - next.length + 1)];
         }
-        for (let i = source + 1; i <= target; i += 1) {
+        for (let i = sourceIndex + 1; i <= target; i += 1) {
           next[i] = {
             ...next[i],
-            documentNo: incrementDocNo(dragSeedRef.current, i - source),
+            [column]: dragFillValue(dragSeedRef.current, i - sourceIndex),
           };
         }
         return next;
@@ -146,6 +152,7 @@ export default function BulkEncodeGrid({ category, onSaved }: BulkEncodeGridProp
     }
     dragSourceRef.current = null;
     setDragOverIndex(null);
+    setDragColumn(null);
   }, [dragOverIndex]);
 
   useEffect(() => {
@@ -156,17 +163,18 @@ export default function BulkEncodeGrid({ category, onSaved }: BulkEncodeGridProp
     return () => window.removeEventListener("mouseup", handleMouseUp);
   }, [finishDrag]);
 
-  function startFillDrag(index: number, e: React.MouseEvent) {
+  function startFillDrag(index: number, column: TextColumnKey, e: React.MouseEvent) {
     e.preventDefault();
-    dragSourceRef.current = index;
-    dragSeedRef.current = rowsRef.current[index].documentNo;
+    dragSourceRef.current = { index, column };
+    dragSeedRef.current = rowsRef.current[index][column];
+    setDragColumn(column);
     setDragOverIndex(index);
   }
 
-  function isRowInDragPreview(index: number): boolean {
+  function isCellInDragPreview(index: number, column: TextColumnKey): boolean {
     const source = dragSourceRef.current;
-    if (source === null || dragOverIndex === null) return false;
-    return index > source && index <= dragOverIndex;
+    if (source === null || dragOverIndex === null || dragColumn !== column) return false;
+    return index > source.index && index <= dragOverIndex;
   }
 
   async function handleSaveAll() {
@@ -174,7 +182,7 @@ export default function BulkEncodeGrid({ category, onSaved }: BulkEncodeGridProp
 
     const candidates = rows
       .map((r, idx) => ({ r, idx }))
-      .filter(({ r }) => r.documentNo.trim() || r.zone || r.amount.trim());
+      .filter(({ r }) => r.documentNo.trim() || r.amount.trim());
 
     if (candidates.length === 0) {
       setFeedback({ type: "error", message: "Walang laman na row na pwedeng i-save." });
@@ -182,12 +190,12 @@ export default function BulkEncodeGrid({ category, onSaved }: BulkEncodeGridProp
     }
 
     const invalid = candidates.filter(
-      ({ r }) => !r.documentNo.trim() || !r.zone || !r.amount.trim() || Number.isNaN(Number(r.amount))
+      ({ r }) => !r.documentNo.trim() || !r.amount.trim() || Number.isNaN(Number(r.amount))
     );
     if (invalid.length > 0) {
       setFeedback({
         type: "error",
-        message: `May kulang na Document No./Zone/Amount sa row ${invalid
+        message: `May kulang na Document No./Amount sa row ${invalid
           .map(({ idx }) => idx + 1)
           .join(", ")}.`,
       });
@@ -224,18 +232,20 @@ export default function BulkEncodeGrid({ category, onSaved }: BulkEncodeGridProp
             await findOrCreateBranchAddress(addressTrimmed, companyId);
           }
 
+          // Zone, DC, Plan Date, and Transmittal Date are filled in later
+          // from Recently Encoded.
           const { error } = await supabase.from("invoices").insert({
             document_no: r.documentNo.trim(),
             category,
-            zone: r.zone,
-            is_dc: r.isDc,
+            zone: null,
+            is_dc: false,
             company_id: companyId,
             company_name_raw: nameTrimmed || null,
             branch_address: addressTrimmed || null,
             amount: Number(r.amount),
-            plan_date: r.planDate || null,
+            plan_date: null,
             posting_date: r.postingDate || null,
-            transmittal_received_date: r.transmittalReceivedDate || null,
+            transmittal_received_date: null,
             billing_period: r.billingPeriod || null,
             remarks: r.remarks.trim() || null,
           });
@@ -292,8 +302,9 @@ export default function BulkEncodeGrid({ category, onSaved }: BulkEncodeGridProp
         <div>
           <h2 className="text-sm font-semibold text-gray-700">Grid Entry</h2>
           <p className="text-xs text-gray-500">
-            I-type ang unang Document No., tapos i-drag pababa ang maliit na kahon sa
-            kanang-ibaba ng cell para awtomatikong sumunod ang mga numero (tulad ng Excel).
+            I-type ang value, tapos i-drag pababa ang maliit na kahon sa
+            kanang-ibaba ng kahit anong cell para awtomatikong sumunod
+            pababa (tulad ng Excel).
           </p>
         </div>
         <div className="flex gap-2">
@@ -311,17 +322,11 @@ export default function BulkEncodeGrid({ category, onSaved }: BulkEncodeGridProp
           <thead>
             <tr className="text-left text-xs font-semibold uppercase text-gray-500">
               <th className="py-2 pr-2">#</th>
-              <th className="py-2 pr-2 min-w-[140px]">Document No.</th>
-              <th className="py-2 pr-2 min-w-[130px]">Zone</th>
-              <th className="py-2 pr-2">DC</th>
-              <th className="py-2 pr-2 min-w-[160px]">Company</th>
-              <th className="py-2 pr-2 min-w-[180px]">Branch/Store</th>
-              <th className="py-2 pr-2 min-w-[110px]">Amount</th>
-              <th className="py-2 pr-2 min-w-[130px]">Plan Date</th>
-              <th className="py-2 pr-2 min-w-[130px]">Posting Date</th>
-              <th className="py-2 pr-2 min-w-[130px]">Transmittal</th>
-              <th className="py-2 pr-2 min-w-[130px]">Billing Period</th>
-              <th className="py-2 pr-2 min-w-[140px]">Remarks</th>
+              {COLUMNS.map((col) => (
+                <th key={col.key} className="py-2 pr-2" style={{ minWidth: col.minWidth }}>
+                  {col.label}
+                </th>
+              ))}
               <th className="py-2 pr-2"></th>
             </tr>
           </thead>
@@ -332,115 +337,40 @@ export default function BulkEncodeGrid({ category, onSaved }: BulkEncodeGridProp
                 onMouseEnter={() => {
                   if (dragSourceRef.current !== null) setDragOverIndex(index);
                 }}
-                className={isRowInDragPreview(index) ? "bg-brand-50" : undefined}
               >
                 <td className="py-1 pr-2 text-xs text-gray-400">{index + 1}</td>
-                <td className="py-1 pr-2">
-                  <div className="relative">
-                    <input
-                      type="text"
-                      className="input"
-                      value={row.documentNo}
-                      onChange={(e) => updateRow(index, "documentNo", e.target.value)}
-                      placeholder="CD_00123"
-                    />
-                    <div
-                      onMouseDown={(e) => startFillDrag(index, e)}
-                      title="I-drag pababa para sumunod na Document No."
-                      className="absolute -bottom-1 -right-1 h-3 w-3 cursor-crosshair rounded-sm border border-white bg-brand-600"
-                    />
-                  </div>
-                </td>
-                <td className="py-1 pr-2">
-                  <select
-                    className="input"
-                    value={row.zone}
-                    onChange={(e) => updateRow(index, "zone", e.target.value as ZoneType)}
+                {COLUMNS.map((col) => (
+                  <td
+                    key={col.key}
+                    className={`py-1 pr-2 ${
+                      isCellInDragPreview(index, col.key) ? "bg-brand-50" : ""
+                    }`}
                   >
-                    <option value="">Select</option>
-                    {ZONE_OPTIONS.map((z) => (
-                      <option key={z.value} value={z.value}>
-                        {z.label}
-                      </option>
-                    ))}
-                  </select>
-                </td>
-                <td className="py-1 pr-2 text-center">
-                  <input
-                    type="checkbox"
-                    checked={row.isDc}
-                    onChange={(e) => updateRow(index, "isDc", e.target.checked)}
-                    className="h-4 w-4 rounded border-gray-300 text-brand-600 focus:ring-brand-500"
-                  />
-                </td>
-                <td className="py-1 pr-2">
-                  <input
-                    type="text"
-                    list="company-options"
-                    className="input"
-                    value={row.companyName}
-                    onChange={(e) => updateRow(index, "companyName", e.target.value)}
-                  />
-                </td>
-                <td className="py-1 pr-2">
-                  <input
-                    type="text"
-                    list="branch-options"
-                    className="input"
-                    value={row.branchAddress}
-                    onChange={(e) => updateRow(index, "branchAddress", e.target.value)}
-                  />
-                </td>
-                <td className="py-1 pr-2">
-                  <input
-                    type="number"
-                    step="0.01"
-                    min="0"
-                    className="input"
-                    value={row.amount}
-                    onChange={(e) => updateRow(index, "amount", e.target.value)}
-                  />
-                </td>
-                <td className="py-1 pr-2">
-                  <input
-                    type="date"
-                    className="input"
-                    value={row.planDate}
-                    onChange={(e) => updateRow(index, "planDate", e.target.value)}
-                  />
-                </td>
-                <td className="py-1 pr-2">
-                  <input
-                    type="date"
-                    className="input"
-                    value={row.postingDate}
-                    onChange={(e) => updateRow(index, "postingDate", e.target.value)}
-                  />
-                </td>
-                <td className="py-1 pr-2">
-                  <input
-                    type="date"
-                    className="input"
-                    value={row.transmittalReceivedDate}
-                    onChange={(e) => updateRow(index, "transmittalReceivedDate", e.target.value)}
-                  />
-                </td>
-                <td className="py-1 pr-2">
-                  <input
-                    type="date"
-                    className="input"
-                    value={row.billingPeriod}
-                    onChange={(e) => updateRow(index, "billingPeriod", e.target.value)}
-                  />
-                </td>
-                <td className="py-1 pr-2">
-                  <input
-                    type="text"
-                    className="input"
-                    value={row.remarks}
-                    onChange={(e) => updateRow(index, "remarks", e.target.value)}
-                  />
-                </td>
+                    <div className="relative">
+                      <input
+                        type={col.type}
+                        step={col.type === "number" ? "0.01" : undefined}
+                        min={col.type === "number" ? "0" : undefined}
+                        list={
+                          col.key === "companyName"
+                            ? "company-options"
+                            : col.key === "branchAddress"
+                              ? "branch-options"
+                              : undefined
+                        }
+                        className="input"
+                        value={row[col.key]}
+                        onChange={(e) => updateRow(index, col.key, e.target.value)}
+                        placeholder={col.key === "documentNo" ? "CD_00123" : undefined}
+                      />
+                      <div
+                        onMouseDown={(e) => startFillDrag(index, col.key, e)}
+                        title="I-drag pababa para awtomatikong sumunod"
+                        className="absolute -bottom-1 -right-1 h-3 w-3 cursor-crosshair rounded-sm border border-white bg-brand-600"
+                      />
+                    </div>
+                  </td>
+                ))}
                 <td className="py-1 pr-2">
                   <button
                     type="button"

@@ -70,18 +70,24 @@ export default function EncodeInvoicesPage() {
       <div className="mt-6">
         {/* Remount per tab so field state doesn't leak across categories */}
         {mode === "grid" ? (
-          <>
-            <BulkEncodeGrid
-              key={activeTab}
-              category={activeTab}
-              onSaved={() => setRefreshKey((k) => k + 1)}
-            />
-            <RecentInvoicesTable category={activeTab} refreshKey={refreshKey} />
-          </>
+          <BulkEncodeGrid
+            key={activeTab}
+            category={activeTab}
+            onSaved={() => setRefreshKey((k) => k + 1)}
+          />
         ) : (
-          <InvoiceForm key={activeTab} category={activeTab} />
+          <InvoiceForm
+            key={activeTab}
+            category={activeTab}
+            onSaved={() => setRefreshKey((k) => k + 1)}
+          />
         )}
       </div>
+
+      {/* Has its own category tabs, independent of the entry tab above, so
+          any category's recently encoded invoices can be reviewed/edited
+          without switching what's being encoded up top. */}
+      <RecentInvoicesTable refreshKey={refreshKey} />
     </div>
     </RequireRole>
   );
