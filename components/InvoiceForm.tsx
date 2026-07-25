@@ -4,6 +4,7 @@ import { useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import AutocompleteInput from "@/components/AutocompleteInput";
 import { findOrCreateBranchAddress, findOrCreateCompany } from "@/lib/invoiceHelpers";
+import { monthValueToDate } from "@/lib/dateHelpers";
 import type { InvoiceCategory } from "@/types/database";
 
 interface InvoiceFormProps {
@@ -88,7 +89,7 @@ export default function InvoiceForm({ category, onSaved }: InvoiceFormProps) {
         plan_date: null,
         posting_date: form.postingDate || null,
         transmittal_received_date: null,
-        billing_period: form.billingPeriod || null,
+        billing_period: monthValueToDate(form.billingPeriod),
         remarks: form.remarks.trim() || null,
       });
 
@@ -190,7 +191,7 @@ export default function InvoiceForm({ category, onSaved }: InvoiceFormProps) {
           </label>
           <input
             id="billingPeriod"
-            type="date"
+            type="month"
             className="input"
             value={form.billingPeriod}
             onChange={(e) => update("billingPeriod", e.target.value)}

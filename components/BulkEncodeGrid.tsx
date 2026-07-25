@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { findOrCreateBranchAddress, findOrCreateCompany } from "@/lib/invoiceHelpers";
+import { monthValueToDate } from "@/lib/dateHelpers";
 import type { InvoiceCategory } from "@/types/database";
 
 interface BulkEncodeGridProps {
@@ -26,13 +27,18 @@ interface GridRow {
 
 type TextColumnKey = Exclude<keyof GridRow, "key">;
 
-const COLUMNS: { key: TextColumnKey; label: string; type: "text" | "number" | "date"; minWidth: string }[] = [
+const COLUMNS: {
+  key: TextColumnKey;
+  label: string;
+  type: "text" | "number" | "date" | "month";
+  minWidth: string;
+}[] = [
   { key: "documentNo", label: "Document No.", type: "text", minWidth: "140px" },
   { key: "companyName", label: "Retail Chain / Account", type: "text", minWidth: "180px" },
   { key: "branchAddress", label: "Branch/Store Address", type: "text", minWidth: "200px" },
   { key: "amount", label: "Amount", type: "number", minWidth: "110px" },
   { key: "postingDate", label: "Posting Date", type: "date", minWidth: "140px" },
-  { key: "billingPeriod", label: "Month", type: "date", minWidth: "140px" },
+  { key: "billingPeriod", label: "Month", type: "month", minWidth: "140px" },
   { key: "remarks", label: "Remarks", type: "text", minWidth: "160px" },
 ];
 
@@ -74,6 +80,22 @@ function dragFillValue(seed: string, step: number): string {
   const width = numStr.length;
   const nextNum = parseInt(numStr, 10) + step;
   return `${prefix}${String(nextNum).padStart(width, "0")}`;
+}
+
+/**
+ * Month-aware fill for the "Month" column (input type="month", value
+ * "YYYY-MM"). Adds `step` months with correct year rollover, instead of the
+ * generic trailing-digit increment (which would turn "2026-07" into the
+ * invalid "2026-13" once step got past 6).
+ */
+function dragFillMonthValue(seed: string, step: number): string {
+  const match = seed.match(/^(\d{4})-(\d{2})$/);
+  if (!match) return seed;
+  const [, yearStr, monthStr] = match;
+  const totalMonths = parseInt(yearStr, 10) * 12 + (parseInt(monthStr, 10) - 1) + step;
+  const nextYear = Math.floor(totalMonths / 12);
+  const nextMonth = (totalMonths % 12) + 1;
+  return `${nextYear}-${String(nextMonth).padStart(2, "0")}`;
 }
 
 export default function BulkEncodeGrid({ category, onSaved }: BulkEncodeGridProps) {
@@ -141,10 +163,11 @@ export default function BulkEncodeGrid({ category, onSaved }: BulkEncodeGridProp
         if (target >= next.length) {
           next = [...next, ...makeInitialRows(target - next.length + 1)];
         }
+        const fill = column === "billingPeriod" ? dragFillMonthValue : dragFillValue;
         for (let i = sourceIndex + 1; i <= target; i += 1) {
           next[i] = {
             ...next[i],
-            [column]: dragFillValue(dragSeedRef.current, i - sourceIndex),
+            [column]: fill(dragSeedRef.current, i - sourceIndex),
           };
         }
         return next;
@@ -185,7 +208,7 @@ export default function BulkEncodeGrid({ category, onSaved }: BulkEncodeGridProp
       .filter(({ r }) => r.documentNo.trim() || r.amount.trim());
 
     if (candidates.length === 0) {
-      setFeedback({ type: "error", message: "Walang laman na row na pwedeng i-save." });
+      setFeedback({ type: "error", message: "No rows with data to save." });
       return;
     }
 
@@ -195,9 +218,9 @@ export default function BulkEncodeGrid({ category, onSaved }: BulkEncodeGridProp
     if (invalid.length > 0) {
       setFeedback({
         type: "error",
-        message: `May kulang na Document No./Amount sa row ${invalid
+        message: `Row ${invalid
           .map(({ idx }) => idx + 1)
-          .join(", ")}.`,
+          .join(", ")} is missing Document No./Amount.`,
       });
       return;
     }
@@ -246,7 +269,7 @@ export default function BulkEncodeGrid({ category, onSaved }: BulkEncodeGridProp
             plan_date: null,
             posting_date: r.postingDate || null,
             transmittal_received_date: null,
-            billing_period: r.billingPeriod || null,
+            billing_period: monthValueToDate(r.billingPeriod),
             remarks: r.remarks.trim() || null,
           });
 
@@ -277,14 +300,14 @@ export default function BulkEncodeGrid({ category, onSaved }: BulkEncodeGridProp
       } else if (succeeded.length === 0) {
         setFeedback({
           type: "error",
-          message: `Walang na-save. ${failed
+          message: `Nothing was saved. ${failed
             .map((f) => `${f.docNo} (${f.reason})`)
             .join(", ")}.`,
         });
       } else {
         setFeedback({
           type: "error",
-          message: `${succeeded.length} saved. Hindi na-save: ${failed
+          message: `${succeeded.length} saved. Not saved: ${failed
             .map((f) => `${f.docNo} (${f.reason})`)
             .join(", ")}.`,
         });
@@ -302,9 +325,8 @@ export default function BulkEncodeGrid({ category, onSaved }: BulkEncodeGridProp
         <div>
           <h2 className="text-sm font-semibold text-gray-700">Grid Entry</h2>
           <p className="text-xs text-gray-500">
-            I-type ang value, tapos i-drag pababa ang maliit na kahon sa
-            kanang-ibaba ng kahit anong cell para awtomatikong sumunod
-            pababa (tulad ng Excel).
+            Type a value, then drag the small square at the bottom-right of
+            any cell downward to auto-fill the rows below it (like Excel).
           </p>
         </div>
         <div className="flex gap-2">
@@ -365,7 +387,7 @@ export default function BulkEncodeGrid({ category, onSaved }: BulkEncodeGridProp
                       />
                       <div
                         onMouseDown={(e) => startFillDrag(index, col.key, e)}
-                        title="I-drag pababa para awtomatikong sumunod"
+                        title="Drag down to auto-fill"
                         className="absolute -bottom-1 -right-1 h-3 w-3 cursor-crosshair rounded-sm border border-white bg-brand-600"
                       />
                     </div>

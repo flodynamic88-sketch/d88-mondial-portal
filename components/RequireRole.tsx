@@ -15,8 +15,8 @@ export default function RequireRole({
   if (!profile || !roles.includes(profile.role)) {
     return (
       <div className="card mt-6 text-sm text-gray-500">
-        Wala kang access sa page na ito. Kung sa tingin mo ay dapat may access ka, i-contact ang
-        Admin.
+        You don't have access to this page. If you think you should have access, please contact
+        an Admin.
       </div>
     );
   }

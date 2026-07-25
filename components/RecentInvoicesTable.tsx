@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { exportToExcel } from "@/lib/exportExcel";
 import { findOrCreateBranchAddress, findOrCreateCompany } from "@/lib/invoiceHelpers";
+import { dateToMonthValue, monthValueToDate } from "@/lib/dateHelpers";
 import type { Invoice, InvoiceCategory, ZoneType } from "@/types/database";
 
 interface RecentInvoicesTableProps {
@@ -139,6 +140,20 @@ export default function RecentInvoicesTable({ refreshKey }: RecentInvoicesTableP
     await saveField(inv.id, { [key]: current[key] ?? null });
   }
 
+  // Month is entered as "YYYY-MM" (no day), but stored as a full date
+  // (first of month), so it gets its own change/blur handlers.
+  function handleMonthChange(inv: Invoice, value: string) {
+    updateLocal(inv.id, { billing_period: value } as unknown as Partial<Invoice>);
+  }
+
+  async function handleMonthBlur(inv: Invoice) {
+    const current = invoices.find((r) => r.id === inv.id);
+    if (!current) return;
+    const dateValue = monthValueToDate(dateToMonthValue(current.billing_period));
+    updateLocal(inv.id, { billing_period: dateValue });
+    await saveField(inv.id, { billing_period: dateValue });
+  }
+
   async function handleCompanyBlur(inv: Invoice) {
     const current = invoices.find((r) => r.id === inv.id);
     if (!current) return;
@@ -160,7 +175,7 @@ export default function RecentInvoicesTable({ refreshKey }: RecentInvoicesTableP
 
   async function handleDelete(inv: Invoice) {
     const confirmed = window.confirm(
-      `Sigurado ka bang gusto mong i-delete ang invoice ${inv.document_no}? Hindi na ito mababawi.`
+      `Are you sure you want to delete invoice ${inv.document_no}? This cannot be undone.`
     );
     if (!confirmed) return;
 
@@ -173,7 +188,7 @@ export default function RecentInvoicesTable({ refreshKey }: RecentInvoicesTableP
       if (error) {
         if (error.code === "23503") {
           setDeleteError(
-            `Hindi pwedeng i-delete ang ${inv.document_no} kasi naka-assign na ito sa isang route plan/truck. Alisin muna ito sa route plan bago i-delete.`
+            `Cannot delete ${inv.document_no} because it's already assigned to a route plan/truck. Remove it from the route plan first before deleting.`
           );
         } else {
           setDeleteError(`Failed to delete ${inv.document_no}: ${error.message}`);
@@ -202,6 +217,7 @@ export default function RecentInvoicesTable({ refreshKey }: RecentInvoicesTableP
           Amount: inv.amount,
           "Posting Date": inv.posting_date ?? "",
           "Plan Date": inv.plan_date ?? "",
+          "Actual Delivery Date": inv.actual_delivery_date ?? "",
           "Transmittal Date": inv.transmittal_received_date ?? "",
           Month: inv.billing_period ?? "",
           Remarks: inv.remarks ?? "",
@@ -257,6 +273,7 @@ export default function RecentInvoicesTable({ refreshKey }: RecentInvoicesTableP
                 <th className="py-2 pr-2 min-w-[110px]">Amount</th>
                 <th className="py-2 pr-2 min-w-[140px]">Posting Date</th>
                 <th className="py-2 pr-2 min-w-[140px]">Plan Date</th>
+                <th className="py-2 pr-2 min-w-[150px]">Actual Delivery Date</th>
                 <th className="py-2 pr-2 min-w-[140px]">Transmittal Date</th>
                 <th className="py-2 pr-2 min-w-[140px]">Month</th>
                 <th className="py-2 pr-2 min-w-[160px]">Remarks</th>
@@ -360,6 +377,17 @@ export default function RecentInvoicesTable({ refreshKey }: RecentInvoicesTableP
                     <input
                       type="date"
                       className="input"
+                      value={inv.actual_delivery_date ?? ""}
+                      onChange={(e) =>
+                        handleTextChange(inv, "actual_delivery_date", e.target.value)
+                      }
+                      onBlur={() => handleTextBlur(inv, "actual_delivery_date")}
+                    />
+                  </td>
+                  <td className="py-1 pr-2">
+                    <input
+                      type="date"
+                      className="input"
                       value={inv.transmittal_received_date ?? ""}
                       onChange={(e) =>
                         handleTextChange(inv, "transmittal_received_date", e.target.value)
@@ -369,11 +397,11 @@ export default function RecentInvoicesTable({ refreshKey }: RecentInvoicesTableP
                   </td>
                   <td className="py-1 pr-2">
                     <input
-                      type="date"
+                      type="month"
                       className="input"
-                      value={inv.billing_period ?? ""}
-                      onChange={(e) => handleTextChange(inv, "billing_period", e.target.value)}
-                      onBlur={() => handleTextBlur(inv, "billing_period")}
+                      value={dateToMonthValue(inv.billing_period)}
+                      onChange={(e) => handleMonthChange(inv, e.target.value)}
+                      onBlur={() => handleMonthBlur(inv)}
                     />
                   </td>
                   <td className="py-1 pr-2">

@@ -527,10 +527,11 @@ export default function RoutePlanBoard() {
 
               {!loadingTrucks &&
                 !trucksError &&
-                mainTrucks.map((truck) => (
+                mainTrucks.map((truck, index) => (
                   <TruckCard
                     key={truck.id}
                     truck={truck}
+                    truckLabel={`Truck ${index + 1}`}
                     convoys={convoysByMain[truck.id] ?? []}
                     deliveryReasons={deliveryReasons}
                     routePlanId={selectedPlan.id}

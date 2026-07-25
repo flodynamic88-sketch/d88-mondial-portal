@@ -59,6 +59,7 @@ export interface Invoice {
   branch_address: string | null;
   amount: number;
   plan_date: string | null;
+  actual_delivery_date: string | null;
   posting_date: string | null;
   transmittal_received_date: string | null;
   billing_period: string | null;

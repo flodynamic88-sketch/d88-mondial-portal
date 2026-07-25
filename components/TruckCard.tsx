@@ -24,6 +24,8 @@ interface AssignedInvoiceRow extends RoutePlanInvoice {
 
 interface TruckCardProps {
   truck: RoutePlanTruck;
+  /** Display label for this truck, e.g. "Truck 1" or "Truck 1 · Convoy 1". */
+  truckLabel: string;
   convoys: RoutePlanTruck[];
   deliveryReasons: DeliveryReason[];
   routePlanId: string;
@@ -33,6 +35,7 @@ interface TruckCardProps {
 
 export default function TruckCard({
   truck,
+  truckLabel,
   convoys,
   deliveryReasons,
   routePlanId,
@@ -234,21 +237,25 @@ export default function TruckCard({
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <p className="text-sm font-semibold text-gray-800">
-            {isConvoy && (
-              <span className="mr-2 text-xs font-normal uppercase text-brand-600">Convoy</span>
+            {truckLabel}
+            {truck.plate_number && (
+              <span className="ml-2 font-normal text-gray-500">({truck.plate_number})</span>
             )}
-            {truck.plate_number ?? "—"}
           </p>
           <p className="text-xs text-gray-500">{truck.carrier ?? "No carrier specified"}</p>
-          <p className="text-xs text-gray-500">
-            Truck Rate:{" "}
-            {canSeeTruckRate
-              ? (truck.truck_rate ?? 0).toLocaleString(undefined, {
-                  minimumFractionDigits: 2,
-                  maximumFractionDigits: 2,
-                })
-              : "—"}
-          </p>
+          {isConvoy ? (
+            <p className="text-xs text-gray-400">Rate included in the main truck's rate</p>
+          ) : (
+            <p className="text-xs text-gray-500">
+              Truck Rate:{" "}
+              {canSeeTruckRate
+                ? (truck.truck_rate ?? 0).toLocaleString(undefined, {
+                    minimumFractionDigits: 2,
+                    maximumFractionDigits: 2,
+                  })
+                : "—"}
+            </p>
+          )}
         </div>
         <div className="flex items-center gap-3">
           {cts && (
@@ -489,10 +496,11 @@ export default function TruckCard({
 
       {!isConvoy && convoys.length > 0 && (
         <div className="mt-4 space-y-4">
-          {convoys.map((c) => (
+          {convoys.map((c, convoyIndex) => (
             <TruckCard
               key={c.id}
               truck={c}
+              truckLabel={`${truckLabel} · Convoy ${convoyIndex + 1}`}
               convoys={[]}
               deliveryReasons={deliveryReasons}
               routePlanId={routePlanId}

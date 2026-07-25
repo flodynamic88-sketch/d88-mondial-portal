@@ -88,7 +88,7 @@ export default function AddTruckForm({
         <label className="label">Carrier</label>
         <input className="input" value={carrier} onChange={(e) => setCarrier(e.target.value)} />
       </div>
-      {canSetTruckRate && (
+      {canSetTruckRate && !mainTruckId && (
         <div>
           <label className="label">Truck Rate</label>
           <input
@@ -100,6 +100,11 @@ export default function AddTruckForm({
             onChange={(e) => setTruckRate(e.target.value)}
           />
         </div>
+      )}
+      {Boolean(mainTruckId) && (
+        <p className="text-xs text-gray-400 sm:col-span-1">
+          No separate rate needed — a convoy truck is covered by the main truck's rate.
+        </p>
       )}
       <div className="flex gap-2">
         <button type="submit" className="btn-primary" disabled={submitting}>
