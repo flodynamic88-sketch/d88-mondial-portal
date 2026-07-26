@@ -222,6 +222,16 @@ function ReportContent() {
               <p className="text-xs text-gray-500">Checked By</p>
             </div>
           </div>
+          <div>
+            <div className="border-t border-gray-400 pt-1">
+              <p className="text-xs text-gray-500">Received By</p>
+            </div>
+          </div>
+          <div>
+            <div className="border-t border-gray-400 pt-1">
+              <p className="text-xs text-gray-500">Received By</p>
+            </div>
+          </div>
         </div>
 
         <p className="mt-8 text-center text-[10px] text-gray-400">
