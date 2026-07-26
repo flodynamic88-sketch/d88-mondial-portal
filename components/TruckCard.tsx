@@ -165,6 +165,34 @@ export default function TruckCard({
     }
   }
 
+  async function handleRescheduleForRedelivery(row: AssignedInvoiceRow) {
+    const confirmed = window.confirm(
+      `Mark invoice ${row.invoice?.document_no ?? ""} as subject for redelivery? It will stay on this truck for history and no longer count toward this truck's CTS, and can be assigned to a new truck/date via Document Lookup.`
+    );
+    if (!confirmed) return;
+
+    setRemovingRowId(row.id);
+    setActionError(null);
+    try {
+      const supabase = createClient();
+      const { error } = await supabase
+        .from("route_plan_invoices")
+        .update({ superseded_at: new Date().toISOString() })
+        .eq("id", row.id);
+      if (error) {
+        setActionError("Failed to reschedule invoice for redelivery.");
+        return;
+      }
+      setRefreshKey((k) => k + 1);
+    } catch {
+      setActionError(
+        "Could not reschedule invoice for redelivery. Make sure a Supabase project is connected."
+      );
+    } finally {
+      setRemovingRowId(null);
+    }
+  }
+
   async function handleRemoveAssignedInvoice(row: AssignedInvoiceRow) {
     const confirmed = window.confirm(
       `Unassign invoice ${row.invoice?.document_no ?? ""} from this truck? It will become available to assign again.`
@@ -456,12 +484,24 @@ export default function TruckCard({
                               "Issue reported"}
                           </span>
                         )}
-                        {!row.delivered_at && !row.reason_id && (
+                        {row.superseded_at && (
+                          <span className="w-fit rounded-full bg-purple-50 px-2 py-0.5 text-xs font-medium text-purple-700">
+                            Subject for Redelivery
+                          </span>
+                        )}
+                        {!row.delivered_at && !row.reason_id && !row.superseded_at && (
                           <span className="text-gray-400">Pending</span>
                         )}
                       </div>
                     </td>
                     <td className="py-2 pr-4">
+                      {row.superseded_at ? (
+                        <p className="text-xs text-gray-400">
+                          Rescheduled {new Date(row.superseded_at).toLocaleDateString()} — kept
+                          here for history. Look up this document on the new date's Route Plan to
+                          assign it for redelivery.
+                        </p>
+                      ) : (
                       <div className="flex flex-col gap-1 sm:flex-row sm:items-center">
                         {canUpdateDelivery ? (
                           <>
@@ -508,6 +548,19 @@ export default function TruckCard({
                         ) : (
                           <span className="text-xs text-gray-400">View only</span>
                         )}
+                        {canUnassignInvoice &&
+                          deliveryReasons.find((r) => r.id === row.reason_id)?.type ===
+                            "BACKLOAD" && (
+                            <button
+                              type="button"
+                              className="text-xs font-medium text-purple-600 hover:text-purple-800 disabled:opacity-50"
+                              onClick={() => handleRescheduleForRedelivery(row)}
+                              disabled={removingRowId === row.id}
+                              title="Keep this invoice's history on this truck, exclude it from CTS, and free it up to assign to a new truck/date"
+                            >
+                              {removingRowId === row.id ? "Saving…" : "Reschedule for Redelivery"}
+                            </button>
+                          )}
                         {canUnassignInvoice && (
                           <button
                             type="button"
@@ -553,6 +606,7 @@ export default function TruckCard({
                           </div>
                         )}
                       </div>
+                      )}
                     </td>
                   </tr>
                 ))}

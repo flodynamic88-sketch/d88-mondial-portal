@@ -102,6 +102,13 @@ export interface RoutePlanInvoice {
   delivered_at: string | null;
   reason_id: string | null;
   created_at: string | null;
+  /**
+   * Set when this assignment has been rescheduled for redelivery elsewhere.
+   * The row is kept (never deleted) so the original truck retains history,
+   * but a superseded row no longer blocks the invoice from being assigned to
+   * a new truck/date, and its amount is excluded from CTS once Backload is set.
+   */
+  superseded_at: string | null;
 }
 
 export interface MondialConfirmation {
