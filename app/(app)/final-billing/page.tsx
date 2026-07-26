@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { Fragment, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import RequireRole from "@/components/RequireRole";
 import { exportToExcel } from "@/lib/exportExcel";
@@ -85,6 +85,55 @@ const CATEGORY_CONFIG: { value: InvoiceCategory; label: string; columns: ReportC
   { value: "MERCURY_DRUG", label: "FLO-Mercury", columns: MERCURY_COLUMNS },
 ];
 
+// ── Fulfillment Fee dashboard ────────────────────────────────────────────
+// Fulfillment Fee = Total Invoice Amount x Service Rate, and the rate
+// depends on both the zone AND whether it's a DC (Distribution Center)
+// account -- DC accounts get a different (lower) rate than regular
+// accounts in the same zone. So each category is broken down per zone,
+// with DC split out as its own line, matching how fee_rates actually
+// prices things (see 0001_init.sql).
+const ZONE_ORDER: ZoneType[] = ["NCR", "FAR_NORTH_SOUTH", "VIZMIN"];
+
+interface FeeGroup {
+  key: string;
+  label: string;
+  totalAmount: number;
+  totalFee: number;
+  ratePct: number | null;
+}
+
+function summarizeFeeRows(groupRows: VFinalBilling[], label: string, key: string): FeeGroup {
+  const totalAmount = groupRows.reduce((sum, r) => sum + (r.amount ?? 0), 0);
+  const totalFee = groupRows.reduce((sum, r) => sum + (r.service_fee ?? 0), 0);
+  const ratePct =
+    groupRows[0]?.service_rate_pct ?? (totalAmount > 0 ? (totalFee / totalAmount) * 100 : null);
+  return { key, label, totalAmount, totalFee, ratePct };
+}
+
+function buildFeeGroups(catRows: VFinalBilling[], category: InvoiceCategory): FeeGroup[] {
+  if (catRows.length === 0) return [];
+
+  if (category === "MERCURY_DRUG") {
+    return [summarizeFeeRows(catRows, "All Zones (Flat Rate)", "MERCURY_DRUG")];
+  }
+
+  const groups: FeeGroup[] = [];
+  ZONE_ORDER.forEach((zone) => {
+    [false, true].forEach((isDc) => {
+      const groupRows = catRows.filter((r) => r.zone === zone && r.is_dc === isDc);
+      if (groupRows.length === 0) return;
+      groups.push(
+        summarizeFeeRows(
+          groupRows,
+          isDc ? `${ZONE_LABELS[zone]} — DC` : ZONE_LABELS[zone],
+          `${zone}-${isDc}`
+        )
+      );
+    });
+  });
+  return groups;
+}
+
 export default function FinalBillingPage() {
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
@@ -135,6 +184,16 @@ export default function FinalBillingPage() {
   }
 
   const grandTotalAmount = rows.reduce((sum, r) => sum + (r.amount ?? 0), 0);
+
+  const feeCategories = CATEGORY_CONFIG.map((cat) => {
+    const catRows = rows.filter((r) => r.category === cat.value);
+    const groups = buildFeeGroups(catRows, cat.value);
+    const subtotalAmount = groups.reduce((sum, g) => sum + g.totalAmount, 0);
+    const subtotalFee = groups.reduce((sum, g) => sum + g.totalFee, 0);
+    return { ...cat, groups, subtotalAmount, subtotalFee };
+  }).filter((cat) => cat.groups.length > 0);
+
+  const grandTotalFee = feeCategories.reduce((sum, cat) => sum + cat.subtotalFee, 0);
 
   function handleExport() {
     const sheets: { name: string; rows: Record<string, unknown>[] }[] = CATEGORY_CONFIG.map(
@@ -237,6 +296,82 @@ export default function FinalBillingPage() {
 
           {rows.length > 0 && (
             <div className="mt-4 space-y-8">
+              <div>
+                <h3 className="text-sm font-semibold text-gray-700">Fulfillment Fee Summary</h3>
+                <div className="mt-2 overflow-x-auto rounded-lg border border-gray-200">
+                  <table className="min-w-full text-sm">
+                    <thead>
+                      <tr className="bg-gray-100 text-left text-xs font-semibold uppercase tracking-wide text-gray-600">
+                        <th className="px-3 py-2">Category</th>
+                        <th className="px-3 py-2">Indicator</th>
+                        <th className="px-3 py-2 text-right">Total Invoice Amt</th>
+                        <th className="px-3 py-2 text-right">Rate</th>
+                        <th className="px-3 py-2 text-right">Fulfillment Fee</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {feeCategories.map((cat) => {
+                        const isMercury = cat.value === "MERCURY_DRUG";
+                        return (
+                          <Fragment key={cat.value}>
+                            {cat.groups.map((g, idx) => (
+                              <tr key={g.key} className="border-t border-gray-100">
+                                {idx === 0 && (
+                                  <td
+                                    rowSpan={cat.groups.length}
+                                    className={`px-3 py-2 align-top font-semibold ${
+                                      isMercury ? "bg-amber-50 text-amber-800" : "bg-slate-800 text-white"
+                                    }`}
+                                  >
+                                    {cat.label}
+                                  </td>
+                                )}
+                                <td className="px-3 py-2 text-gray-700">{g.label}</td>
+                                <td className="px-3 py-2 text-right text-gray-700">
+                                  {formatMoney(g.totalAmount)}
+                                </td>
+                                <td className="px-3 py-2 text-right text-gray-700">
+                                  {g.ratePct != null ? `${g.ratePct.toFixed(2)}%` : "—"}
+                                </td>
+                                <td className="px-3 py-2 text-right font-medium text-gray-800">
+                                  {formatMoney(g.totalFee)}
+                                </td>
+                              </tr>
+                            ))}
+                            <tr className={isMercury ? "bg-amber-500 text-white" : "bg-slate-800 text-white"}>
+                              <td className="px-3 py-2 font-semibold" colSpan={2}>
+                                Subtotal — {cat.label}
+                              </td>
+                              <td className="px-3 py-2 text-right font-semibold">
+                                {formatMoney(cat.subtotalAmount)}
+                              </td>
+                              <td className="px-3 py-2"></td>
+                              <td className="px-3 py-2 text-right font-semibold">
+                                {formatMoney(cat.subtotalFee)}
+                              </td>
+                            </tr>
+                          </Fragment>
+                        );
+                      })}
+                    </tbody>
+                    <tfoot>
+                      <tr className="bg-slate-900 text-base font-bold text-amber-300">
+                        <td className="px-3 py-3" colSpan={4}>
+                          Grand Total Fulfillment Fee
+                        </td>
+                        <td className="px-3 py-3 text-right">{formatMoney(grandTotalFee)}</td>
+                      </tr>
+                      <tr className="bg-gray-100 text-sm font-semibold text-gray-700">
+                        <td className="px-3 py-2" colSpan={4}>
+                          Total Invoice Amount (Billing Period)
+                        </td>
+                        <td className="px-3 py-2 text-right">{formatMoney(grandTotalAmount)}</td>
+                      </tr>
+                    </tfoot>
+                  </table>
+                </div>
+              </div>
+
               {CATEGORY_CONFIG.map((cat) => {
                 const catRows = rows.filter((r) => r.category === cat.value);
                 if (catRows.length === 0) return null;
