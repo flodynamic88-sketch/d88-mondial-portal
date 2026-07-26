@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { createClient, createServiceRoleClient } from "@/lib/supabase/server";
+import { usernameToEmail } from "@/lib/authUsername";
 import { ALL_ROLES } from "@/lib/roles";
 import type { UserRole } from "@/types/database";
 
@@ -30,7 +31,7 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
   const { errorResponse } = await requireAdmin();
   if (errorResponse) return errorResponse;
 
-  let body: { role?: UserRole; full_name?: string; password?: string };
+  let body: { role?: UserRole; full_name?: string; username?: string; password?: string };
   try {
     body = await request.json();
   } catch {
@@ -54,7 +55,26 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
     }
   }
 
-  const updates: { role?: UserRole; full_name?: string | null } = {};
+  let newUsername: string | undefined;
+  if (body.username !== undefined) {
+    newUsername = body.username.trim().toLowerCase();
+    if (!newUsername) {
+      return NextResponse.json({ error: "Username cannot be empty." }, { status: 400 });
+    }
+    // Username drives the internal login email, so keep Supabase Auth in
+    // sync -- otherwise the account would still log in with the old name.
+    const { error: emailError } = await serviceClient.auth.admin.updateUserById(params.id, {
+      email: usernameToEmail(newUsername),
+    });
+    if (emailError) {
+      const message = emailError.message.includes("already been registered")
+        ? "That username is already taken."
+        : emailError.message;
+      return NextResponse.json({ error: message }, { status: 400 });
+    }
+  }
+
+  const updates: { role?: UserRole; full_name?: string | null; username?: string } = {};
   if (body.role !== undefined) {
     if (!ALL_ROLES.includes(body.role)) {
       return NextResponse.json({ error: "Invalid role." }, { status: 400 });
@@ -63,6 +83,9 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
   }
   if (body.full_name !== undefined) {
     updates.full_name = body.full_name.trim() || null;
+  }
+  if (newUsername !== undefined) {
+    updates.username = newUsername;
   }
 
   if (Object.keys(updates).length > 0) {
@@ -74,7 +97,10 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
       .single();
 
     if (error) {
-      return NextResponse.json({ error: error.message }, { status: 400 });
+      const message = error.message.includes("duplicate")
+        ? "That username is already taken."
+        : error.message;
+      return NextResponse.json({ error: message }, { status: 400 });
     }
     return NextResponse.json({ user: data });
   }

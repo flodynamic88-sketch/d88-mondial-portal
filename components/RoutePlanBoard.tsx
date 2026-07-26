@@ -135,9 +135,15 @@ export default function RoutePlanBoard() {
 
   useEffect(() => {
     setCheckedByInput(selectedPlanForSync?.checked_by ?? "");
-    setApprovedByInput(selectedPlanForSync?.approved_by ?? "");
+    // Approval is Admin-only, so the Approved By name is always the current
+    // Admin's own name -- never a pick-list. Auto-fill it for the logged-in
+    // Admin so approving a plan is just one click.
+    setApprovedByInput(
+      selectedPlanForSync?.approved_by ??
+        (profile?.role === "ADMIN" ? profile.full_name || profile.username : "")
+    );
     setSignoffError(null);
-  }, [selectedPlanForSync]);
+  }, [selectedPlanForSync, profile]);
 
   useEffect(() => {
     setEditingHeader(false);
@@ -351,13 +357,15 @@ export default function RoutePlanBoard() {
             </div>
             <div>
               <label className="label">Prepared By (optional)</label>
-              <input
-                type="text"
+              <select
                 className="input"
-                placeholder="Name of preparer"
                 value={preparedByInput}
                 onChange={(e) => setPreparedByInput(e.target.value)}
-              />
+              >
+                <option value="">Select preparer</option>
+                <option value="Johannes Paulous Ventura">Johannes Paulous Ventura</option>
+                <option value="Junnel Rosel">Junnel Rosel</option>
+              </select>
             </div>
             {createError && <p className="text-sm text-red-600">{createError}</p>}
             <button type="submit" className="btn-primary w-full" disabled={creating}>
@@ -430,13 +438,15 @@ export default function RoutePlanBoard() {
                       </div>
                       <div>
                         <label className="label">Prepared By</label>
-                        <input
-                          type="text"
+                        <select
                           className="input"
-                          placeholder="Name of preparer"
                           value={editPreparedBy}
                           onChange={(e) => setEditPreparedBy(e.target.value)}
-                        />
+                        >
+                          <option value="">Select preparer</option>
+                          <option value="Johannes Paulous Ventura">Johannes Paulous Ventura</option>
+                          <option value="Junnel Rosel">Junnel Rosel</option>
+                        </select>
                       </div>
                     </div>
                   ) : (
@@ -511,23 +521,21 @@ export default function RoutePlanBoard() {
                 <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
                   <div>
                     <label className="label">Checked By</label>
-                    <input
-                      type="text"
+                    <select
                       className="input"
                       value={checkedByInput}
                       onChange={(e) => setCheckedByInput(e.target.value)}
                       disabled={Boolean(selectedPlan.approved_at)}
-                    />
+                    >
+                      <option value="">Select</option>
+                      <option value="Emmanuel Miagao">Emmanuel Miagao</option>
+                    </select>
                   </div>
                   <div>
                     <label className="label">Approved By</label>
-                    <input
-                      type="text"
-                      className="input"
-                      value={approvedByInput}
-                      onChange={(e) => setApprovedByInput(e.target.value)}
-                      disabled={Boolean(selectedPlan.approved_at)}
-                    />
+                    <p className="input flex items-center bg-gray-50 text-gray-700">
+                      {approvedByInput || "Admin approval required"}
+                    </p>
                   </div>
                 </div>
 
@@ -543,14 +551,16 @@ export default function RoutePlanBoard() {
                     >
                       {savingSignoff ? "Saving…" : "Save"}
                     </button>
-                    <button
-                      type="button"
-                      className="btn-primary"
-                      onClick={handleApprove}
-                      disabled={savingSignoff}
-                    >
-                      {savingSignoff ? "Approving…" : "Approve"}
-                    </button>
+                    {profile?.role === "ADMIN" && (
+                      <button
+                        type="button"
+                        className="btn-primary"
+                        onClick={handleApprove}
+                        disabled={savingSignoff}
+                      >
+                        {savingSignoff ? "Approving…" : "Approve"}
+                      </button>
+                    )}
                   </div>
                 )}
 

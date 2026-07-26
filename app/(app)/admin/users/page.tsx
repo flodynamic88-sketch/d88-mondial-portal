@@ -22,6 +22,10 @@ function UserManagementInner() {
   const [resetPasswordId, setResetPasswordId] = useState<string | null>(null);
   const [newPassword, setNewPassword] = useState("");
 
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editUsername, setEditUsername] = useState("");
+  const [editFullName, setEditFullName] = useState("");
+
   const loadUsers = useCallback(async () => {
     setLoading(true);
     setLoadError(null);
@@ -127,6 +131,33 @@ function UserManagementInner() {
       setNewPassword("");
     } catch {
       setRowError("Could not reset password.");
+    } finally {
+      setBusyId(null);
+    }
+  }
+
+  async function handleSaveDetails(id: string) {
+    if (!editUsername.trim()) {
+      setRowError("Username cannot be empty.");
+      return;
+    }
+    setBusyId(id);
+    setRowError(null);
+    try {
+      const res = await fetch(`/api/admin/users/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ username: editUsername.trim(), full_name: editFullName }),
+      });
+      const body = await res.json();
+      if (!res.ok) {
+        setRowError(body.error ?? "Failed to update account.");
+        return;
+      }
+      setEditingId(null);
+      await loadUsers();
+    } catch {
+      setRowError("Could not update account.");
     } finally {
       setBusyId(null);
     }
@@ -243,8 +274,30 @@ function UserManagementInner() {
               <tbody className="divide-y divide-gray-100">
                 {users.map((u) => (
                   <tr key={u.id}>
-                    <td className="py-2 pr-4 font-medium text-gray-800">{u.username}</td>
-                    <td className="py-2 pr-4">{u.full_name ?? "—"}</td>
+                    <td className="py-2 pr-4 font-medium text-gray-800">
+                      {editingId === u.id ? (
+                        <input
+                          className="input w-36"
+                          value={editUsername}
+                          onChange={(e) => setEditUsername(e.target.value)}
+                          disabled={busyId === u.id}
+                        />
+                      ) : (
+                        u.username
+                      )}
+                    </td>
+                    <td className="py-2 pr-4">
+                      {editingId === u.id ? (
+                        <input
+                          className="input w-40"
+                          value={editFullName}
+                          onChange={(e) => setEditFullName(e.target.value)}
+                          disabled={busyId === u.id}
+                        />
+                      ) : (
+                        u.full_name ?? "—"
+                      )}
+                    </td>
                     <td className="py-2 pr-4">
                       <select
                         className="input w-auto"
@@ -261,6 +314,38 @@ function UserManagementInner() {
                     </td>
                     <td className="py-2 pr-4">
                       <div className="flex flex-wrap items-center gap-2">
+                        {editingId === u.id ? (
+                          <>
+                            <button
+                              type="button"
+                              className="btn-primary"
+                              onClick={() => handleSaveDetails(u.id)}
+                              disabled={busyId === u.id}
+                            >
+                              Save
+                            </button>
+                            <button
+                              type="button"
+                              className="tab-button tab-button-inactive"
+                              onClick={() => setEditingId(null)}
+                            >
+                              Cancel
+                            </button>
+                          </>
+                        ) : (
+                          <button
+                            type="button"
+                            className="tab-button tab-button-inactive"
+                            onClick={() => {
+                              setEditingId(u.id);
+                              setEditUsername(u.username);
+                              setEditFullName(u.full_name ?? "");
+                              setResetPasswordId(null);
+                            }}
+                          >
+                            Edit
+                          </button>
+                        )}
                         {resetPasswordId === u.id ? (
                           <>
                             <input
