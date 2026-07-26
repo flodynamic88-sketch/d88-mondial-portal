@@ -6,6 +6,7 @@ import DocumentLookup from "@/components/DocumentLookup";
 import AddTruckForm from "@/components/AddTruckForm";
 import { useAuth } from "@/components/AuthProvider";
 import { findOrCreateDeliveryReason } from "@/lib/invoiceHelpers";
+import { ensureVarianceLog } from "@/lib/varianceLog";
 import type {
   RoutePlanTruck,
   RoutePlanInvoice,
@@ -186,9 +187,19 @@ export default function TruckCard({
 
       if (error) {
         setActionError("Failed to save the reported issue.");
-      } else {
-        setRefreshKey((k) => k + 1);
+        return;
       }
+
+      // Auto-link to the Delivery Variance Log: whenever a Discrepancy or
+      // Backload reason is set, make sure a variance log header exists for
+      // this assigned invoice so the details (items, etc.) can be filled in
+      // from the Delivery Variance Log page.
+      if (reasonId) {
+        const invoiceId = rows.find((r) => r.id === rowId)?.invoice_id ?? null;
+        await ensureVarianceLog(rowId, invoiceId, reasonId);
+      }
+
+      setRefreshKey((k) => k + 1);
     } catch {
       setActionError("Could not save the reported issue. Make sure a Supabase project is connected.");
     }

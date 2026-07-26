@@ -41,6 +41,11 @@ const NAV_ITEMS: NavItem[] = [
     roles: ["ADMIN", "MONDIAL_TEAM"],
   },
   {
+    href: "/delivery-variance",
+    label: "Delivery Variance Log",
+    roles: ["ADMIN", "LOGISTICS_OFFICER", "JMD_PLANNER", "LOGISTICS_ASSOCIATE", "GENERAL_MANAGER"],
+  },
+  {
     href: "/final-billing",
     label: "Final Billing",
     roles: ["ADMIN", "LOGISTICS_OFFICER", "GENERAL_MANAGER"],
@@ -67,7 +72,7 @@ export default function Sidebar() {
   }
 
   return (
-    <aside className="flex h-screen w-64 flex-shrink-0 flex-col border-r border-gray-800 bg-black">
+    <aside className="no-print flex h-screen w-64 flex-shrink-0 flex-col border-r border-gray-800 bg-black">
       <div className="border-b border-gray-800 px-5 py-5">
         <div className="flex items-center gap-2.5">
           <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-brand-500 to-brand-700 text-sm font-bold text-white shadow-sm">

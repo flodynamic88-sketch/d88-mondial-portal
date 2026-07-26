@@ -86,3 +86,20 @@ body {
 .page-subtitle {
   @apply mt-1 text-sm text-gray-500;
 }
+
+/* Printable forms (Delivery Variance Log, etc.): hide app chrome and let the
+   .printable-area fill the page when the user prints or saves as PDF. */
+@media print {
+  .no-print {
+    display: none !important;
+  }
+  body,
+  .printable-area {
+    background: white !important;
+  }
+  .printable-area {
+    padding: 0 !important;
+    margin: 0 !important;
+    max-width: none !important;
+  }
+}

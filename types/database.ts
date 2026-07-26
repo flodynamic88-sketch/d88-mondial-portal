@@ -5,6 +5,7 @@ export type InvoiceCategory = "CONSIGNMENT" | "OUTRIGHT" | "MERCURY_DRUG";
 export type ZoneType = "NCR" | "FAR_NORTH_SOUTH" | "VIZMIN";
 export type InvoiceStatus = "PENDING" | "DISPATCHED" | "DELIVERED" | "CANCELLED";
 export type ReasonType = "DISCREPANCY" | "BACKLOAD";
+export type ReturnedStatus = "RETURNED" | "NOT_RETURNED" | "PARTIAL";
 export type UserRole =
   | "ADMIN"
   | "LOGISTICS_OFFICER"
@@ -112,6 +113,43 @@ export interface MondialConfirmation {
   created_at: string | null;
 }
 
+export interface DeliveryVarianceLog {
+  id: string;
+  series_seq: number;
+  series_no: string;
+  invoice_id: string | null;
+  route_plan_invoice_id: string | null;
+  reason_id: string | null;
+  log_date: string;
+  prepared_by: string | null;
+  checked_by: string | null;
+  received_by_1: string | null;
+  received_by_2: string | null;
+  remarks: string | null;
+  created_by: string | null;
+  created_at: string | null;
+  updated_at: string | null;
+}
+
+export interface DeliveryVarianceLogItem {
+  id: string;
+  log_id: string;
+  item_description: string;
+  qty: number;
+  unit: string | null;
+  unit_price: number;
+  amount: number;
+  returned_status: ReturnedStatus;
+  remarks: string | null;
+  created_at: string | null;
+}
+
+export interface AppSetting {
+  key: string;
+  value: string | null;
+  updated_at: string | null;
+}
+
 // Views
 
 export interface VFulfillmentSummary {
@@ -154,6 +192,37 @@ export interface VBilling {
 export interface VFinalBilling extends VBilling {
   confirmed: boolean;
   confirmed_at: string | null;
+}
+
+export interface VDeliveryVarianceLog {
+  id: string;
+  series_no: string;
+  invoice_id: string | null;
+  document_no: string | null;
+  retail_chain: string | null;
+  branch_address: string | null;
+  category: InvoiceCategory | null;
+  route_plan_invoice_id: string | null;
+  reason_id: string | null;
+  reason_type: ReasonType | null;
+  reason_label: string | null;
+  log_date: string;
+  prepared_by: string | null;
+  checked_by: string | null;
+  received_by_1: string | null;
+  received_by_2: string | null;
+  remarks: string | null;
+  created_at: string | null;
+  updated_at: string | null;
+  item_count: number;
+  total_amount: number;
+}
+
+export interface VDeliveryVarianceReasonSummary {
+  reason_id: string;
+  reason_type: ReasonType;
+  reason_label: string;
+  log_count: number;
 }
 
 export interface Database {
@@ -218,6 +287,24 @@ export interface Database {
         Update: Partial<MondialConfirmation>;
         Relationships: [];
       };
+      delivery_variance_logs: {
+        Row: DeliveryVarianceLog;
+        Insert: Partial<DeliveryVarianceLog>;
+        Update: Partial<DeliveryVarianceLog>;
+        Relationships: [];
+      };
+      delivery_variance_log_items: {
+        Row: DeliveryVarianceLogItem;
+        Insert: Partial<DeliveryVarianceLogItem> & { log_id: string; item_description: string };
+        Update: Partial<DeliveryVarianceLogItem>;
+        Relationships: [];
+      };
+      app_settings: {
+        Row: AppSetting;
+        Insert: Partial<AppSetting> & { key: string };
+        Update: Partial<AppSetting>;
+        Relationships: [];
+      };
       user_profiles: {
         Row: UserProfile;
         Insert: Partial<UserProfile> & { id: string; username: string; role: UserRole };
@@ -231,6 +318,8 @@ export interface Database {
       v_billing: { Row: VBilling; Relationships: [] };
       v_final_billing: { Row: VFinalBilling; Relationships: [] };
       v_route_plan_trucks: { Row: RoutePlanTruck; Relationships: [] };
+      v_delivery_variance_logs: { Row: VDeliveryVarianceLog; Relationships: [] };
+      v_delivery_variance_reason_summary: { Row: VDeliveryVarianceReasonSummary; Relationships: [] };
     };
     Functions: Record<string, never>;
   };
