@@ -39,6 +39,12 @@ body {
   @apply w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-800 shadow-sm transition-colors placeholder:text-gray-400 focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-100;
 }
 
+/* Compact variant of .input for dense data-entry tables/grids (Encode
+   Invoices) so more columns fit on screen without horizontal scrolling. */
+.input-sm {
+  @apply w-full rounded-md border border-gray-300 px-1.5 py-1 text-xs text-gray-800 shadow-sm transition-colors placeholder:text-gray-400 focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-100;
+}
+
 .label {
   @apply mb-1 block text-sm font-medium text-gray-700;
 }

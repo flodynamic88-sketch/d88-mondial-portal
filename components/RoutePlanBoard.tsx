@@ -4,9 +4,13 @@ import { useCallback, useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import TruckCard from "@/components/TruckCard";
 import AddTruckForm from "@/components/AddTruckForm";
+import { useAuth } from "@/components/AuthProvider";
 import type { RoutePlan, RoutePlanTruck, DeliveryReason } from "@/types/database";
 
 export default function RoutePlanBoard() {
+  const profile = useAuth();
+  const canManagePlans = profile?.role === "ADMIN" || profile?.role === "JMD_PLANNER";
+
   const [routePlans, setRoutePlans] = useState<RoutePlan[]>([]);
   const [loadingPlans, setLoadingPlans] = useState(true);
   const [plansError, setPlansError] = useState<string | null>(null);
@@ -29,6 +33,7 @@ export default function RoutePlanBoard() {
   const [editPreparedBy, setEditPreparedBy] = useState("");
   const [savingHeader, setSavingHeader] = useState(false);
   const [headerError, setHeaderError] = useState<string | null>(null);
+  const [deletingPlan, setDeletingPlan] = useState(false);
 
   const [trucks, setTrucks] = useState<RoutePlanTruck[]>([]);
   const [loadingTrucks, setLoadingTrucks] = useState(false);
@@ -226,6 +231,34 @@ export default function RoutePlanBoard() {
       setSignoffError("Could not approve. Make sure a Supabase project is connected.");
     } finally {
       setSavingSignoff(false);
+    }
+  }
+
+  async function handleDeleteRoutePlan() {
+    if (!selectedId) return;
+    const plan = routePlans.find((p) => p.id === selectedId);
+    const confirmed = window.confirm(
+      `Delete the route plan for ${plan?.route_date ?? "this date"}${
+        plan?.label ? ` (${plan.label})` : ""
+      }? This removes all trucks and invoice assignments under it (assigned invoices themselves are not deleted, just unassigned). This cannot be undone.`
+    );
+    if (!confirmed) return;
+
+    setDeletingPlan(true);
+    setHeaderError(null);
+    try {
+      const supabase = createClient();
+      const { error } = await supabase.from("route_plans").delete().eq("id", selectedId);
+      if (error) {
+        setHeaderError(`Failed to delete: ${error.message}`);
+        return;
+      }
+      setSelectedId(null);
+      await loadRoutePlans();
+    } catch {
+      setHeaderError("Could not delete. Make sure a Supabase project is connected.");
+    } finally {
+      setDeletingPlan(false);
     }
   }
 
@@ -434,13 +467,25 @@ export default function RoutePlanBoard() {
                         </button>
                       </>
                     ) : (
-                      <button
-                        type="button"
-                        className="tab-button tab-button-inactive"
-                        onClick={() => setEditingHeader(true)}
-                      >
-                        Edit
-                      </button>
+                      <>
+                        <button
+                          type="button"
+                          className="tab-button tab-button-inactive"
+                          onClick={() => setEditingHeader(true)}
+                        >
+                          Edit
+                        </button>
+                        {canManagePlans && (
+                          <button
+                            type="button"
+                            className="tab-button border border-red-200 bg-white text-red-600 hover:bg-red-50"
+                            onClick={handleDeleteRoutePlan}
+                            disabled={deletingPlan}
+                          >
+                            {deletingPlan ? "Deleting…" : "Delete Route Plan"}
+                          </button>
+                        )}
+                      </>
                     )}
                     {selectedPlan.approved_at ? (
                       <span className="rounded-full bg-green-50 px-3 py-1 text-xs font-medium text-green-700">

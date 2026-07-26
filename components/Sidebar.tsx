@@ -1,10 +1,12 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter, usePathname } from "next/navigation";
 import { useAuth } from "@/components/AuthProvider";
 import { ROLE_LABELS } from "@/lib/roles";
 import { createClient } from "@/lib/supabase/client";
+import { getAppSetting, LOGO_SETTING_KEY } from "@/lib/appSettings";
 import type { UserRole } from "@/types/database";
 
 interface NavItem {
@@ -57,6 +59,11 @@ export default function Sidebar() {
   const pathname = usePathname();
   const router = useRouter();
   const profile = useAuth();
+  const [logoUrl, setLogoUrl] = useState<string | null>(null);
+
+  useEffect(() => {
+    getAppSetting(LOGO_SETTING_KEY).then(setLogoUrl);
+  }, []);
 
   const visibleItems = NAV_ITEMS.filter((item) => !item.roles || (profile && item.roles.includes(profile.role)));
 
@@ -75,9 +82,18 @@ export default function Sidebar() {
     <aside className="no-print flex h-screen w-64 flex-shrink-0 flex-col border-r border-gray-800 bg-black">
       <div className="border-b border-gray-800 px-5 py-5">
         <div className="flex items-center gap-2.5">
-          <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-brand-500 to-brand-700 text-sm font-bold text-white shadow-sm">
-            M
-          </div>
+          {logoUrl ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={logoUrl}
+              alt="Dynamic88 logo"
+              className="h-9 w-9 flex-shrink-0 rounded-lg bg-white object-contain p-1"
+            />
+          ) : (
+            <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-brand-500 to-brand-700 text-sm font-bold text-white shadow-sm">
+              M
+            </div>
+          )}
           <div className="min-w-0">
             <p className="truncate text-sm font-bold leading-tight text-white">Mondial Portal</p>
             <p className="truncate text-xs text-gray-400">Dynamic88 Solutions</p>

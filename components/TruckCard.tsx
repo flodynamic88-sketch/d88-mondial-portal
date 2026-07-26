@@ -54,6 +54,9 @@ export default function TruckCard({
     role === "ADMIN" || role === "LOGISTICS_OFFICER" || role === "LOGISTICS_ASSOCIATE";
   const canAddCustomReason = role === "ADMIN" || role === "LOGISTICS_ASSOCIATE";
   const canAddConvoy = role === "ADMIN" || role === "JMD_PLANNER" || role === "LOGISTICS_OFFICER";
+  // Matches the route_plan_trucks/route_plan_invoices DELETE RLS policies.
+  const canManageTruck = canAddConvoy;
+  const canUnassignInvoice = role === "ADMIN" || role === "JMD_PLANNER";
 
   const [rows, setRows] = useState<AssignedInvoiceRow[]>([]);
   const [loadingRows, setLoadingRows] = useState(true);
@@ -63,6 +66,8 @@ export default function TruckCard({
   const [dispatching, setDispatching] = useState(false);
   const [showAddConvoy, setShowAddConvoy] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
+  const [deletingTruck, setDeletingTruck] = useState(false);
+  const [removingRowId, setRemovingRowId] = useState<string | null>(null);
   const [customEntry, setCustomEntry] = useState<{
     rowId: string;
     type: ReasonType;
@@ -126,6 +131,60 @@ export default function TruckCard({
       setActionError("Could not dispatch truck. Make sure a Supabase project is connected.");
     } finally {
       setDispatching(false);
+    }
+  }
+
+  async function handleDeleteTruck() {
+    const confirmed = window.confirm(
+      `Remove ${truckLabel}${
+        truck.plate_number ? ` (${truck.plate_number})` : ""
+      } from this route plan? Any assigned invoices will be unassigned. This cannot be undone.`
+    );
+    if (!confirmed) return;
+
+    setDeletingTruck(true);
+    setActionError(null);
+    try {
+      const supabase = createClient();
+      const { error } = await supabase.from("route_plan_trucks").delete().eq("id", truck.id);
+      if (error) {
+        if (error.code === "23503") {
+          setActionError(
+            "Cannot remove this truck because it still has convoy trucks linked to it. Remove those convoy trucks first."
+          );
+        } else {
+          setActionError(`Failed to remove truck: ${error.message}`);
+        }
+        return;
+      }
+      onRefreshTrucks();
+    } catch {
+      setActionError("Could not remove truck. Make sure a Supabase project is connected.");
+    } finally {
+      setDeletingTruck(false);
+    }
+  }
+
+  async function handleRemoveAssignedInvoice(row: AssignedInvoiceRow) {
+    const confirmed = window.confirm(
+      `Unassign invoice ${row.invoice?.document_no ?? ""} from this truck? It will become available to assign again.`
+    );
+    if (!confirmed) return;
+
+    setRemovingRowId(row.id);
+    setActionError(null);
+    try {
+      const supabase = createClient();
+      const { error } = await supabase.from("route_plan_invoices").delete().eq("id", row.id);
+      if (error) {
+        setActionError("Failed to unassign invoice.");
+        return;
+      }
+      setRefreshKey((k) => k + 1);
+    } catch {
+      setActionError("Could not unassign invoice. Make sure a Supabase project is connected.");
+    } finally {
+      setRemovingRowId(null);
     }
   }
 
@@ -305,6 +364,17 @@ export default function TruckCard({
           ) : (
             <span className="text-xs text-gray-400">Not yet dispatched</span>
           )}
+          {canManageTruck && (
+            <button
+              type="button"
+              className="tab-button border border-red-200 bg-white text-xs text-red-600 hover:bg-red-50"
+              onClick={handleDeleteTruck}
+              disabled={deletingTruck}
+              title="Remove this truck from the route plan"
+            >
+              {deletingTruck ? "Removing…" : "Remove Truck"}
+            </button>
+          )}
         </div>
       </div>
 
@@ -437,6 +507,17 @@ export default function TruckCard({
                           </>
                         ) : (
                           <span className="text-xs text-gray-400">View only</span>
+                        )}
+                        {canUnassignInvoice && (
+                          <button
+                            type="button"
+                            className="text-xs font-medium text-red-600 hover:text-red-800 disabled:opacity-50"
+                            onClick={() => handleRemoveAssignedInvoice(row)}
+                            disabled={removingRowId === row.id}
+                            title="Unassign this invoice from the truck"
+                          >
+                            {removingRowId === row.id ? "Removing…" : "Remove"}
+                          </button>
                         )}
                         {canUpdateDelivery && customEntry?.rowId === row.id && (
                           <div className="flex items-center gap-1">

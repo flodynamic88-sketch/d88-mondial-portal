@@ -33,13 +33,13 @@ const COLUMNS: {
   type: "text" | "number" | "date" | "month";
   minWidth: string;
 }[] = [
-  { key: "documentNo", label: "Document No.", type: "text", minWidth: "140px" },
-  { key: "companyName", label: "Retail Chain / Account", type: "text", minWidth: "180px" },
-  { key: "branchAddress", label: "Branch/Store Address", type: "text", minWidth: "200px" },
-  { key: "amount", label: "Amount", type: "number", minWidth: "110px" },
-  { key: "postingDate", label: "Posting Date", type: "date", minWidth: "140px" },
-  { key: "billingPeriod", label: "Month", type: "month", minWidth: "140px" },
-  { key: "remarks", label: "Remarks", type: "text", minWidth: "160px" },
+  { key: "documentNo", label: "Document No.", type: "text", minWidth: "105px" },
+  { key: "companyName", label: "Retail Chain / Account", type: "text", minWidth: "135px" },
+  { key: "branchAddress", label: "Branch/Store Address", type: "text", minWidth: "150px" },
+  { key: "amount", label: "Amount", type: "number", minWidth: "85px" },
+  { key: "postingDate", label: "Posting Date", type: "date", minWidth: "105px" },
+  { key: "billingPeriod", label: "Month", type: "month", minWidth: "95px" },
+  { key: "remarks", label: "Remarks", type: "text", minWidth: "115px" },
 ];
 
 let rowCounter = 0;
@@ -340,16 +340,16 @@ export default function BulkEncodeGrid({ category, onSaved }: BulkEncodeGridProp
       </div>
 
       <div className="mt-4 overflow-x-auto">
-        <table className="min-w-full divide-y divide-gray-200 text-sm">
+        <table className="min-w-full divide-y divide-gray-200 text-xs">
           <thead>
-            <tr className="text-left text-xs font-semibold uppercase text-gray-500">
-              <th className="py-2 pr-2">#</th>
+            <tr className="text-left text-[11px] font-semibold uppercase text-gray-500">
+              <th className="py-1.5 pr-1.5">#</th>
               {COLUMNS.map((col) => (
-                <th key={col.key} className="py-2 pr-2" style={{ minWidth: col.minWidth }}>
+                <th key={col.key} className="py-1.5 pr-1.5" style={{ minWidth: col.minWidth }}>
                   {col.label}
                 </th>
               ))}
-              <th className="py-2 pr-2"></th>
+              <th className="py-1.5 pr-1.5"></th>
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-100">
@@ -360,11 +360,11 @@ export default function BulkEncodeGrid({ category, onSaved }: BulkEncodeGridProp
                   if (dragSourceRef.current !== null) setDragOverIndex(index);
                 }}
               >
-                <td className="py-1 pr-2 text-xs text-gray-400">{index + 1}</td>
+                <td className="py-0.5 pr-1.5 text-[11px] text-gray-400">{index + 1}</td>
                 {COLUMNS.map((col) => (
                   <td
                     key={col.key}
-                    className={`py-1 pr-2 ${
+                    className={`py-0.5 pr-1.5 ${
                       isCellInDragPreview(index, col.key) ? "bg-brand-50" : ""
                     }`}
                   >
@@ -380,7 +380,7 @@ export default function BulkEncodeGrid({ category, onSaved }: BulkEncodeGridProp
                               ? "branch-options"
                               : undefined
                         }
-                        className="input"
+                        className="input-sm"
                         value={row[col.key]}
                         onChange={(e) => updateRow(index, col.key, e.target.value)}
                         placeholder={col.key === "documentNo" ? "CD_00123" : undefined}
@@ -393,7 +393,7 @@ export default function BulkEncodeGrid({ category, onSaved }: BulkEncodeGridProp
                     </div>
                   </td>
                 ))}
-                <td className="py-1 pr-2">
+                <td className="py-0.5 pr-1.5">
                   <button
                     type="button"
                     onClick={() => removeRow(index)}

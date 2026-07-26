@@ -474,7 +474,9 @@ export default function DeliveryVarianceLogPage() {
 
         {canManageLogo && (
           <div className="card mt-6">
-            <h2 className="text-sm font-semibold text-gray-800">Dynamic88 Logo (printable form)</h2>
+            <h2 className="text-sm font-semibold text-gray-800">
+              Dynamic88 Logo (sidebar &amp; printable forms)
+            </h2>
             <div className="mt-2 flex flex-wrap items-center gap-3">
               {logoUrl ? (
                 // eslint-disable-next-line @next/next/no-img-element

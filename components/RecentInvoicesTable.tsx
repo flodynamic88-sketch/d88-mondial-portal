@@ -262,40 +262,40 @@ export default function RecentInvoicesTable({ refreshKey }: RecentInvoicesTableP
 
       {!loading && !errorMsg && invoices.length > 0 && (
         <div className="mt-3 overflow-x-auto">
-          <table className="min-w-full divide-y divide-gray-200 text-sm">
+          <table className="min-w-full divide-y divide-gray-200 text-xs">
             <thead>
-              <tr className="text-left text-xs font-semibold uppercase text-gray-500">
-                <th className="py-2 pr-2 min-w-[130px]">Document No.</th>
-                <th className="py-2 pr-2 min-w-[130px]">Zone</th>
-                <th className="py-2 pr-2">DC</th>
-                <th className="py-2 pr-2 min-w-[170px]">Retail Chain / Account</th>
-                <th className="py-2 pr-2 min-w-[180px]">Branch/Store Address</th>
-                <th className="py-2 pr-2 min-w-[110px]">Amount</th>
-                <th className="py-2 pr-2 min-w-[140px]">Posting Date</th>
-                <th className="py-2 pr-2 min-w-[140px]">Plan Date</th>
-                <th className="py-2 pr-2 min-w-[150px]">Actual Delivery Date</th>
-                <th className="py-2 pr-2 min-w-[140px]">Transmittal Date</th>
-                <th className="py-2 pr-2 min-w-[140px]">Month</th>
-                <th className="py-2 pr-2 min-w-[160px]">Remarks</th>
-                <th className="py-2 pr-2">Status</th>
-                <th className="py-2 pr-2"></th>
+              <tr className="text-left text-[11px] font-semibold uppercase text-gray-500">
+                <th className="py-1.5 pr-1.5 min-w-[105px]">Document No.</th>
+                <th className="py-1.5 pr-1.5 min-w-[95px]">Zone</th>
+                <th className="py-1.5 pr-1.5">DC</th>
+                <th className="py-1.5 pr-1.5 min-w-[135px]">Retail Chain / Account</th>
+                <th className="py-1.5 pr-1.5 min-w-[140px]">Branch/Store Address</th>
+                <th className="py-1.5 pr-1.5 min-w-[85px]">Amount</th>
+                <th className="py-1.5 pr-1.5 min-w-[105px]">Posting Date</th>
+                <th className="py-1.5 pr-1.5 min-w-[105px]">Plan Date</th>
+                <th className="py-1.5 pr-1.5 min-w-[115px]">Actual Delivery Date</th>
+                <th className="py-1.5 pr-1.5 min-w-[105px]">Transmittal Date</th>
+                <th className="py-1.5 pr-1.5 min-w-[95px]">Month</th>
+                <th className="py-1.5 pr-1.5 min-w-[115px]">Remarks</th>
+                <th className="py-1.5 pr-1.5">Status</th>
+                <th className="py-1.5 pr-1.5"></th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
               {invoices.map((inv) => (
                 <tr key={inv.id}>
-                  <td className="py-1 pr-2">
+                  <td className="py-0.5 pr-1.5">
                     <input
                       type="text"
-                      className="input"
+                      className="input-sm"
                       value={inv.document_no}
                       onChange={(e) => handleTextChange(inv, "document_no", e.target.value)}
                       onBlur={() => handleTextBlur(inv, "document_no")}
                     />
                   </td>
-                  <td className="py-1 pr-2">
+                  <td className="py-0.5 pr-1.5">
                     <select
-                      className="input"
+                      className="input-sm"
                       value={inv.zone ?? ""}
                       onChange={(e) =>
                         handleImmediateChange(inv, {
@@ -311,40 +311,40 @@ export default function RecentInvoicesTable({ refreshKey }: RecentInvoicesTableP
                       ))}
                     </select>
                   </td>
-                  <td className="py-1 pr-2 text-center">
+                  <td className="py-0.5 pr-1.5 text-center">
                     <input
                       type="checkbox"
                       checked={inv.is_dc}
                       onChange={(e) => handleImmediateChange(inv, { is_dc: e.target.checked })}
-                      className="h-4 w-4 rounded border-gray-300 text-brand-600 focus:ring-brand-500"
+                      className="h-3.5 w-3.5 rounded border-gray-300 text-brand-600 focus:ring-brand-500"
                     />
                   </td>
-                  <td className="py-1 pr-2">
+                  <td className="py-0.5 pr-1.5">
                     <input
                       type="text"
                       list="recent-company-options"
-                      className="input"
+                      className="input-sm"
                       value={inv.company_name_raw ?? ""}
                       onChange={(e) => handleTextChange(inv, "company_name_raw", e.target.value)}
                       onBlur={() => handleCompanyBlur(inv)}
                     />
                   </td>
-                  <td className="py-1 pr-2">
+                  <td className="py-0.5 pr-1.5">
                     <input
                       type="text"
                       list="recent-branch-options"
-                      className="input"
+                      className="input-sm"
                       value={inv.branch_address ?? ""}
                       onChange={(e) => handleTextChange(inv, "branch_address", e.target.value)}
                       onBlur={() => handleBranchBlur(inv)}
                     />
                   </td>
-                  <td className="py-1 pr-2">
+                  <td className="py-0.5 pr-1.5">
                     <input
                       type="number"
                       step="0.01"
                       min="0"
-                      className="input"
+                      className="input-sm"
                       value={inv.amount}
                       onChange={(e) => handleTextChange(inv, "amount", e.target.value)}
                       onBlur={async () => {
@@ -355,28 +355,28 @@ export default function RecentInvoicesTable({ refreshKey }: RecentInvoicesTableP
                       }}
                     />
                   </td>
-                  <td className="py-1 pr-2">
+                  <td className="py-0.5 pr-1.5">
                     <input
                       type="date"
-                      className="input"
+                      className="input-sm"
                       value={inv.posting_date ?? ""}
                       onChange={(e) => handleTextChange(inv, "posting_date", e.target.value)}
                       onBlur={() => handleTextBlur(inv, "posting_date")}
                     />
                   </td>
-                  <td className="py-1 pr-2">
+                  <td className="py-0.5 pr-1.5">
                     <input
                       type="date"
-                      className="input"
+                      className="input-sm"
                       value={inv.plan_date ?? ""}
                       onChange={(e) => handleTextChange(inv, "plan_date", e.target.value)}
                       onBlur={() => handleTextBlur(inv, "plan_date")}
                     />
                   </td>
-                  <td className="py-1 pr-2">
+                  <td className="py-0.5 pr-1.5">
                     <input
                       type="date"
-                      className="input"
+                      className="input-sm"
                       value={inv.actual_delivery_date ?? ""}
                       onChange={(e) =>
                         handleTextChange(inv, "actual_delivery_date", e.target.value)
@@ -384,10 +384,10 @@ export default function RecentInvoicesTable({ refreshKey }: RecentInvoicesTableP
                       onBlur={() => handleTextBlur(inv, "actual_delivery_date")}
                     />
                   </td>
-                  <td className="py-1 pr-2">
+                  <td className="py-0.5 pr-1.5">
                     <input
                       type="date"
-                      className="input"
+                      className="input-sm"
                       value={inv.transmittal_received_date ?? ""}
                       onChange={(e) =>
                         handleTextChange(inv, "transmittal_received_date", e.target.value)
@@ -395,34 +395,34 @@ export default function RecentInvoicesTable({ refreshKey }: RecentInvoicesTableP
                       onBlur={() => handleTextBlur(inv, "transmittal_received_date")}
                     />
                   </td>
-                  <td className="py-1 pr-2">
+                  <td className="py-0.5 pr-1.5">
                     <input
                       type="month"
-                      className="input"
+                      className="input-sm"
                       value={dateToMonthValue(inv.billing_period)}
                       onChange={(e) => handleMonthChange(inv, e.target.value)}
                       onBlur={() => handleMonthBlur(inv)}
                     />
                   </td>
-                  <td className="py-1 pr-2">
+                  <td className="py-0.5 pr-1.5">
                     <input
                       type="text"
-                      className="input"
+                      className="input-sm"
                       value={inv.remarks ?? ""}
                       onChange={(e) => handleTextChange(inv, "remarks", e.target.value)}
                       onBlur={() => handleTextBlur(inv, "remarks")}
                     />
                   </td>
-                  <td className="py-2 pr-2 whitespace-nowrap">
+                  <td className="py-1.5 pr-1.5 whitespace-nowrap">
                     {inv.status}
                     {savingId === inv.id && (
-                      <span className="ml-1 text-xs text-gray-400">saving…</span>
+                      <span className="ml-1 text-[11px] text-gray-400">saving…</span>
                     )}
                     {rowErrors[inv.id] && (
-                      <p className="text-xs text-red-600">{rowErrors[inv.id]}</p>
+                      <p className="text-[11px] text-red-600">{rowErrors[inv.id]}</p>
                     )}
                   </td>
-                  <td className="py-2 pr-2">
+                  <td className="py-1.5 pr-1.5">
                     <button
                       type="button"
                       className="text-xs font-medium text-red-600 hover:text-red-800 disabled:opacity-50"
