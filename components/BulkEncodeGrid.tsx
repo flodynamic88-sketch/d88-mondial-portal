@@ -36,7 +36,7 @@ const COLUMNS: {
   { key: "documentNo", label: "Document No.", type: "text", minWidth: "105px" },
   { key: "companyName", label: "Retail Chain / Account", type: "text", minWidth: "135px" },
   { key: "branchAddress", label: "Branch/Store Address", type: "text", minWidth: "150px" },
-  { key: "amount", label: "Amount", type: "number", minWidth: "85px" },
+  { key: "amount", label: "Amount", type: "text", minWidth: "95px" },
   { key: "postingDate", label: "Posting Date", type: "date", minWidth: "105px" },
   { key: "billingPeriod", label: "Month", type: "month", minWidth: "95px" },
   { key: "remarks", label: "Remarks", type: "text", minWidth: "115px" },
@@ -96,6 +96,35 @@ function dragFillMonthValue(seed: string, step: number): string {
   const nextYear = Math.floor(totalMonths / 12);
   const nextMonth = (totalMonths % 12) + 1;
   return `${nextYear}-${String(nextMonth).padStart(2, "0")}`;
+}
+
+/** Amount fill-handle just repeats the source value (like Excel does when
+ * dragging a single numeric/currency cell without a second reference point),
+ * instead of incrementing trailing digits which would mangle "135,000.00". */
+function dragFillAmountValue(seed: string): string {
+  return seed;
+}
+
+/** Strips everything except digits, a decimal point, and a leading minus. */
+function stripAmountToNumericString(raw: string): string {
+  return raw.replace(/[^0-9.-]/g, "");
+}
+
+/** Converts a raw/typed amount into the display format sample the user asked
+ * for, e.g. "135000" -> "135,000.00". Leaves the value alone if it isn't a
+ * parseable number (so the user can keep typing without it fighting back). */
+function formatAmountDisplay(raw: string): string {
+  const cleaned = stripAmountToNumericString(raw);
+  if (!cleaned) return "";
+  const num = Number(cleaned);
+  if (Number.isNaN(num)) return raw.trim();
+  return num.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
+/** Removes the thousands commas so the field is easy to keep typing in while
+ * focused; re-applied on blur via formatAmountDisplay. */
+function unformatAmountForEditing(raw: string): string {
+  return raw.replace(/,/g, "");
 }
 
 export default function BulkEncodeGrid({ category, onSaved }: BulkEncodeGridProps) {
@@ -163,7 +192,12 @@ export default function BulkEncodeGrid({ category, onSaved }: BulkEncodeGridProp
         if (target >= next.length) {
           next = [...next, ...makeInitialRows(target - next.length + 1)];
         }
-        const fill = column === "billingPeriod" ? dragFillMonthValue : dragFillValue;
+        const fill =
+          column === "billingPeriod"
+            ? dragFillMonthValue
+            : column === "amount"
+              ? dragFillAmountValue
+              : dragFillValue;
         for (let i = sourceIndex + 1; i <= target; i += 1) {
           next[i] = {
             ...next[i],
@@ -200,6 +234,70 @@ export default function BulkEncodeGrid({ category, onSaved }: BulkEncodeGridProp
     return index > source.index && index <= dragOverIndex;
   }
 
+  function handleAmountFocus(index: number) {
+    setRows((prev) => {
+      const next = [...prev];
+      next[index] = { ...next[index], amount: unformatAmountForEditing(next[index].amount) };
+      return next;
+    });
+  }
+
+  function handleAmountBlur(index: number) {
+    setRows((prev) => {
+      const next = [...prev];
+      next[index] = { ...next[index], amount: formatAmountDisplay(next[index].amount) };
+      return next;
+    });
+  }
+
+  /**
+   * Handles pasting a block of cells copied from Excel (or from elsewhere in
+   * the grid). Excel puts tab-separated columns and newline-separated rows
+   * on the clipboard, so a multi-cell copy pastes down *and* across starting
+   * from whatever cell has focus — no more clicking into every single cell.
+   */
+  function handleGridPaste(
+    e: React.ClipboardEvent<HTMLInputElement>,
+    rowIndex: number,
+    colIndex: number
+  ) {
+    const text = e.clipboardData.getData("text");
+    if (!text) return;
+    e.preventDefault();
+
+    const pastedRows = text.replace(/\r\n/g, "\n").replace(/\r/g, "\n").split("\n");
+    while (pastedRows.length > 1 && pastedRows[pastedRows.length - 1] === "") {
+      pastedRows.pop();
+    }
+
+    setRows((prev) => {
+      let next = [...prev];
+      const neededLength = rowIndex + pastedRows.length;
+      if (neededLength > next.length) {
+        next = [...next, ...makeInitialRows(neededLength - next.length)];
+      }
+
+      pastedRows.forEach((lineText, i) => {
+        const targetRowIndex = rowIndex + i;
+        const cells = lineText.split("\t");
+        let updatedRow = { ...next[targetRowIndex] };
+        cells.forEach((cellValue, j) => {
+          const targetColIndex = colIndex + j;
+          if (targetColIndex >= COLUMNS.length) return;
+          const colDef = COLUMNS[targetColIndex];
+          const value = cellValue.trim();
+          updatedRow = {
+            ...updatedRow,
+            [colDef.key]: colDef.key === "amount" ? formatAmountDisplay(value) : value,
+          };
+        });
+        next[targetRowIndex] = updatedRow;
+      });
+
+      return next;
+    });
+  }
+
   async function handleSaveAll() {
     setFeedback(null);
 
@@ -213,7 +311,10 @@ export default function BulkEncodeGrid({ category, onSaved }: BulkEncodeGridProp
     }
 
     const invalid = candidates.filter(
-      ({ r }) => !r.documentNo.trim() || !r.amount.trim() || Number.isNaN(Number(r.amount))
+      ({ r }) =>
+        !r.documentNo.trim() ||
+        !r.amount.trim() ||
+        Number.isNaN(Number(stripAmountToNumericString(r.amount)))
     );
     if (invalid.length > 0) {
       setFeedback({
@@ -265,7 +366,7 @@ export default function BulkEncodeGrid({ category, onSaved }: BulkEncodeGridProp
             company_id: companyId,
             company_name_raw: nameTrimmed || null,
             branch_address: addressTrimmed || null,
-            amount: Number(r.amount),
+            amount: Number(stripAmountToNumericString(r.amount)),
             plan_date: null,
             posting_date: r.postingDate || null,
             transmittal_received_date: null,
@@ -326,7 +427,10 @@ export default function BulkEncodeGrid({ category, onSaved }: BulkEncodeGridProp
           <h2 className="text-sm font-semibold text-gray-700">Grid Entry</h2>
           <p className="text-xs text-gray-500">
             Type a value, then drag the small square at the bottom-right of
-            any cell downward to auto-fill the rows below it (like Excel).
+            any cell downward to auto-fill the rows below it (like Excel). You
+            can also copy cells from Excel (or elsewhere in this grid) and
+            paste — it fills down and across starting from the selected cell.
+            Amount format sample: 135,000.00
           </p>
         </div>
         <div className="flex gap-2">
@@ -361,7 +465,7 @@ export default function BulkEncodeGrid({ category, onSaved }: BulkEncodeGridProp
                 }}
               >
                 <td className="py-0.5 pr-1.5 text-[11px] text-gray-400">{index + 1}</td>
-                {COLUMNS.map((col) => (
+                {COLUMNS.map((col, colIdx) => (
                   <td
                     key={col.key}
                     className={`py-0.5 pr-1.5 ${
@@ -371,8 +475,7 @@ export default function BulkEncodeGrid({ category, onSaved }: BulkEncodeGridProp
                     <div className="relative">
                       <input
                         type={col.type}
-                        step={col.type === "number" ? "0.01" : undefined}
-                        min={col.type === "number" ? "0" : undefined}
+                        inputMode={col.key === "amount" ? "decimal" : undefined}
                         list={
                           col.key === "companyName"
                             ? "company-options"
@@ -383,7 +486,16 @@ export default function BulkEncodeGrid({ category, onSaved }: BulkEncodeGridProp
                         className="input-sm"
                         value={row[col.key]}
                         onChange={(e) => updateRow(index, col.key, e.target.value)}
-                        placeholder={col.key === "documentNo" ? "CD_00123" : undefined}
+                        onFocus={col.key === "amount" ? () => handleAmountFocus(index) : undefined}
+                        onBlur={col.key === "amount" ? () => handleAmountBlur(index) : undefined}
+                        onPaste={(e) => handleGridPaste(e, index, colIdx)}
+                        placeholder={
+                          col.key === "documentNo"
+                            ? "CD_00123"
+                            : col.key === "amount"
+                              ? "135,000.00"
+                              : undefined
+                        }
                       />
                       <div
                         onMouseDown={(e) => startFillDrag(index, col.key, e)}
