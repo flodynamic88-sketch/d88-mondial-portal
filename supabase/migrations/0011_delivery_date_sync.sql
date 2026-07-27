@@ -30,10 +30,10 @@ begin
         when new.delivered_at is null then null
         else (new.delivered_at at time zone 'UTC')::date
       end,
-      status = case
+      status = (case
         when new.delivered_at is not null then 'DELIVERED'
         else 'PENDING'
-      end
+      end)::invoice_status
     where id = new.invoice_id;
   end if;
   return new;
