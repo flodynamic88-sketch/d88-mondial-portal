@@ -201,10 +201,11 @@ function GenerateTab({ category, canGenerate }: { category: InvoiceCategory; can
   // Lets staff pull in an invoice by its own document number regardless of
   // whether its Actual Delivery Date matches the date above -- covers the case
   // where two invoices share a delivery date but didn't end up in the same
-  // transmittal batch, or where the invoice never went through a Route Plan
-  // truck at all. If it has no delivery date yet, auto-stamp it with this
-  // transmittal's delivery date (mirrors RecentInvoicesTable's own
-  // handleDeliveryDateBlur behavior) so it isn't left behind.
+  // transmittal batch. Only invoices that are already DELIVERED (i.e. have an
+  // Actual Delivery Date, set either via Route Plan's Mark Delivered or
+  // directly on Encode Invoices) are eligible -- a transmittal can't include
+  // something that hasn't actually been delivered yet, so this does NOT
+  // auto-stamp a delivery date the way the date-filtered list above does.
   async function handleAddByDocument(e: React.FormEvent) {
     e.preventDefault();
     const trimmed = docQuery.trim();
@@ -240,29 +241,18 @@ function GenerateTab({ category, canGenerate }: { category: InvoiceCategory; can
         setDocError(`${found.document_no} has already been transmitted.`);
         return;
       }
-
-      let finalInvoice = found;
-      if (!found.actual_delivery_date) {
-        const { data: updated, error: updateErr } = await supabase
-          .from("invoices")
-          .update({ actual_delivery_date: deliveryDate, status: "DELIVERED" })
-          .eq("id", found.id)
-          .select("*")
-          .single();
-        if (updateErr || !updated) {
-          setDocError(
-            `Found ${found.document_no} but failed to set its delivery date: ${updateErr?.message ?? "unknown error"}`
-          );
-          return;
-        }
-        finalInvoice = updated as Invoice;
+      if (!found.actual_delivery_date || found.status !== "DELIVERED") {
+        setDocError(
+          `${found.document_no} hasn't been delivered yet. Mark it Delivered in Route Plan, or set its Actual Delivery Date in Encode Invoices, before adding it to a transmittal.`
+        );
+        return;
       }
 
       setInvoices((prev) => {
-        if (prev.some((i) => i.id === finalInvoice.id)) return prev;
-        return [...prev, finalInvoice].sort((a, b) => a.document_no.localeCompare(b.document_no));
+        if (prev.some((i) => i.id === found.id)) return prev;
+        return [...prev, found].sort((a, b) => a.document_no.localeCompare(b.document_no));
       });
-      setChecked((prev) => new Set(prev).add(finalInvoice.id));
+      setChecked((prev) => new Set(prev).add(found.id));
       setDocQuery("");
     } catch {
       setDocError("Could not look up that document number. Make sure a Supabase project is connected.");
@@ -363,9 +353,9 @@ function GenerateTab({ category, canGenerate }: { category: InvoiceCategory; can
       </form>
       {docError && <p className="mt-2 text-sm text-red-600">{docError}</p>}
       <p className="mt-1 text-xs text-gray-400">
-        Missed from the list above, or not delivered yet? Add it here by its own document
-        number — invoices without a delivery date yet will be stamped with{" "}
-        {new Date(deliveryDate).toLocaleDateString()} automatically.
+        Missed from the list above? Add an already-delivered {label.toLowerCase()} invoice here by
+        its own document number. Invoices that aren&apos;t Delivered yet won&apos;t be found — mark
+        them Delivered in Route Plan or set their Actual Delivery Date in Encode Invoices first.
       </p>
 
       {loading && <p className="mt-3 text-sm text-gray-400">Loading…</p>}
