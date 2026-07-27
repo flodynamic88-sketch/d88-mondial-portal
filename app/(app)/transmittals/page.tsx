@@ -133,12 +133,16 @@ function GenerateTab({ category, canGenerate }: { category: InvoiceCategory; can
     setErrorMsg(null);
     try {
       const supabase = createClient();
+      // "Delivered" is defined by having an Actual Delivery Date set (matching
+      // the convention used everywhere else in the app -- Route Plan's sync
+      // trigger and Encode Invoices both set this alongside status, but some
+      // older/imported rows only ever got actual_delivery_date populated
+      // directly, so status alone can't be relied on as the sole signal).
       const { data, error } = await supabase
         .from("invoices")
         .select("*")
         .eq("category", category)
         .eq("actual_delivery_date", deliveryDate)
-        .eq("status", "DELIVERED")
         .is("transmittal_id", null)
         .order("document_no", { ascending: true });
       if (error) {
@@ -242,7 +246,7 @@ function GenerateTab({ category, canGenerate }: { category: InvoiceCategory; can
         setDocError(`${found.document_no} has already been transmitted.`);
         return;
       }
-      if (!found.actual_delivery_date || found.status !== "DELIVERED") {
+      if (!found.actual_delivery_date) {
         setDocError(
           `${found.document_no} hasn't been delivered yet. Mark it Delivered in Route Plan, or set its Actual Delivery Date in Encode Invoices, before adding it to a transmittal.`
         );
