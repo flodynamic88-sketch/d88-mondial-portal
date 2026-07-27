@@ -90,13 +90,25 @@ export default function PrintTransmittalPage() {
 
   return (
     <div>
+      {/* Landscape gives the 7-column table more room to breathe than the
+          browser's default portrait page -- scoped to this page only via
+          @page, so other printable reports (Delivery Variance Log, etc.)
+          keep their normal portrait orientation. */}
+      <style>{`
+        @media print {
+          @page {
+            size: landscape;
+          }
+        }
+      `}</style>
+
       <div className="no-print mb-4 flex justify-end">
         <button type="button" className="btn-primary" onClick={() => window.print()}>
           Print / Save as PDF
         </button>
       </div>
 
-      <div className="printable-area mx-auto max-w-4xl rounded-xl border border-gray-200 bg-white p-8 text-sm text-gray-800">
+      <div className="printable-area mx-auto max-w-5xl rounded-xl border border-gray-200 bg-white p-8 text-sm text-gray-800">
         <div className="flex items-center justify-between border-b-2 border-brand-600 pb-4">
           <div className="flex items-center gap-4">
             {logoUrl ? (
