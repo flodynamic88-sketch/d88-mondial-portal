@@ -37,6 +37,16 @@ function formatMonthLabel(dateValue: string | null): string {
   return new Date(y, m - 1, 1).toLocaleDateString(undefined, { month: "long", year: "numeric" });
 }
 
+// Staff recognize invoices by their own CD_/PSI-/BR_ document number, not the
+// internal CONS-0001 style transmittal_no -- so batches lead with this range
+// (first-last document_no in the batch, ascending) instead.
+function formatDocRange(first: string | null, last: string | null): string {
+  if (!first && !last) return "—";
+  if (!first) return last as string;
+  if (!last || first === last) return first;
+  return `${first} – ${last}`;
+}
+
 type TabKey = InvoiceCategory | "SUMMARY";
 
 export default function TransmittalsPage() {
@@ -341,6 +351,7 @@ function GenerateTab({ category, canGenerate }: { category: InvoiceCategory; can
             <table className="min-w-full divide-y divide-gray-200 text-sm">
               <thead>
                 <tr className="text-left text-xs font-semibold uppercase text-gray-500">
+                  <th className="py-2 pr-4">Document #s</th>
                   <th className="py-2 pr-4">Transmittal #</th>
                   <th className="py-2 pr-4">Delivery Date</th>
                   <th className="py-2 pr-4">Date Transmitted</th>
@@ -354,8 +365,9 @@ function GenerateTab({ category, canGenerate }: { category: InvoiceCategory; can
                 {recent.map((t) => (
                   <tr key={t.id}>
                     <td className="py-2 pr-4 font-medium text-gray-800">
-                      {t.transmittal_no ?? "—"}
+                      {formatDocRange(t.first_document_no, t.last_document_no)}
                     </td>
+                    <td className="py-2 pr-4 text-gray-500">{t.transmittal_no ?? "—"}</td>
                     <td className="py-2 pr-4">{new Date(t.delivery_date).toLocaleDateString()}</td>
                     <td className="py-2 pr-4">
                       {new Date(t.date_transmitted).toLocaleDateString()}
@@ -477,8 +489,9 @@ function SummaryTab({ canUpdateStatus }: { canUpdateStatus: boolean }) {
           <table className="min-w-full divide-y divide-gray-200 text-sm">
             <thead>
               <tr className="text-left text-xs font-semibold uppercase text-gray-500">
-                <th className="py-2 pr-4">Date Transmitted</th>
+                <th className="py-2 pr-4">Document #s</th>
                 <th className="py-2 pr-4">Transmittal #</th>
+                <th className="py-2 pr-4">Date Transmitted</th>
                 <th className="py-2 pr-4">Amount</th>
                 <th className="py-2 pr-4">Status</th>
                 <th className="py-2 pr-4">Actions</th>
@@ -487,10 +500,11 @@ function SummaryTab({ canUpdateStatus }: { canUpdateStatus: boolean }) {
             <tbody className="divide-y divide-gray-100">
               {rows.map((t) => (
                 <tr key={t.id}>
-                  <td className="py-2 pr-4">{new Date(t.date_transmitted).toLocaleDateString()}</td>
                   <td className="py-2 pr-4 font-medium text-gray-800">
-                    {t.transmittal_no ?? "—"}
+                    {formatDocRange(t.first_document_no, t.last_document_no)}
                   </td>
+                  <td className="py-2 pr-4 text-gray-500">{t.transmittal_no ?? "—"}</td>
+                  <td className="py-2 pr-4">{new Date(t.date_transmitted).toLocaleDateString()}</td>
                   <td className="py-2 pr-4">{formatMoney(t.amount)}</td>
                   <td className="py-2 pr-4">
                     <select

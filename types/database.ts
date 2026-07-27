@@ -266,6 +266,8 @@ export interface VTransmittal {
   updated_at: string | null;
   item_count: number;
   amount: number;
+  first_document_no: string | null;
+  last_document_no: string | null;
 }
 
 export interface VTransmittalItem {
