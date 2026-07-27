@@ -1,0 +1,526 @@
+"use client";
+
+import { useCallback, useEffect, useMemo, useState } from "react";
+import Link from "next/link";
+import { createClient } from "@/lib/supabase/client";
+import RequireRole from "@/components/RequireRole";
+import { useAuth } from "@/components/AuthProvider";
+import { dateToMonthValue } from "@/lib/dateHelpers";
+import type { Invoice, InvoiceCategory, TransmittalStatus, VTransmittal } from "@/types/database";
+
+const CATEGORIES: { value: InvoiceCategory; label: string }[] = [
+  { value: "CONSIGNMENT", label: "Consignment" },
+  { value: "OUTRIGHT", label: "Outright" },
+  { value: "MERCURY_DRUG", label: "Flo-Mercury" },
+];
+
+const STATUS_OPTIONS: { value: TransmittalStatus; label: string }[] = [
+  { value: "PENDING", label: "Pending" },
+  { value: "TRANSMITTED", label: "Transmitted to Invoice Dept" },
+];
+
+function formatMoney(value: number | null | undefined) {
+  return (value ?? 0).toLocaleString(undefined, {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  });
+}
+
+function todayStr() {
+  return new Date().toISOString().slice(0, 10);
+}
+
+function formatMonthLabel(dateValue: string | null): string {
+  const monthValue = dateToMonthValue(dateValue);
+  if (!monthValue) return "—";
+  const [y, m] = monthValue.split("-").map(Number);
+  return new Date(y, m - 1, 1).toLocaleDateString(undefined, { month: "long", year: "numeric" });
+}
+
+type TabKey = InvoiceCategory | "SUMMARY";
+
+export default function TransmittalsPage() {
+  const profile = useAuth();
+  const role = profile?.role;
+  const canGenerate =
+    role === "ADMIN" ||
+    role === "LOGISTICS_OFFICER" ||
+    role === "LOGISTICS_ASSOCIATE" ||
+    role === "JMD_PLANNER";
+  const canUpdateStatus =
+    role === "ADMIN" || role === "LOGISTICS_OFFICER" || role === "LOGISTICS_ASSOCIATE";
+
+  const [tab, setTab] = useState<TabKey>("CONSIGNMENT");
+
+  return (
+    <RequireRole
+      roles={["ADMIN", "LOGISTICS_OFFICER", "JMD_PLANNER", "LOGISTICS_ASSOCIATE", "GENERAL_MANAGER"]}
+    >
+      <div>
+        <div className="page-header border-b-0 pb-0">
+          <div>
+            <h1 className="page-title">Transmittals</h1>
+            <p className="page-subtitle">
+              Generate printable transmittal batches per category for invoices with a delivery
+              date, and track their status to the Invoice Department.
+            </p>
+          </div>
+        </div>
+
+        <div className="mt-4 flex flex-wrap gap-2">
+          {CATEGORIES.map((c) => (
+            <button
+              key={c.value}
+              type="button"
+              className={
+                tab === c.value ? "tab-button tab-button-active" : "tab-button tab-button-inactive"
+              }
+              onClick={() => setTab(c.value)}
+            >
+              {c.label}
+            </button>
+          ))}
+          <button
+            type="button"
+            className={
+              tab === "SUMMARY" ? "tab-button tab-button-active" : "tab-button tab-button-inactive"
+            }
+            onClick={() => setTab("SUMMARY")}
+          >
+            Summary
+          </button>
+        </div>
+
+        {tab !== "SUMMARY" ? (
+          <GenerateTab category={tab} canGenerate={canGenerate} />
+        ) : (
+          <SummaryTab canUpdateStatus={canUpdateStatus} />
+        )}
+      </div>
+    </RequireRole>
+  );
+}
+
+function GenerateTab({ category, canGenerate }: { category: InvoiceCategory; canGenerate: boolean }) {
+  const label = CATEGORIES.find((c) => c.value === category)?.label ?? category;
+  const showRemarks = category !== "CONSIGNMENT";
+
+  const [deliveryDate, setDeliveryDate] = useState(todayStr());
+  const [invoices, setInvoices] = useState<Invoice[]>([]);
+  const [checked, setChecked] = useState<Set<string>>(new Set());
+  const [remarks, setRemarks] = useState<Record<string, string>>({});
+  const [loading, setLoading] = useState(false);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [generating, setGenerating] = useState(false);
+  const [genError, setGenError] = useState<string | null>(null);
+  const [recent, setRecent] = useState<VTransmittal[]>([]);
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    setErrorMsg(null);
+    try {
+      const supabase = createClient();
+      const { data, error } = await supabase
+        .from("invoices")
+        .select("*")
+        .eq("category", category)
+        .eq("actual_delivery_date", deliveryDate)
+        .is("transmittal_id", null)
+        .order("document_no", { ascending: true });
+      if (error) {
+        setErrorMsg(
+          "Could not load invoices for this date. Connect a Supabase project to see live data."
+        );
+        setInvoices([]);
+        return;
+      }
+      const rows = (data ?? []) as Invoice[];
+      setInvoices(rows);
+      setChecked(new Set(rows.map((r) => r.id)));
+      setRemarks({});
+    } catch {
+      setErrorMsg(
+        "Could not load invoices for this date. Connect a Supabase project to see live data."
+      );
+      setInvoices([]);
+    } finally {
+      setLoading(false);
+    }
+  }, [category, deliveryDate]);
+
+  const loadRecent = useCallback(async () => {
+    try {
+      const supabase = createClient();
+      const { data } = await supabase
+        .from("v_transmittals")
+        .select("*")
+        .eq("category", category)
+        .order("date_transmitted", { ascending: false })
+        .limit(8);
+      setRecent((data ?? []) as VTransmittal[]);
+    } catch {
+      setRecent([]);
+    }
+  }, [category]);
+
+  useEffect(() => {
+    load();
+  }, [load]);
+
+  useEffect(() => {
+    loadRecent();
+  }, [loadRecent]);
+
+  const selectedAmount = useMemo(
+    () => invoices.filter((i) => checked.has(i.id)).reduce((sum, i) => sum + (i.amount ?? 0), 0),
+    [invoices, checked]
+  );
+
+  function toggleRow(id: string) {
+    setChecked((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+
+  async function handleGenerate() {
+    const ids = invoices.filter((i) => checked.has(i.id)).map((i) => i.id);
+    if (ids.length === 0) {
+      setGenError("Select at least one invoice to include.");
+      return;
+    }
+    setGenerating(true);
+    setGenError(null);
+    try {
+      const supabase = createClient();
+      const { data: newTransmittal, error } = await supabase
+        .from("transmittals")
+        .insert({ category, delivery_date: deliveryDate })
+        .select("*")
+        .single();
+      if (error || !newTransmittal) {
+        setGenError(`Failed to create transmittal: ${error?.message ?? "unknown error"}`);
+        return;
+      }
+      const itemsPayload = ids.map((id) => ({
+        transmittal_id: newTransmittal.id,
+        invoice_id: id,
+        remarks: showRemarks ? remarks[id]?.trim() || null : null,
+      }));
+      const { error: itemsErr } = await supabase.from("transmittal_items").insert(itemsPayload);
+      if (itemsErr) {
+        setGenError(`Transmittal created but failed to attach invoices: ${itemsErr.message}`);
+        return;
+      }
+      window.open(`/transmittals/print/${newTransmittal.id}`, "_blank");
+      await load();
+      await loadRecent();
+    } catch {
+      setGenError("Could not generate the transmittal. Make sure a Supabase project is connected.");
+    } finally {
+      setGenerating(false);
+    }
+  }
+
+  return (
+    <div className="card mt-4">
+      <div className="flex flex-wrap items-end justify-between gap-3">
+        <div>
+          <label className="label" htmlFor="deliveryDate">
+            Delivery Date
+          </label>
+          <input
+            id="deliveryDate"
+            type="date"
+            className="input"
+            value={deliveryDate}
+            onChange={(e) => setDeliveryDate(e.target.value)}
+          />
+        </div>
+        <div className="text-right">
+          <p className="text-xs uppercase tracking-wide text-gray-500">Selected Amount</p>
+          <p className="text-xl font-bold text-brand-700">{formatMoney(selectedAmount)}</p>
+        </div>
+      </div>
+
+      <h2 className="mt-6 text-lg font-semibold text-gray-800">
+        {label} — Invoices Delivered on {new Date(deliveryDate).toLocaleDateString()}
+      </h2>
+      <p className="text-xs text-gray-400">
+        Shows every {label.toLowerCase()} invoice with this Actual Delivery Date that hasn&apos;t
+        been transmitted yet — whether it went through a Route Plan truck or had its delivery date
+        set directly on Encode Invoices.
+      </p>
+
+      {loading && <p className="mt-3 text-sm text-gray-400">Loading…</p>}
+      {!loading && errorMsg && <p className="mt-3 text-sm text-gray-400">{errorMsg}</p>}
+      {!loading && !errorMsg && invoices.length === 0 && (
+        <p className="mt-3 text-sm text-gray-400">
+          No un-transmitted {label.toLowerCase()} invoices with this delivery date.
+        </p>
+      )}
+      {!loading && !errorMsg && invoices.length > 0 && (
+        <div className="mt-3 overflow-x-auto">
+          <table className="min-w-full divide-y divide-gray-200 text-sm">
+            <thead>
+              <tr className="text-left text-xs font-semibold uppercase text-gray-500">
+                <th className="py-2 pr-4">Include</th>
+                <th className="py-2 pr-4">Document #</th>
+                <th className="py-2 pr-4">Retail Chain</th>
+                <th className="py-2 pr-4">Branch/Store Address</th>
+                <th className="py-2 pr-4">Month of Invoice</th>
+                <th className="py-2 pr-4">Posting Date</th>
+                <th className="py-2 pr-4">Amount</th>
+                {showRemarks && <th className="py-2 pr-4">Remarks</th>}
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-100">
+              {invoices.map((inv) => (
+                <tr key={inv.id}>
+                  <td className="py-2 pr-4">
+                    <input
+                      type="checkbox"
+                      checked={checked.has(inv.id)}
+                      onChange={() => toggleRow(inv.id)}
+                    />
+                  </td>
+                  <td className="py-2 pr-4 font-medium text-gray-800">{inv.document_no}</td>
+                  <td className="py-2 pr-4">
+                    {category === "MERCURY_DRUG"
+                      ? "Mercury Drug Corporation"
+                      : inv.company_name_raw ?? "—"}
+                  </td>
+                  <td className="py-2 pr-4">{inv.branch_address ?? "—"}</td>
+                  <td className="py-2 pr-4">{formatMonthLabel(inv.billing_period)}</td>
+                  <td className="py-2 pr-4">
+                    {inv.posting_date ? new Date(inv.posting_date).toLocaleDateString() : "—"}
+                  </td>
+                  <td className="py-2 pr-4">{formatMoney(inv.amount)}</td>
+                  {showRemarks && (
+                    <td className="py-2 pr-4">
+                      <input
+                        type="text"
+                        className="input input-sm"
+                        value={remarks[inv.id] ?? ""}
+                        onChange={(e) =>
+                          setRemarks((prev) => ({ ...prev, [inv.id]: e.target.value }))
+                        }
+                      />
+                    </td>
+                  )}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {genError && <p className="mt-3 text-sm text-red-600">{genError}</p>}
+
+      {canGenerate && !loading && !errorMsg && invoices.length > 0 && (
+        <button
+          type="button"
+          className="btn-primary mt-4"
+          onClick={handleGenerate}
+          disabled={generating}
+        >
+          {generating ? "Generating…" : `Generate ${label} Transmittal`}
+        </button>
+      )}
+
+      <div className="mt-8">
+        <h3 className="text-sm font-semibold text-gray-700">Recently Generated ({label})</h3>
+        {recent.length === 0 ? (
+          <p className="mt-2 text-sm text-gray-400">
+            No transmittals generated yet for this category.
+          </p>
+        ) : (
+          <div className="mt-2 overflow-x-auto">
+            <table className="min-w-full divide-y divide-gray-200 text-sm">
+              <thead>
+                <tr className="text-left text-xs font-semibold uppercase text-gray-500">
+                  <th className="py-2 pr-4">Transmittal #</th>
+                  <th className="py-2 pr-4">Delivery Date</th>
+                  <th className="py-2 pr-4">Date Transmitted</th>
+                  <th className="py-2 pr-4">Items</th>
+                  <th className="py-2 pr-4">Amount</th>
+                  <th className="py-2 pr-4">Status</th>
+                  <th className="py-2 pr-4">Actions</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-100">
+                {recent.map((t) => (
+                  <tr key={t.id}>
+                    <td className="py-2 pr-4 font-medium text-gray-800">
+                      {t.transmittal_no ?? "—"}
+                    </td>
+                    <td className="py-2 pr-4">{new Date(t.delivery_date).toLocaleDateString()}</td>
+                    <td className="py-2 pr-4">
+                      {new Date(t.date_transmitted).toLocaleDateString()}
+                    </td>
+                    <td className="py-2 pr-4">{t.item_count}</td>
+                    <td className="py-2 pr-4">{formatMoney(t.amount)}</td>
+                    <td className="py-2 pr-4">
+                      {t.status === "TRANSMITTED" ? (
+                        <span className="text-green-600">Transmitted</span>
+                      ) : (
+                        <span className="text-amber-600">Pending</span>
+                      )}
+                    </td>
+                    <td className="py-2 pr-4">
+                      <Link
+                        href={`/transmittals/print/${t.id}`}
+                        target="_blank"
+                        className="tab-button tab-button-inactive"
+                      >
+                        Print
+                      </Link>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function SummaryTab({ canUpdateStatus }: { canUpdateStatus: boolean }) {
+  const [category, setCategory] = useState<InvoiceCategory>("CONSIGNMENT");
+  const [rows, setRows] = useState<VTransmittal[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    setErrorMsg(null);
+    try {
+      const supabase = createClient();
+      const { data, error } = await supabase
+        .from("v_transmittals")
+        .select("*")
+        .eq("category", category)
+        .order("date_transmitted", { ascending: false });
+      if (error) {
+        setErrorMsg(
+          "Could not load the transmittal summary. Connect a Supabase project to see live data."
+        );
+        setRows([]);
+        return;
+      }
+      setRows((data ?? []) as VTransmittal[]);
+    } catch {
+      setErrorMsg(
+        "Could not load the transmittal summary. Connect a Supabase project to see live data."
+      );
+      setRows([]);
+    } finally {
+      setLoading(false);
+    }
+  }, [category]);
+
+  useEffect(() => {
+    load();
+  }, [load]);
+
+  async function handleStatusChange(id: string, status: TransmittalStatus) {
+    try {
+      const supabase = createClient();
+      const { error } = await supabase.from("transmittals").update({ status }).eq("id", id);
+      if (!error) await load();
+    } catch {
+      // Row keeps its last-known status until the next reload.
+    }
+  }
+
+  const totalAmount = useMemo(() => rows.reduce((sum, r) => sum + (r.amount ?? 0), 0), [rows]);
+
+  return (
+    <div className="card mt-4">
+      <div className="flex flex-wrap gap-2">
+        {CATEGORIES.map((c) => (
+          <button
+            key={c.value}
+            type="button"
+            className={
+              category === c.value ? "tab-button tab-button-active" : "tab-button tab-button-inactive"
+            }
+            onClick={() => setCategory(c.value)}
+          >
+            {c.label}
+          </button>
+        ))}
+      </div>
+
+      <div className="mt-4 flex flex-wrap items-center justify-between gap-2">
+        <h2 className="text-lg font-semibold text-gray-800">
+          {CATEGORIES.find((c) => c.value === category)?.label} Transmittal Summary
+        </h2>
+        <p className="text-sm text-gray-500">
+          Total: <span className="font-semibold text-gray-800">{formatMoney(totalAmount)}</span>
+        </p>
+      </div>
+
+      {loading && <p className="mt-3 text-sm text-gray-400">Loading…</p>}
+      {!loading && errorMsg && <p className="mt-3 text-sm text-gray-400">{errorMsg}</p>}
+      {!loading && !errorMsg && rows.length === 0 && (
+        <p className="mt-3 text-sm text-gray-400">
+          No transmittals generated yet for this category.
+        </p>
+      )}
+      {!loading && !errorMsg && rows.length > 0 && (
+        <div className="mt-3 overflow-x-auto">
+          <table className="min-w-full divide-y divide-gray-200 text-sm">
+            <thead>
+              <tr className="text-left text-xs font-semibold uppercase text-gray-500">
+                <th className="py-2 pr-4">Date Transmitted</th>
+                <th className="py-2 pr-4">Transmittal #</th>
+                <th className="py-2 pr-4">Amount</th>
+                <th className="py-2 pr-4">Status</th>
+                <th className="py-2 pr-4">Actions</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-100">
+              {rows.map((t) => (
+                <tr key={t.id}>
+                  <td className="py-2 pr-4">{new Date(t.date_transmitted).toLocaleDateString()}</td>
+                  <td className="py-2 pr-4 font-medium text-gray-800">
+                    {t.transmittal_no ?? "—"}
+                  </td>
+                  <td className="py-2 pr-4">{formatMoney(t.amount)}</td>
+                  <td className="py-2 pr-4">
+                    <select
+                      className="input input-sm"
+                      value={t.status}
+                      onChange={(e) => handleStatusChange(t.id, e.target.value as TransmittalStatus)}
+                      disabled={!canUpdateStatus}
+                    >
+                      {STATUS_OPTIONS.map((opt) => (
+                        <option key={opt.value} value={opt.value}>
+                          {opt.label}
+                        </option>
+                      ))}
+                    </select>
+                  </td>
+                  <td className="py-2 pr-4">
+                    <Link
+                      href={`/transmittals/print/${t.id}`}
+                      target="_blank"
+                      className="tab-button tab-button-inactive"
+                    >
+                      Print
+                    </Link>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  );
+}

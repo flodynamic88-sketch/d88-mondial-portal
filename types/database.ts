@@ -6,6 +6,7 @@ export type ZoneType = "NCR" | "FAR_NORTH_SOUTH" | "VIZMIN";
 export type InvoiceStatus = "PENDING" | "DISPATCHED" | "DELIVERED" | "CANCELLED";
 export type ReasonType = "DISCREPANCY" | "BACKLOAD";
 export type ReturnedStatus = "RETURNED" | "NOT_RETURNED" | "PARTIAL";
+export type TransmittalStatus = "PENDING" | "TRANSMITTED";
 export type UserRole =
   | "ADMIN"
   | "LOGISTICS_OFFICER"
@@ -66,6 +67,7 @@ export interface Invoice {
   billing_period: string | null;
   remarks: string | null;
   status: InvoiceStatus;
+  transmittal_id: string | null;
   created_at: string | null;
   updated_at: string | null;
 }
@@ -157,6 +159,26 @@ export interface AppSetting {
   updated_at: string | null;
 }
 
+export interface Transmittal {
+  id: string;
+  transmittal_no: string | null;
+  category: InvoiceCategory;
+  delivery_date: string;
+  date_transmitted: string;
+  status: TransmittalStatus;
+  created_by: string | null;
+  created_at: string | null;
+  updated_at: string | null;
+}
+
+export interface TransmittalItem {
+  id: string;
+  transmittal_id: string;
+  invoice_id: string;
+  remarks: string | null;
+  created_at: string | null;
+}
+
 // Views
 
 export interface VFulfillmentSummary {
@@ -230,6 +252,35 @@ export interface VDeliveryVarianceReasonSummary {
   reason_type: ReasonType;
   reason_label: string;
   log_count: number;
+}
+
+export interface VTransmittal {
+  id: string;
+  transmittal_no: string | null;
+  category: InvoiceCategory;
+  delivery_date: string;
+  date_transmitted: string;
+  status: TransmittalStatus;
+  created_by: string | null;
+  created_at: string | null;
+  updated_at: string | null;
+  item_count: number;
+  amount: number;
+}
+
+export interface VTransmittalItem {
+  id: string;
+  transmittal_id: string;
+  invoice_id: string;
+  remarks: string | null;
+  document_no: string;
+  category: InvoiceCategory;
+  actual_delivery_date: string | null;
+  billing_period: string | null;
+  posting_date: string | null;
+  company_name_raw: string | null;
+  branch_address: string | null;
+  amount: number;
 }
 
 export interface Database {
@@ -318,6 +369,18 @@ export interface Database {
         Update: Partial<UserProfile>;
         Relationships: [];
       };
+      transmittals: {
+        Row: Transmittal;
+        Insert: Partial<Transmittal> & { category: InvoiceCategory; delivery_date: string };
+        Update: Partial<Transmittal>;
+        Relationships: [];
+      };
+      transmittal_items: {
+        Row: TransmittalItem;
+        Insert: Partial<TransmittalItem> & { transmittal_id: string; invoice_id: string };
+        Update: Partial<TransmittalItem>;
+        Relationships: [];
+      };
     };
     Views: {
       v_fulfillment_summary: { Row: VFulfillmentSummary; Relationships: [] };
@@ -327,6 +390,8 @@ export interface Database {
       v_route_plan_trucks: { Row: RoutePlanTruck; Relationships: [] };
       v_delivery_variance_logs: { Row: VDeliveryVarianceLog; Relationships: [] };
       v_delivery_variance_reason_summary: { Row: VDeliveryVarianceReasonSummary; Relationships: [] };
+      v_transmittals: { Row: VTransmittal; Relationships: [] };
+      v_transmittal_items: { Row: VTransmittalItem; Relationships: [] };
     };
     Functions: Record<string, never>;
   };

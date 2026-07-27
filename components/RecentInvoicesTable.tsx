@@ -154,6 +154,22 @@ export default function RecentInvoicesTable({ refreshKey }: RecentInvoicesTableP
     await saveField(inv.id, { billing_period: dateValue });
   }
 
+  // Actual Delivery Date can be set here directly for invoices that never go
+  // through a Route Plan truck (e.g. hand-delivered / walk-in documents).
+  // Mirrors the sync_invoice_delivery_date trigger's semantics (see
+  // 0011_delivery_date_sync.sql) so status stays consistent whichever path
+  // set the delivery date, and so the invoice becomes eligible for
+  // Transmittal generation (which only checks invoices.actual_delivery_date,
+  // not whether the invoice was ever assigned to a Route Plan).
+  async function handleDeliveryDateBlur(inv: Invoice) {
+    const current = invoices.find((r) => r.id === inv.id);
+    if (!current) return;
+    const value = current.actual_delivery_date || null;
+    const status = value ? "DELIVERED" : current.status === "DELIVERED" ? "PENDING" : current.status;
+    updateLocal(inv.id, { status });
+    await saveField(inv.id, { actual_delivery_date: value, status });
+  }
+
   async function handleCompanyBlur(inv: Invoice) {
     const current = invoices.find((r) => r.id === inv.id);
     if (!current) return;
@@ -381,7 +397,7 @@ export default function RecentInvoicesTable({ refreshKey }: RecentInvoicesTableP
                       onChange={(e) =>
                         handleTextChange(inv, "actual_delivery_date", e.target.value)
                       }
-                      onBlur={() => handleTextBlur(inv, "actual_delivery_date")}
+                      onBlur={() => handleDeliveryDateBlur(inv)}
                     />
                   </td>
                   <td className="py-0.5 pr-1.5">

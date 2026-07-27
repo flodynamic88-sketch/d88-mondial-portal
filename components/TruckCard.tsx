@@ -19,6 +19,12 @@ import type {
 const CUSTOM_DISCREPANCY = "__custom_discrepancy__";
 const CUSTOM_BACKLOAD = "__custom_backload__";
 
+/** Slices an ISO timestamp down to the yyyy-mm-dd a <input type="date"> expects. */
+function toDateInputValue(iso: string | null): string {
+  if (!iso) return "";
+  return iso.slice(0, 10);
+}
+
 interface AssignedInvoiceRow extends RoutePlanInvoice {
   invoice: Invoice | null;
 }
@@ -237,28 +243,34 @@ export default function TruckCard({
     }
   }
 
-  async function handleMarkDelivered(row: AssignedInvoiceRow) {
+  async function handleDeliveryDateChange(row: AssignedInvoiceRow, value: string) {
     setActionError(null);
     try {
       const supabase = createClient();
-      const nowIso = new Date().toISOString();
+      // Store as UTC midnight for the picked date so the sync trigger's
+      // `(delivered_at at time zone 'UTC')::date` cast lands on the exact
+      // date the Logistics Associate chose, regardless of local timezone.
+      const isoValue = value ? `${value}T00:00:00.000Z` : null;
       const { error } = await supabase
         .from("route_plan_invoices")
-        .update({ delivered_at: nowIso })
+        .update({ delivered_at: isoValue })
         .eq("id", row.id);
 
       if (error) {
-        setActionError("Failed to mark invoice as delivered.");
+        setActionError("Failed to update delivery date.");
         return;
       }
 
-      if (row.invoice_id) {
-        await supabase.from("invoices").update({ status: "DELIVERED" }).eq("id", row.invoice_id);
-      }
+      // invoices.actual_delivery_date and invoices.status are kept in sync by
+      // the sync_invoice_delivery_date trigger (see
+      // 0011_delivery_date_sync.sql), which runs as SECURITY DEFINER so it
+      // isn't blocked by the ADMIN/JMD_PLANNER-only "invoices update" RLS
+      // policy that would otherwise silently reject this for a Logistics
+      // Associate.
       setRefreshKey((k) => k + 1);
     } catch {
       setActionError(
-        "Could not mark invoice delivered. Make sure a Supabase project is connected."
+        "Could not update delivery date. Make sure a Supabase project is connected."
       );
     }
   }
@@ -475,7 +487,7 @@ export default function TruckCard({
                       <div className="flex flex-col gap-1">
                         {row.delivered_at && (
                           <span className="text-green-600">
-                            Delivered {new Date(row.delivered_at).toLocaleDateString()}
+                            Delivered {toDateInputValue(row.delivered_at)}
                           </span>
                         )}
                         {row.reason_id && (
@@ -505,14 +517,12 @@ export default function TruckCard({
                       <div className="flex flex-col gap-1 sm:flex-row sm:items-center">
                         {canUpdateDelivery ? (
                           <>
-                        <button
-                          type="button"
-                          className="btn-primary"
-                          onClick={() => handleMarkDelivered(row)}
-                          disabled={Boolean(row.delivered_at)}
-                        >
-                          Mark Delivered
-                        </button>
+                        <input
+                          type="date"
+                          className="input"
+                          value={toDateInputValue(row.delivered_at)}
+                          onChange={(e) => handleDeliveryDateChange(row, e.target.value)}
+                        />
                         <select
                           className="input"
                           value={
