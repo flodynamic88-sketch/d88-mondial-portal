@@ -59,6 +59,11 @@ export default function TransmittalsPage() {
     role === "JMD_PLANNER";
   const canUpdateStatus =
     role === "ADMIN" || role === "LOGISTICS_OFFICER" || role === "LOGISTICS_ASSOCIATE";
+  // Matches the "transmittals delete" RLS policy (ADMIN only) -- deleting a
+  // transmittal cascades to its transmittal_items and, via
+  // invoices.transmittal_id's ON DELETE SET NULL, automatically frees its
+  // invoices to be picked up again by a new transmittal.
+  const canDelete = role === "ADMIN";
 
   const [tab, setTab] = useState<TabKey>("CONSIGNMENT");
 
@@ -102,16 +107,24 @@ export default function TransmittalsPage() {
         </div>
 
         {tab !== "SUMMARY" ? (
-          <GenerateTab category={tab} canGenerate={canGenerate} />
+          <GenerateTab category={tab} canGenerate={canGenerate} canDelete={canDelete} />
         ) : (
-          <SummaryTab canUpdateStatus={canUpdateStatus} />
+          <SummaryTab canUpdateStatus={canUpdateStatus} canDelete={canDelete} />
         )}
       </div>
     </RequireRole>
   );
 }
 
-function GenerateTab({ category, canGenerate }: { category: InvoiceCategory; canGenerate: boolean }) {
+function GenerateTab({
+  category,
+  canGenerate,
+  canDelete,
+}: {
+  category: InvoiceCategory;
+  canGenerate: boolean;
+  canDelete: boolean;
+}) {
   const label = CATEGORIES.find((c) => c.value === category)?.label ?? category;
   const showRemarks = category !== "CONSIGNMENT";
 
@@ -127,6 +140,8 @@ function GenerateTab({ category, canGenerate }: { category: InvoiceCategory; can
   const [docQuery, setDocQuery] = useState("");
   const [docSearching, setDocSearching] = useState(false);
   const [docError, setDocError] = useState<string | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -193,6 +208,35 @@ function GenerateTab({ category, canGenerate }: { category: InvoiceCategory; can
     () => invoices.filter((i) => checked.has(i.id)).reduce((sum, i) => sum + (i.amount ?? 0), 0),
     [invoices, checked]
   );
+
+  // Deleting a transmittal cascades to its transmittal_items and, via
+  // invoices.transmittal_id's ON DELETE SET NULL, frees its invoices to be
+  // picked up again -- so also refresh the auto-list in case a freed invoice
+  // matches the currently-selected category + delivery date.
+  async function handleDeleteTransmittal(t: VTransmittal) {
+    const confirmed = window.confirm(
+      `Delete transmittal ${formatDocRange(t.first_document_no, t.last_document_no)} (${
+        t.transmittal_no ?? "no #"
+      })? Its invoices will become available again to include in a new transmittal. This cannot be undone.`
+    );
+    if (!confirmed) return;
+
+    setDeletingId(t.id);
+    setDeleteError(null);
+    try {
+      const supabase = createClient();
+      const { error } = await supabase.from("transmittals").delete().eq("id", t.id);
+      if (error) {
+        setDeleteError(`Failed to delete transmittal: ${error.message}`);
+        return;
+      }
+      await Promise.all([load(), loadRecent()]);
+    } catch {
+      setDeleteError("Could not delete the transmittal. Make sure a Supabase project is connected.");
+    } finally {
+      setDeletingId(null);
+    }
+  }
 
   function toggleRow(id: string) {
     setChecked((prev) => {
@@ -441,6 +485,7 @@ function GenerateTab({ category, canGenerate }: { category: InvoiceCategory; can
 
       <div className="mt-8">
         <h3 className="text-sm font-semibold text-gray-700">Recently Generated ({label})</h3>
+        {deleteError && <p className="mt-2 text-sm text-red-600">{deleteError}</p>}
         {recent.length === 0 ? (
           <p className="mt-2 text-sm text-gray-400">
             No transmittals generated yet for this category.
@@ -481,13 +526,25 @@ function GenerateTab({ category, canGenerate }: { category: InvoiceCategory; can
                       )}
                     </td>
                     <td className="py-2 pr-4">
-                      <Link
-                        href={`/transmittals/print/${t.id}`}
-                        target="_blank"
-                        className="tab-button tab-button-inactive"
-                      >
-                        Print
-                      </Link>
+                      <div className="flex flex-wrap gap-2">
+                        <Link
+                          href={`/transmittals/print/${t.id}`}
+                          target="_blank"
+                          className="tab-button tab-button-inactive"
+                        >
+                          Print
+                        </Link>
+                        {canDelete && (
+                          <button
+                            type="button"
+                            className="text-xs font-medium text-red-600 hover:text-red-800 disabled:opacity-50"
+                            onClick={() => handleDeleteTransmittal(t)}
+                            disabled={deletingId === t.id}
+                          >
+                            {deletingId === t.id ? "Deleting…" : "Delete"}
+                          </button>
+                        )}
+                      </div>
                     </td>
                   </tr>
                 ))}
@@ -500,11 +557,19 @@ function GenerateTab({ category, canGenerate }: { category: InvoiceCategory; can
   );
 }
 
-function SummaryTab({ canUpdateStatus }: { canUpdateStatus: boolean }) {
+function SummaryTab({
+  canUpdateStatus,
+  canDelete,
+}: {
+  canUpdateStatus: boolean;
+  canDelete: boolean;
+}) {
   const [category, setCategory] = useState<InvoiceCategory>("CONSIGNMENT");
   const [rows, setRows] = useState<VTransmittal[]>([]);
   const [loading, setLoading] = useState(true);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -545,6 +610,31 @@ function SummaryTab({ canUpdateStatus }: { canUpdateStatus: boolean }) {
       if (!error) await load();
     } catch {
       // Row keeps its last-known status until the next reload.
+    }
+  }
+
+  async function handleDeleteTransmittal(t: VTransmittal) {
+    const confirmed = window.confirm(
+      `Delete transmittal ${formatDocRange(t.first_document_no, t.last_document_no)} (${
+        t.transmittal_no ?? "no #"
+      })? Its invoices will become available again to include in a new transmittal. This cannot be undone.`
+    );
+    if (!confirmed) return;
+
+    setDeletingId(t.id);
+    setDeleteError(null);
+    try {
+      const supabase = createClient();
+      const { error } = await supabase.from("transmittals").delete().eq("id", t.id);
+      if (error) {
+        setDeleteError(`Failed to delete transmittal: ${error.message}`);
+        return;
+      }
+      await load();
+    } catch {
+      setDeleteError("Could not delete the transmittal. Make sure a Supabase project is connected.");
+    } finally {
+      setDeletingId(null);
     }
   }
 
@@ -620,13 +710,25 @@ function SummaryTab({ canUpdateStatus }: { canUpdateStatus: boolean }) {
                     </select>
                   </td>
                   <td className="py-2 pr-4">
-                    <Link
-                      href={`/transmittals/print/${t.id}`}
-                      target="_blank"
-                      className="tab-button tab-button-inactive"
-                    >
-                      Print
-                    </Link>
+                    <div className="flex flex-wrap gap-2">
+                      <Link
+                        href={`/transmittals/print/${t.id}`}
+                        target="_blank"
+                        className="tab-button tab-button-inactive"
+                      >
+                        Print
+                      </Link>
+                      {canDelete && (
+                        <button
+                          type="button"
+                          className="text-xs font-medium text-red-600 hover:text-red-800 disabled:opacity-50"
+                          onClick={() => handleDeleteTransmittal(t)}
+                          disabled={deletingId === t.id}
+                        >
+                          {deletingId === t.id ? "Deleting…" : "Delete"}
+                        </button>
+                      )}
+                    </div>
                   </td>
                 </tr>
               ))}
@@ -634,6 +736,7 @@ function SummaryTab({ canUpdateStatus }: { canUpdateStatus: boolean }) {
           </table>
         </div>
       )}
+      {deleteError && <p className="mt-3 text-sm text-red-600">{deleteError}</p>}
     </div>
   );
 }
