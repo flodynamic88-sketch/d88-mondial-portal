@@ -138,6 +138,7 @@ function GenerateTab({ category, canGenerate }: { category: InvoiceCategory; can
         .select("*")
         .eq("category", category)
         .eq("actual_delivery_date", deliveryDate)
+        .eq("status", "DELIVERED")
         .is("transmittal_id", null)
         .order("document_no", { ascending: true });
       if (error) {
