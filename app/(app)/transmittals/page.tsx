@@ -124,6 +124,9 @@ function GenerateTab({ category, canGenerate }: { category: InvoiceCategory; can
   const [generating, setGenerating] = useState(false);
   const [genError, setGenError] = useState<string | null>(null);
   const [recent, setRecent] = useState<VTransmittal[]>([]);
+  const [docQuery, setDocQuery] = useState("");
+  const [docSearching, setDocSearching] = useState(false);
+  const [docError, setDocError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -195,6 +198,79 @@ function GenerateTab({ category, canGenerate }: { category: InvoiceCategory; can
     });
   }
 
+  // Lets staff pull in an invoice by its own document number regardless of
+  // whether its Actual Delivery Date matches the date above -- covers the case
+  // where two invoices share a delivery date but didn't end up in the same
+  // transmittal batch, or where the invoice never went through a Route Plan
+  // truck at all. If it has no delivery date yet, auto-stamp it with this
+  // transmittal's delivery date (mirrors RecentInvoicesTable's own
+  // handleDeliveryDateBlur behavior) so it isn't left behind.
+  async function handleAddByDocument(e: React.FormEvent) {
+    e.preventDefault();
+    const trimmed = docQuery.trim();
+    if (!trimmed) return;
+
+    setDocSearching(true);
+    setDocError(null);
+    try {
+      const supabase = createClient();
+      const { data, error } = await supabase
+        .from("invoices")
+        .select("*")
+        .ilike("document_no", trimmed)
+        .maybeSingle();
+
+      if (error) {
+        setDocError("Could not look up that document number.");
+        return;
+      }
+      if (!data) {
+        setDocError(`No invoice found with document number "${trimmed}".`);
+        return;
+      }
+
+      const found = data as Invoice;
+      if (found.category !== category) {
+        setDocError(
+          `${found.document_no} is a ${found.category.replace("_", " ")} invoice — it can't be added to a ${label} transmittal.`
+        );
+        return;
+      }
+      if (found.transmittal_id) {
+        setDocError(`${found.document_no} has already been transmitted.`);
+        return;
+      }
+
+      let finalInvoice = found;
+      if (!found.actual_delivery_date) {
+        const { data: updated, error: updateErr } = await supabase
+          .from("invoices")
+          .update({ actual_delivery_date: deliveryDate, status: "DELIVERED" })
+          .eq("id", found.id)
+          .select("*")
+          .single();
+        if (updateErr || !updated) {
+          setDocError(
+            `Found ${found.document_no} but failed to set its delivery date: ${updateErr?.message ?? "unknown error"}`
+          );
+          return;
+        }
+        finalInvoice = updated as Invoice;
+      }
+
+      setInvoices((prev) => {
+        if (prev.some((i) => i.id === finalInvoice.id)) return prev;
+        return [...prev, finalInvoice].sort((a, b) => a.document_no.localeCompare(b.document_no));
+      });
+      setChecked((prev) => new Set(prev).add(finalInvoice.id));
+      setDocQuery("");
+    } catch {
+      setDocError("Could not look up that document number. Make sure a Supabase project is connected.");
+    } finally {
+      setDocSearching(false);
+    }
+  }
+
   async function handleGenerate() {
     const ids = invoices.filter((i) => checked.has(i.id)).map((i) => i.id);
     if (ids.length === 0) {
@@ -262,6 +338,34 @@ function GenerateTab({ category, canGenerate }: { category: InvoiceCategory; can
         Shows every {label.toLowerCase()} invoice with this Actual Delivery Date that hasn&apos;t
         been transmitted yet — whether it went through a Route Plan truck or had its delivery date
         set directly on Encode Invoices.
+      </p>
+
+      <form
+        onSubmit={handleAddByDocument}
+        className="mt-4 flex flex-wrap items-end gap-2 rounded-md border border-dashed border-gray-300 p-3"
+      >
+        <div className="min-w-[220px] flex-1">
+          <label className="label" htmlFor={`add-doc-${category}`}>
+            Add by Document #
+          </label>
+          <input
+            id={`add-doc-${category}`}
+            type="text"
+            className="input"
+            placeholder="e.g. CD_00123, PSI-00456, BR_00789"
+            value={docQuery}
+            onChange={(e) => setDocQuery(e.target.value)}
+          />
+        </div>
+        <button type="submit" className="btn-primary" disabled={docSearching}>
+          {docSearching ? "Searching…" : "Add"}
+        </button>
+      </form>
+      {docError && <p className="mt-2 text-sm text-red-600">{docError}</p>}
+      <p className="mt-1 text-xs text-gray-400">
+        Missed from the list above, or not delivered yet? Add it here by its own document
+        number — invoices without a delivery date yet will be stamped with{" "}
+        {new Date(deliveryDate).toLocaleDateString()} automatically.
       </p>
 
       {loading && <p className="mt-3 text-sm text-gray-400">Loading…</p>}
