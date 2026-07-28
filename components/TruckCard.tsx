@@ -353,6 +353,15 @@ export default function TruckCard({
             )}
           </p>
           <p className="text-xs text-gray-500">{truck.carrier ?? "No carrier specified"}</p>
+          <p className="text-xs text-gray-500">
+            Driver: {truck.driver_name ?? "—"}
+            {(truck.helper1_name || truck.helper2_name) && (
+              <>
+                {" "}
+                · Helpers: {[truck.helper1_name, truck.helper2_name].filter(Boolean).join(", ")}
+              </>
+            )}
+          </p>
           {isConvoy ? (
             <p className="text-xs text-gray-400">Rate included in the main truck's rate</p>
           ) : (

@@ -24,6 +24,9 @@ export default function AddTruckForm({
   const [plateNumber, setPlateNumber] = useState("");
   const [carrier, setCarrier] = useState("");
   const [truckRate, setTruckRate] = useState("");
+  const [driverName, setDriverName] = useState("");
+  const [helper1Name, setHelper1Name] = useState("");
+  const [helper2Name, setHelper2Name] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -55,6 +58,9 @@ export default function AddTruckForm({
         truck_rate: rateNumber,
         is_convoy: Boolean(mainTruckId),
         main_truck_id: mainTruckId ?? null,
+        driver_name: driverName.trim() || null,
+        helper1_name: helper1Name.trim() || null,
+        helper2_name: helper2Name.trim() || null,
       });
 
       if (insertError) {
@@ -65,6 +71,9 @@ export default function AddTruckForm({
       setPlateNumber("");
       setCarrier("");
       setTruckRate("");
+      setDriverName("");
+      setHelper1Name("");
+      setHelper2Name("");
       onCreated();
     } catch {
       setError("Could not add truck. Make sure a Supabase project is connected.");
@@ -106,6 +115,30 @@ export default function AddTruckForm({
           No separate rate needed — a convoy truck is covered by the main truck's rate.
         </p>
       )}
+      <div>
+        <label className="label">Driver</label>
+        <input
+          className="input"
+          value={driverName}
+          onChange={(e) => setDriverName(e.target.value)}
+        />
+      </div>
+      <div>
+        <label className="label">Helper 1</label>
+        <input
+          className="input"
+          value={helper1Name}
+          onChange={(e) => setHelper1Name(e.target.value)}
+        />
+      </div>
+      <div>
+        <label className="label">Helper 2</label>
+        <input
+          className="input"
+          value={helper2Name}
+          onChange={(e) => setHelper2Name(e.target.value)}
+        />
+      </div>
       <div className="flex gap-2">
         <button type="submit" className="btn-primary" disabled={submitting}>
           {submitting ? "Adding…" : mainTruckId ? "Add Convoy Truck" : "Add Truck"}

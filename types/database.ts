@@ -94,6 +94,9 @@ export interface RoutePlanTruck {
   main_truck_id: string | null;
   dispatched_at: string | null;
   created_at: string | null;
+  driver_name: string | null;
+  helper1_name: string | null;
+  helper2_name: string | null;
 }
 
 export interface RoutePlanInvoice {
