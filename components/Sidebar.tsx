@@ -58,7 +58,6 @@ const NAV_ITEMS: NavItem[] = [
     roles: ["ADMIN", "LOGISTICS_OFFICER", "GENERAL_MANAGER"],
   },
   { href: "/admin/users", label: "User Management", roles: ["ADMIN"] },
-  { href: "/training", label: "Training Materials" },
 ];
 
 export default function Sidebar() {
