@@ -31,7 +31,14 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
   const { errorResponse } = await requireAdmin();
   if (errorResponse) return errorResponse;
 
-  let body: { role?: UserRole; full_name?: string; username?: string; password?: string };
+  let body: {
+    role?: UserRole;
+    full_name?: string;
+    username?: string;
+    password?: string;
+    email?: string;
+    avatar_url?: string;
+  };
   try {
     body = await request.json();
   } catch {
@@ -74,7 +81,13 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
     }
   }
 
-  const updates: { role?: UserRole; full_name?: string | null; username?: string } = {};
+  const updates: {
+    role?: UserRole;
+    full_name?: string | null;
+    username?: string;
+    email?: string | null;
+    avatar_url?: string | null;
+  } = {};
   if (body.role !== undefined) {
     if (!ALL_ROLES.includes(body.role)) {
       return NextResponse.json({ error: "Invalid role." }, { status: 400 });
@@ -86,6 +99,12 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
   }
   if (newUsername !== undefined) {
     updates.username = newUsername;
+  }
+  if (body.email !== undefined) {
+    updates.email = body.email.trim() || null;
+  }
+  if (body.avatar_url !== undefined) {
+    updates.avatar_url = body.avatar_url.trim() || null;
   }
 
   if (Object.keys(updates).length > 0) {

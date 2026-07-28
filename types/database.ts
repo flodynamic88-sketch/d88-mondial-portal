@@ -21,6 +21,8 @@ export interface UserProfile {
   full_name: string | null;
   role: UserRole;
   created_at: string | null;
+  avatar_url: string | null;
+  email: string | null;
 }
 
 export interface Company {

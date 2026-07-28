@@ -1,9 +1,11 @@
 "use client";
 
-import { Fragment, useState } from "react";
+import { Fragment, useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import RequireRole from "@/components/RequireRole";
+import { useAuth } from "@/components/AuthProvider";
 import { exportToExcel } from "@/lib/exportExcel";
+import { getAppSetting, setAppSetting, FINAL_BILLING_REPORT_EMAIL_KEY } from "@/lib/appSettings";
 import type { InvoiceCategory, VFinalBilling, ZoneType } from "@/types/database";
 
 const ZONE_LABELS: Record<ZoneType, string> = {
@@ -135,12 +137,78 @@ function buildFeeGroups(catRows: VFinalBilling[], category: InvoiceCategory): Fe
 }
 
 export default function FinalBillingPage() {
+  const profile = useAuth();
+  const canEditReportEmail = profile?.role === "ADMIN";
+
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
   const [rows, setRows] = useState<VFinalBilling[]>([]);
   const [generating, setGenerating] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [hasGenerated, setHasGenerated] = useState(false);
+
+  // Recipient email for auto-sent reports (see RESEND_API_KEY note in
+  // app/api/reports/final-billing/send/route.ts). Stored in app_settings the
+  // same way the Dynamic88 logo is, so no extra table is needed.
+  const [reportEmail, setReportEmail] = useState("");
+  const [editingReportEmail, setEditingReportEmail] = useState(false);
+  const [savingReportEmail, setSavingReportEmail] = useState(false);
+  const [sendStatus, setSendStatus] = useState<string | null>(null);
+
+  useEffect(() => {
+    getAppSetting(FINAL_BILLING_REPORT_EMAIL_KEY).then((v) => setReportEmail(v ?? ""));
+  }, []);
+
+  async function handleSaveReportEmail() {
+    setSavingReportEmail(true);
+    try {
+      await setAppSetting(FINAL_BILLING_REPORT_EMAIL_KEY, reportEmail.trim() || null);
+      setEditingReportEmail(false);
+    } finally {
+      setSavingReportEmail(false);
+    }
+  }
+
+  // Auto-emails the just-generated report to the configured recipient (see
+  // handleSaveReportEmail above). Silently does nothing if no recipient is
+  // set yet -- this isn't an error, just an unconfigured feature.
+  async function sendReportEmail(generatedRows: VFinalBilling[]) {
+    if (!reportEmail.trim()) return;
+
+    const categorySummaries = CATEGORY_CONFIG.flatMap((cat) => {
+      const catRows = generatedRows.filter((r) => r.category === cat.value);
+      return buildFeeGroups(catRows, cat.value).map((g) => ({
+        label: `${cat.label} — ${g.label}`,
+        totalAmount: g.totalAmount,
+        totalFee: g.totalFee,
+      }));
+    });
+    const grandTotal = generatedRows.reduce((sum, r) => sum + (r.amount ?? 0), 0);
+    const grandFee = categorySummaries.reduce((sum, g) => sum + g.totalFee, 0);
+
+    try {
+      const res = await fetch("/api/reports/final-billing/send", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          recipient: reportEmail.trim(),
+          startDate,
+          endDate,
+          grandTotalAmount: grandTotal,
+          grandTotalFee: grandFee,
+          categorySummaries,
+        }),
+      });
+      const body = await res.json();
+      if (!res.ok) {
+        setSendStatus(body.error ?? "Failed to email the report.");
+        return;
+      }
+      setSendStatus(`Report emailed to ${body.sentTo}.`);
+    } catch {
+      setSendStatus("Could not email the report.");
+    }
+  }
 
   async function handleGenerate(e: React.FormEvent) {
     e.preventDefault();
@@ -157,6 +225,7 @@ export default function FinalBillingPage() {
 
     setGenerating(true);
     setHasGenerated(true);
+    setSendStatus(null);
     try {
       const supabase = createClient();
       const rangeStart = `${startDate}T00:00:00`;
@@ -173,7 +242,11 @@ export default function FinalBillingPage() {
         setErrorMsg("Could not generate final billing. Connect a Supabase project to see live data.");
         setRows([]);
       } else {
-        setRows(data ?? []);
+        const generatedRows = data ?? [];
+        setRows(generatedRows);
+        if (generatedRows.length > 0) {
+          await sendReportEmail(generatedRows);
+        }
       }
     } catch {
       setErrorMsg("Could not generate final billing. Connect a Supabase project to see live data.");
@@ -263,7 +336,57 @@ export default function FinalBillingPage() {
         </button>
       </form>
 
+      <div className="card mt-4 flex flex-wrap items-center gap-3">
+        <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">
+          Auto-email recipient
+        </p>
+        {editingReportEmail ? (
+          <>
+            <input
+              type="email"
+              className="input max-w-xs"
+              placeholder="name@example.com"
+              value={reportEmail}
+              onChange={(e) => setReportEmail(e.target.value)}
+            />
+            <button
+              type="button"
+              className="btn-primary"
+              disabled={savingReportEmail}
+              onClick={handleSaveReportEmail}
+            >
+              {savingReportEmail ? "Saving…" : "Save"}
+            </button>
+            <button
+              type="button"
+              className="tab-button tab-button-inactive"
+              onClick={() => setEditingReportEmail(false)}
+            >
+              Cancel
+            </button>
+          </>
+        ) : (
+          <>
+            <span className="text-sm text-gray-700">{reportEmail || "Not configured"}</span>
+            {canEditReportEmail && (
+              <button
+                type="button"
+                className="tab-button tab-button-inactive"
+                onClick={() => setEditingReportEmail(true)}
+              >
+                Edit
+              </button>
+            )}
+          </>
+        )}
+        <p className="w-full text-xs text-gray-400">
+          When a report is generated with results, a summary is automatically emailed to this
+          address.
+        </p>
+      </div>
+
       {errorMsg && <p className="mt-4 text-sm text-red-600">{errorMsg}</p>}
+      {sendStatus && <p className="mt-2 text-sm text-gray-500">{sendStatus}</p>}
 
       {hasGenerated && !generating && !errorMsg && (
         <div className="card mt-6">

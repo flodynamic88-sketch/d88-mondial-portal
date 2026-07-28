@@ -58,6 +58,7 @@ const NAV_ITEMS: NavItem[] = [
     roles: ["ADMIN", "LOGISTICS_OFFICER", "GENERAL_MANAGER"],
   },
   { href: "/admin/users", label: "User Management", roles: ["ADMIN"] },
+  { href: "/training", label: "Training Materials" },
 ];
 
 export default function Sidebar() {
@@ -127,9 +128,18 @@ export default function Sidebar() {
       <div className="border-t border-gray-800 px-5 py-4">
         {profile && (
           <div className="mb-3 flex items-center gap-2.5">
-            <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-brand-600 text-xs font-semibold text-white">
-              {initials}
-            </div>
+            {profile.avatar_url ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={profile.avatar_url}
+                alt=""
+                className="h-8 w-8 flex-shrink-0 rounded-full object-cover"
+              />
+            ) : (
+              <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-brand-600 text-xs font-semibold text-white">
+                {initials}
+              </div>
+            )}
             <div className="min-w-0">
               <p className="truncate text-sm font-medium text-white">{profile.username}</p>
               <p className="truncate text-xs text-gray-400">{ROLE_LABELS[profile.role]}</p>

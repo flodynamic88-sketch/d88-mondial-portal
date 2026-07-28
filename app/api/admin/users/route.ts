@@ -53,6 +53,8 @@ export async function POST(request: NextRequest) {
     password?: string;
     full_name?: string;
     role?: UserRole;
+    email?: string;
+    avatar_url?: string;
   };
   try {
     body = await request.json();
@@ -64,6 +66,8 @@ export async function POST(request: NextRequest) {
   const password = body.password ?? "";
   const fullName = body.full_name?.trim() || null;
   const role = body.role;
+  const email = body.email?.trim() || null;
+  const avatarUrl = body.avatar_url?.trim() || null;
 
   if (!username) {
     return NextResponse.json({ error: "Username is required." }, { status: 400 });
@@ -102,6 +106,8 @@ export async function POST(request: NextRequest) {
       username,
       full_name: fullName,
       role,
+      email,
+      avatar_url: avatarUrl,
     })
     .select("*")
     .single();

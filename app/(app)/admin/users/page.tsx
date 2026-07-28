@@ -14,6 +14,8 @@ function UserManagementInner() {
   const [fullName, setFullName] = useState("");
   const [password, setPassword] = useState("");
   const [role, setRole] = useState<UserRole>("LOGISTICS_ASSOCIATE");
+  const [email, setEmail] = useState("");
+  const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
   const [createError, setCreateError] = useState<string | null>(null);
 
@@ -25,6 +27,20 @@ function UserManagementInner() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editUsername, setEditUsername] = useState("");
   const [editFullName, setEditFullName] = useState("");
+  const [editEmail, setEditEmail] = useState("");
+  const [editAvatarUrl, setEditAvatarUrl] = useState<string | null>(null);
+
+  // Reads a picked image file as a base64 data URL -- stored directly on the
+  // profile row, same approach already used for the Dynamic88 logo
+  // (see lib/appSettings.ts), so no Supabase Storage bucket is needed.
+  function readFileAsDataUrl(file: File): Promise<string> {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result as string);
+      reader.onerror = reject;
+      reader.readAsDataURL(file);
+    });
+  }
 
   const loadUsers = useCallback(async () => {
     setLoading(true);
@@ -68,7 +84,14 @@ function UserManagementInner() {
       const res = await fetch("/api/admin/users", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ username: username.trim(), password, full_name: fullName, role }),
+        body: JSON.stringify({
+          username: username.trim(),
+          password,
+          full_name: fullName,
+          role,
+          email: email.trim(),
+          avatar_url: avatarUrl,
+        }),
       });
       const body = await res.json();
       if (!res.ok) {
@@ -79,6 +102,8 @@ function UserManagementInner() {
       setFullName("");
       setPassword("");
       setRole("LOGISTICS_ASSOCIATE");
+      setEmail("");
+      setAvatarUrl(null);
       await loadUsers();
     } catch {
       setCreateError("Could not create user.");
@@ -147,7 +172,12 @@ function UserManagementInner() {
       const res = await fetch(`/api/admin/users/${id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ username: editUsername.trim(), full_name: editFullName }),
+        body: JSON.stringify({
+          username: editUsername.trim(),
+          full_name: editFullName,
+          email: editEmail,
+          avatar_url: editAvatarUrl ?? "",
+        }),
       });
       const body = await res.json();
       if (!res.ok) {
@@ -243,6 +273,35 @@ function UserManagementInner() {
               ))}
             </select>
           </div>
+          <div>
+            <label className="label">Email</label>
+            <input
+              type="email"
+              className="input"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              placeholder="e.g. juan@company.com"
+            />
+          </div>
+          <div>
+            <label className="label">Profile Picture</label>
+            <div className="flex items-center gap-2">
+              {avatarUrl && (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={avatarUrl} alt="" className="h-8 w-8 rounded-full object-cover" />
+              )}
+              <input
+                type="file"
+                accept="image/*"
+                className="input"
+                onChange={async (e) => {
+                  const file = e.target.files?.[0];
+                  if (!file) return;
+                  setAvatarUrl(await readFileAsDataUrl(file));
+                }}
+              />
+            </div>
+          </div>
           <button type="submit" className="btn-primary" disabled={creating}>
             {creating ? "Creating…" : "Create User"}
           </button>
@@ -265,8 +324,10 @@ function UserManagementInner() {
             <table className="min-w-full divide-y divide-gray-200 text-sm">
               <thead>
                 <tr className="text-left text-xs font-semibold uppercase text-gray-500">
+                  <th className="py-2 pr-4">Photo</th>
                   <th className="py-2 pr-4">Username</th>
                   <th className="py-2 pr-4">Full Name</th>
+                  <th className="py-2 pr-4">Email</th>
                   <th className="py-2 pr-4">Role</th>
                   <th className="py-2 pr-4">Actions</th>
                 </tr>
@@ -274,6 +335,42 @@ function UserManagementInner() {
               <tbody className="divide-y divide-gray-100">
                 {users.map((u) => (
                   <tr key={u.id}>
+                    <td className="py-2 pr-4">
+                      {editingId === u.id ? (
+                        <div className="flex items-center gap-2">
+                          {editAvatarUrl && (
+                            // eslint-disable-next-line @next/next/no-img-element
+                            <img
+                              src={editAvatarUrl}
+                              alt=""
+                              className="h-8 w-8 rounded-full object-cover"
+                            />
+                          )}
+                          <input
+                            type="file"
+                            accept="image/*"
+                            className="input w-32 text-xs"
+                            disabled={busyId === u.id}
+                            onChange={async (e) => {
+                              const file = e.target.files?.[0];
+                              if (!file) return;
+                              setEditAvatarUrl(await readFileAsDataUrl(file));
+                            }}
+                          />
+                        </div>
+                      ) : u.avatar_url ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img
+                          src={u.avatar_url}
+                          alt=""
+                          className="h-8 w-8 rounded-full object-cover"
+                        />
+                      ) : (
+                        <div className="flex h-8 w-8 items-center justify-center rounded-full bg-brand-100 text-xs font-semibold text-brand-700">
+                          {u.username.slice(0, 2).toUpperCase()}
+                        </div>
+                      )}
+                    </td>
                     <td className="py-2 pr-4 font-medium text-gray-800">
                       {editingId === u.id ? (
                         <input
@@ -296,6 +393,20 @@ function UserManagementInner() {
                         />
                       ) : (
                         u.full_name ?? "—"
+                      )}
+                    </td>
+                    <td className="py-2 pr-4">
+                      {editingId === u.id ? (
+                        <input
+                          type="email"
+                          className="input w-44"
+                          value={editEmail}
+                          onChange={(e) => setEditEmail(e.target.value)}
+                          disabled={busyId === u.id}
+                          placeholder="e.g. juan@company.com"
+                        />
+                      ) : (
+                        u.email ?? "—"
                       )}
                     </td>
                     <td className="py-2 pr-4">
@@ -340,6 +451,8 @@ function UserManagementInner() {
                               setEditingId(u.id);
                               setEditUsername(u.username);
                               setEditFullName(u.full_name ?? "");
+                              setEditEmail(u.email ?? "");
+                              setEditAvatarUrl(u.avatar_url ?? null);
                               setResetPasswordId(null);
                             }}
                           >

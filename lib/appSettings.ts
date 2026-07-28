@@ -3,6 +3,9 @@ import { createClient } from "@/lib/supabase/client";
 /** Key used in app_settings for the Dynamic88 logo shown on printable forms. */
 export const LOGO_SETTING_KEY = "dynamic88_logo";
 
+/** Key used in app_settings for the recipient email of auto-sent Final Billing reports. */
+export const FINAL_BILLING_REPORT_EMAIL_KEY = "final_billing_report_email";
+
 /** Reads a single app_settings value (e.g. the stored logo data URL). */
 export async function getAppSetting(key: string): Promise<string | null> {
   try {
