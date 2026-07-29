@@ -1,0 +1,18 @@
+Subject: Team access lost / "You're not part of any teams" — overdue invoice, need reactivation
+
+Hi Vercel Support,
+
+My account (flo.dynamic88@gmail.com) was the Owner of a Team called "flodynamic88-4085's projects", which hosts my production project (d88-mondial-portal).
+
+The team had an overdue Pro plan invoice (July 2026, $20.00). After some time, I can no longer access the team at all — navigating to the team's settings/dashboard now redirects me to vercel.com/account/no-team with the message "You're not part of any teams." This happens even though my account was previously listed as the team's Owner.
+
+Could you please help me:
+1. Confirm whether the team was suspended or removed due to the overdue balance.
+2. Restore my access as Owner to "flodynamic88-4085's projects" (or let me know how to settle the outstanding invoice so it reinstates automatically).
+3. Confirm that our deployed project(s) and data are still intact and were not deleted.
+
+I'm ready to pay the outstanding balance immediately once I have access to do so. Please let me know what additional information you need to verify my identity/ownership.
+
+Thank you,
+Flo (Dynamic88 Solutions)
+Account email: flo.dynamic88@gmail.com
