@@ -14,7 +14,18 @@ import type {
   DeliveryReason,
   ReasonType,
   VTruckCts,
+  FeeRate,
 } from "@/types/database";
+
+/** Human-readable zone label matching the fee schedule (NCR / NCR (DC) / etc). */
+function zoneLabel(invoice: Invoice | null): string {
+  if (!invoice) return "—";
+  if (invoice.category === "MERCURY_DRUG") return "Flat rate";
+  if (!invoice.zone) return "No zone set";
+  const base =
+    invoice.zone === "NCR" ? "NCR" : invoice.zone === "FAR_NORTH_SOUTH" ? "Far South/North" : "VizMin";
+  return invoice.is_dc ? `${base} (DC)` : base;
+}
 
 const CUSTOM_DISCREPANCY = "__custom_discrepancy__";
 const CUSTOM_BACKLOAD = "__custom_backload__";
@@ -73,6 +84,7 @@ export default function TruckCard({
   const [loadingRows, setLoadingRows] = useState(true);
   const [rowsError, setRowsError] = useState<string | null>(null);
   const [cts, setCts] = useState<VTruckCts | null>(null);
+  const [feeRates, setFeeRates] = useState<FeeRate[]>([]);
   const [refreshKey, setRefreshKey] = useState(0);
   const [dispatching, setDispatching] = useState(false);
   const [showAddConvoy, setShowAddConvoy] = useState(false);
@@ -110,6 +122,9 @@ export default function TruckCard({
         .eq("truck_id", truck.id)
         .maybeSingle();
       setCts(ctsData ?? null);
+
+      const { data: feeRateData } = await supabase.from("fee_rates").select("*");
+      setFeeRates((feeRateData ?? []) as FeeRate[]);
     } catch {
       setRowsError(
         "Could not load assigned invoices. Connect a Supabase project to see live data."
@@ -225,6 +240,21 @@ export default function TruckCard({
     } finally {
       setRemovingRowId(null);
     }
+  }
+
+  /** Looks up the fee-schedule rate that matches this invoice's zone/DC/category. */
+  function expectedRateFor(invoice: Invoice | null): number | null {
+    if (!invoice) return null;
+    const match =
+      invoice.category === "MERCURY_DRUG"
+        ? feeRates.find((r) => r.category === "MERCURY_DRUG")
+        : feeRates.find(
+            (r) =>
+              r.category === invoice.category &&
+              r.zone === invoice.zone &&
+              r.is_dc === invoice.is_dc
+          );
+    return match?.rate_pct ?? null;
   }
 
   async function handleRateChange(rowId: string, value: string) {
@@ -535,17 +565,38 @@ export default function TruckCard({
                     </td>
                     <td className="py-2 pr-4">
                       {canSeeTruckRate ? (
-                        <div className="flex items-center gap-1">
-                          <input
-                            type="number"
-                            step="0.01"
-                            min="0"
-                            placeholder="0.00"
-                            className="input no-spinner w-20 text-center"
-                            defaultValue={row.service_rate_pct ?? ""}
-                            onBlur={(e) => handleRateChange(row.id, e.target.value)}
-                          />
-                          <span className="text-xs text-gray-400">%</span>
+                        <div className="flex flex-col gap-0.5">
+                          <div className="flex items-center gap-1">
+                            <input
+                              key={`${row.id}-${row.service_rate_pct ?? "empty"}`}
+                              type="number"
+                              step="0.01"
+                              min="0"
+                              placeholder="0.00"
+                              className="input no-spinner w-20 text-center"
+                              defaultValue={row.service_rate_pct ?? ""}
+                              onBlur={(e) => handleRateChange(row.id, e.target.value)}
+                            />
+                            <span className="text-xs text-gray-400">%</span>
+                          </div>
+                          <span className="text-[10px] leading-tight text-gray-400">
+                            {zoneLabel(row.invoice)}
+                            {expectedRateFor(row.invoice) !== null &&
+                              expectedRateFor(row.invoice) !== row.service_rate_pct && (
+                                <>
+                                  {" · "}
+                                  <button
+                                    type="button"
+                                    className="text-brand-600 underline hover:text-brand-700"
+                                    onClick={() =>
+                                      handleRateChange(row.id, String(expectedRateFor(row.invoice)))
+                                    }
+                                  >
+                                    Use {expectedRateFor(row.invoice)}%
+                                  </button>
+                                </>
+                              )}
+                          </span>
                         </div>
                       ) : (
                         <span className="text-gray-400">
