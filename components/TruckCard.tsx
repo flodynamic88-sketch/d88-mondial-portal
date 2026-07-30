@@ -565,7 +565,7 @@ export default function TruckCard({
                     </td>
                     <td className="py-2 pr-4">
                       {canSeeTruckRate ? (
-                        <div className="flex flex-col gap-0.5">
+                        <div className="flex w-28 flex-col items-center gap-0.5">
                           <div className="flex items-center gap-1">
                             <input
                               key={`${row.id}-${row.service_rate_pct ?? "empty"}`}
@@ -579,7 +579,7 @@ export default function TruckCard({
                             />
                             <span className="text-xs text-gray-400">%</span>
                           </div>
-                          <span className="text-[10px] leading-tight text-gray-400">
+                          <span className="max-w-full whitespace-normal break-words text-center text-[10px] leading-tight text-gray-400">
                             {zoneLabel(row.invoice)}
                             {expectedRateFor(row.invoice) !== null &&
                               expectedRateFor(row.invoice) !== row.service_rate_pct && (
