@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { findOrCreateBranchAddress, findOrCreateCompany } from "@/lib/invoiceHelpers";
-import { monthValueToDate } from "@/lib/dateHelpers";
+import { monthValueToDate, currentMonthValue } from "@/lib/dateHelpers";
 import type { InvoiceCategory } from "@/types/database";
 
 interface BulkEncodeGridProps {
@@ -56,7 +56,9 @@ function emptyRow(): GridRow {
     branchAddress: "",
     amount: "",
     postingDate: "",
-    billingPeriod: "",
+    // Most invoices are encoded for the current month -- default it here but
+    // keep the field fully editable (including drag-fill) for exceptions.
+    billingPeriod: currentMonthValue(),
     remarks: "",
   };
 }

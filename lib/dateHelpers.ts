@@ -15,3 +15,14 @@ export function monthValueToDate(value: string | null | undefined): string | nul
   if (!value) return null;
   return `${value}-01`;
 }
+
+/**
+ * Today's month as a month-input value ("2026-07"). Used to default the
+ * "Month" field to the current month at encode time -- most invoices are
+ * encoded for the current month, and the field stays fully editable if a
+ * different month is needed.
+ */
+export function currentMonthValue(): string {
+  const now = new Date();
+  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+}

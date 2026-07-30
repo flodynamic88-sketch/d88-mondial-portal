@@ -4,7 +4,7 @@ import { useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import AutocompleteInput from "@/components/AutocompleteInput";
 import { findOrCreateBranchAddress, findOrCreateCompany } from "@/lib/invoiceHelpers";
-import { monthValueToDate } from "@/lib/dateHelpers";
+import { monthValueToDate, currentMonthValue } from "@/lib/dateHelpers";
 import type { InvoiceCategory } from "@/types/database";
 
 interface InvoiceFormProps {
@@ -23,19 +23,23 @@ interface FormState {
   remarks: string;
 }
 
-const EMPTY_FORM: FormState = {
-  documentNo: "",
-  companyName: "",
-  companyId: null,
-  branchAddress: "",
-  amount: "",
-  postingDate: "",
-  billingPeriod: "",
-  remarks: "",
-};
+function emptyForm(): FormState {
+  return {
+    documentNo: "",
+    companyName: "",
+    companyId: null,
+    branchAddress: "",
+    amount: "",
+    postingDate: "",
+    // Most invoices are encoded for the current month -- default it here but
+    // keep the field fully editable for the rare exception.
+    billingPeriod: currentMonthValue(),
+    remarks: "",
+  };
+}
 
 export default function InvoiceForm({ category, onSaved }: InvoiceFormProps) {
-  const [form, setForm] = useState<FormState>(EMPTY_FORM);
+  const [form, setForm] = useState<FormState>(emptyForm());
   const [submitting, setSubmitting] = useState(false);
   const [feedback, setFeedback] = useState<
     { type: "success" | "error"; message: string } | null
@@ -97,7 +101,7 @@ export default function InvoiceForm({ category, onSaved }: InvoiceFormProps) {
         setFeedback({ type: "error", message: `Failed to save invoice: ${error.message}` });
       } else {
         setFeedback({ type: "success", message: `Invoice ${form.documentNo} encoded successfully.` });
-        setForm(EMPTY_FORM);
+        setForm(emptyForm());
         onSaved?.();
       }
     } catch {
