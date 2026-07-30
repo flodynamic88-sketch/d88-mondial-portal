@@ -38,6 +38,9 @@ interface TruckCardProps {
   routePlanId: string;
   onRefreshTrucks: () => void;
   isConvoy?: boolean;
+  /** Id of the truck whose details row is currently open, shared across the whole table. */
+  expandedTruckId: string | null;
+  onToggleExpand: (id: string) => void;
 }
 
 export default function TruckCard({
@@ -48,6 +51,8 @@ export default function TruckCard({
   routePlanId,
   onRefreshTrucks,
   isConvoy = false,
+  expandedTruckId,
+  onToggleExpand,
 }: TruckCardProps) {
   const profile = useAuth();
   const role = profile?.role;
@@ -361,56 +366,48 @@ export default function TruckCard({
 
   const discrepancyReasons = deliveryReasons.filter((r) => r.type === "DISCREPANCY");
   const backloadReasons = deliveryReasons.filter((r) => r.type === "BACKLOAD");
+  const expanded = expandedTruckId === truck.id;
 
   return (
-    <div className={`card ${isConvoy ? "ml-4 border-l-4 border-l-brand-200 sm:ml-10" : ""}`}>
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <table className="text-xs">
-          <tbody>
-            <tr>
-              <td className="py-0.5 pr-3 font-semibold text-gray-500">Truck</td>
-              <td className="py-0.5 font-semibold text-gray-800">
-                {truckLabel}
-                {truck.plate_number && (
-                  <span className="ml-2 font-normal text-gray-500">({truck.plate_number})</span>
-                )}
-              </td>
-            </tr>
-            <tr>
-              <td className="py-0.5 pr-3 text-gray-500">Carrier</td>
-              <td className="py-0.5 text-gray-700">{truck.carrier ?? "—"}</td>
-            </tr>
-            <tr>
-              <td className="py-0.5 pr-3 text-gray-500">Driver</td>
-              <td className="py-0.5 text-gray-700">{truck.driver_name ?? "—"}</td>
-            </tr>
-            <tr>
-              <td className="py-0.5 pr-3 text-gray-500">Helpers</td>
-              <td className="py-0.5 text-gray-700">
-                {[truck.helper1_name, truck.helper2_name].filter(Boolean).join(", ") || "—"}
-              </td>
-            </tr>
-            <tr>
-              <td className="py-0.5 pr-3 text-gray-500">
-                {isConvoy ? "Rate" : "Truck Rate"}
-              </td>
-              <td className="py-0.5 text-gray-700">
-                {isConvoy
-                  ? "Included in main truck's rate"
-                  : canSeeTruckRate
-                    ? (truck.truck_rate ?? 0).toLocaleString(undefined, {
-                        minimumFractionDigits: 2,
-                        maximumFractionDigits: 2,
-                      })
-                    : "—"}
-              </td>
-            </tr>
-          </tbody>
-        </table>
-        <div className="flex items-center gap-3">
-          {cts && (
+    <>
+      <tr className={`border-t border-gray-100 align-top ${isConvoy ? "bg-gray-50/60" : ""}`}>
+        <td className="py-2 pl-4 pr-3">
+          <button
+            type="button"
+            onClick={() => onToggleExpand(truck.id)}
+            className="mr-1 text-gray-400 hover:text-gray-600"
+            title={expanded ? "Collapse" : "Expand"}
+          >
+            {expanded ? "▾" : "▸"}
+          </button>
+          <span className={isConvoy ? "text-sm text-gray-700" : "text-sm font-semibold text-gray-800"}>
+            {truckLabel}
+          </span>
+          {truck.plate_number && (
+            <p className="pl-4 text-xs text-gray-500">{truck.plate_number}</p>
+          )}
+        </td>
+        <td className="py-2 pr-3 text-xs text-gray-700">{truck.carrier ?? "—"}</td>
+        <td className="py-2 pr-3 text-xs text-gray-700">{truck.driver_name ?? "—"}</td>
+        <td className="py-2 pr-3 text-xs text-gray-700">
+          {[truck.helper1_name, truck.helper2_name].filter(Boolean).join(", ") || "—"}
+        </td>
+        <td className="py-2 pr-3 text-xs text-gray-700">
+          {isConvoy ? (
+            <span className="text-gray-400">Included in main</span>
+          ) : canSeeTruckRate ? (
+            (truck.truck_rate ?? 0).toLocaleString(undefined, {
+              minimumFractionDigits: 2,
+              maximumFractionDigits: 2,
+            })
+          ) : (
+            "—"
+          )}
+        </td>
+        <td className="py-2 pr-3">
+          {cts ? (
             <span
-              className={`rounded-full px-3 py-1 text-xs font-medium ${
+              className={`inline-block whitespace-nowrap rounded-full px-2 py-0.5 text-xs font-medium ${
                 cts.cts_pass === null || cts.cts_pass === undefined
                   ? "bg-gray-100 text-gray-500"
                   : cts.cts_pass
@@ -418,7 +415,7 @@ export default function TruckCard({
                     : "bg-red-50 text-red-700"
               }`}
             >
-              CTS: {canSeeTruckRate && cts.cts_pct !== null && cts.cts_pct !== undefined
+              {canSeeTruckRate && cts.cts_pct !== null && cts.cts_pct !== undefined
                 ? `${cts.cts_pct}% · `
                 : ""}
               {cts.cts_pass === null || cts.cts_pass === undefined
@@ -427,60 +424,71 @@ export default function TruckCard({
                   ? "Pass"
                   : "Not Pass"}
             </span>
+          ) : (
+            <span className="text-xs text-gray-400">—</span>
           )}
+        </td>
+        <td className="py-2 pr-3">
           {truck.dispatched_at ? (
-            <span className="text-xs font-medium text-green-600">
-              Dispatched on {new Date(truck.dispatched_at).toLocaleString()}
+            <span className="whitespace-nowrap text-xs font-medium text-green-600">
+              Dispatched {new Date(truck.dispatched_at).toLocaleDateString()}
             </span>
           ) : canDispatch ? (
             <button
               type="button"
-              className="btn-primary"
+              className="btn-primary px-2 py-1 text-xs"
               onClick={handleDispatch}
               disabled={dispatching}
             >
-              {dispatching ? "Dispatching…" : "Dispatch"}
+              {dispatching ? "…" : "Dispatch"}
             </button>
           ) : (
-            <span className="text-xs text-gray-400">Not yet dispatched</span>
+            <span className="text-xs text-gray-400">Not yet</span>
           )}
-          <a
-            href={`/route-plan/print/${truck.id}`}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="tab-button tab-button-inactive text-xs"
-            title="Open a printable itinerary for this truck"
-          >
-            Print Itinerary
-          </a>
-          {canManageTruck && (
-            <button
-              type="button"
-              className="tab-button border border-red-200 bg-white text-xs text-red-600 hover:bg-red-50"
-              onClick={handleDeleteTruck}
-              disabled={deletingTruck}
-              title="Remove this truck from the route plan"
+        </td>
+        <td className="py-2 pl-3 pr-4">
+          <div className="flex flex-wrap items-center gap-2">
+            <a
+              href={`/route-plan/print/${truck.id}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="tab-button tab-button-inactive whitespace-nowrap text-xs"
+              title="Open a printable itinerary for this truck"
             >
-              {deletingTruck ? "Removing…" : "Remove Truck"}
-            </button>
-          )}
-        </div>
-      </div>
+              Print
+            </a>
+            {canManageTruck && (
+              <button
+                type="button"
+                className="whitespace-nowrap text-xs font-medium text-red-600 hover:text-red-800 disabled:opacity-50"
+                onClick={handleDeleteTruck}
+                disabled={deletingTruck}
+                title="Remove this truck from the route plan"
+              >
+                {deletingTruck ? "…" : "Remove"}
+              </button>
+            )}
+          </div>
+        </td>
+      </tr>
 
-      {(role === "ADMIN" || role === "JMD_PLANNER") && (
-        <div className="mt-4">
-          <DocumentLookup
-            routePlanTruckId={truck.id}
-            onAssigned={() => setRefreshKey((k) => k + 1)}
-          />
-        </div>
-      )}
+      {expanded && (
+        <tr className="bg-gray-50/50">
+          <td colSpan={8} className="px-4 pb-4 pt-1">
+            {(role === "ADMIN" || role === "JMD_PLANNER") && (
+              <div className="mb-3">
+                <DocumentLookup
+                  routePlanTruckId={truck.id}
+                  onAssigned={() => setRefreshKey((k) => k + 1)}
+                />
+              </div>
+            )}
 
-      {actionError && <p className="mt-2 text-sm text-red-600">{actionError}</p>}
+            {actionError && <p className="mb-2 text-sm text-red-600">{actionError}</p>}
 
-      <div className="mt-4">
-        <h3 className="text-sm font-semibold text-gray-700">Assigned Invoices</h3>
-        {loadingRows && <p className="mt-2 text-sm text-gray-400">Loading…</p>}
+            <div>
+              <h3 className="text-sm font-semibold text-gray-700">Assigned Invoices</h3>
+              {loadingRows && <p className="mt-2 text-sm text-gray-400">Loading…</p>}
         {!loadingRows && rowsError && <p className="mt-2 text-sm text-gray-400">{rowsError}</p>}
         {!loadingRows && !rowsError && rows.length === 0 && (
           <p className="mt-2 text-sm text-gray-400">No invoices assigned yet.</p>
@@ -684,48 +692,50 @@ export default function TruckCard({
             </table>
           </div>
         )}
-      </div>
+            </div>
 
-      {!isConvoy && canAddConvoy && (
-        <div className="mt-4 border-t border-gray-100 pt-4">
-          {showAddConvoy ? (
-            <AddTruckForm
-              routePlanId={routePlanId}
-              mainTruckId={truck.id}
-              onCreated={() => {
-                setShowAddConvoy(false);
-                onRefreshTrucks();
-              }}
-              onCancel={() => setShowAddConvoy(false)}
-            />
-          ) : (
-            <button
-              type="button"
-              className="tab-button tab-button-inactive"
-              onClick={() => setShowAddConvoy(true)}
-            >
-              + Add Convoy Truck
-            </button>
-          )}
-        </div>
+            {!isConvoy && canAddConvoy && (
+              <div className="mt-4 border-t border-gray-100 pt-4">
+                {showAddConvoy ? (
+                  <AddTruckForm
+                    routePlanId={routePlanId}
+                    mainTruckId={truck.id}
+                    onCreated={() => {
+                      setShowAddConvoy(false);
+                      onRefreshTrucks();
+                    }}
+                    onCancel={() => setShowAddConvoy(false)}
+                  />
+                ) : (
+                  <button
+                    type="button"
+                    className="tab-button tab-button-inactive"
+                    onClick={() => setShowAddConvoy(true)}
+                  >
+                    + Add Convoy Truck
+                  </button>
+                )}
+              </div>
+            )}
+          </td>
+        </tr>
       )}
 
-      {!isConvoy && convoys.length > 0 && (
-        <div className="mt-4 space-y-4">
-          {convoys.map((c, convoyIndex) => (
-            <TruckCard
-              key={c.id}
-              truck={c}
-              truckLabel={`${truckLabel} · Convoy ${convoyIndex + 1}`}
-              convoys={[]}
-              deliveryReasons={deliveryReasons}
-              routePlanId={routePlanId}
-              onRefreshTrucks={onRefreshTrucks}
-              isConvoy
-            />
-          ))}
-        </div>
-      )}
-    </div>
+      {!isConvoy &&
+        convoys.map((c, convoyIndex) => (
+          <TruckCard
+            key={c.id}
+            truck={c}
+            truckLabel={`${truckLabel} · Convoy ${convoyIndex + 1}`}
+            convoys={[]}
+            deliveryReasons={deliveryReasons}
+            routePlanId={routePlanId}
+            onRefreshTrucks={onRefreshTrucks}
+            isConvoy
+            expandedTruckId={expandedTruckId}
+            onToggleExpand={onToggleExpand}
+          />
+        ))}
+    </>
   );
 }

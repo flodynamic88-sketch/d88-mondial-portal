@@ -55,6 +55,11 @@ export default function RoutePlanBoard() {
   const [exportingPlan, setExportingPlan] = useState(false);
   const [exportError, setExportError] = useState<string | null>(null);
 
+  const [expandedTruckId, setExpandedTruckId] = useState<string | null>(null);
+  const toggleExpandTruck = useCallback((id: string) => {
+    setExpandedTruckId((prev) => (prev === id ? null : id));
+  }, []);
+
   const loadRoutePlans = useCallback(async (selectAfter?: string) => {
     setLoadingPlans(true);
     setPlansError(null);
@@ -668,19 +673,39 @@ export default function RoutePlanBoard() {
                 </div>
               )}
 
-              {!loadingTrucks &&
-                !trucksError &&
-                mainTrucks.map((truck, index) => (
-                  <TruckCard
-                    key={truck.id}
-                    truck={truck}
-                    truckLabel={`Truck ${index + 1}`}
-                    convoys={convoysByMain[truck.id] ?? []}
-                    deliveryReasons={deliveryReasons}
-                    routePlanId={selectedPlan.id}
-                    onRefreshTrucks={loadTrucks}
-                  />
-                ))}
+              {!loadingTrucks && !trucksError && mainTrucks.length > 0 && (
+                <div className="card overflow-x-auto p-0">
+                  <table className="min-w-full divide-y divide-gray-100 text-sm">
+                    <thead>
+                      <tr className="text-left text-xs font-semibold uppercase text-gray-500">
+                        <th className="py-2 pl-4 pr-3">Truck</th>
+                        <th className="py-2 pr-3">Carrier</th>
+                        <th className="py-2 pr-3">Driver</th>
+                        <th className="py-2 pr-3">Helpers</th>
+                        <th className="py-2 pr-3">Rate</th>
+                        <th className="py-2 pr-3">CTS</th>
+                        <th className="py-2 pr-3">Status</th>
+                        <th className="py-2 pl-3 pr-4">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {mainTrucks.map((truck, index) => (
+                        <TruckCard
+                          key={truck.id}
+                          truck={truck}
+                          truckLabel={`Truck ${index + 1}`}
+                          convoys={convoysByMain[truck.id] ?? []}
+                          deliveryReasons={deliveryReasons}
+                          routePlanId={selectedPlan.id}
+                          onRefreshTrucks={loadTrucks}
+                          expandedTruckId={expandedTruckId}
+                          onToggleExpand={toggleExpandTruck}
+                        />
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
             </>
           )}
         </div>
