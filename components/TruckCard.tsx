@@ -365,37 +365,48 @@ export default function TruckCard({
   return (
     <div className={`card ${isConvoy ? "ml-4 border-l-4 border-l-brand-200 sm:ml-10" : ""}`}>
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <p className="text-sm font-semibold text-gray-800">
-            {truckLabel}
-            {truck.plate_number && (
-              <span className="ml-2 font-normal text-gray-500">({truck.plate_number})</span>
-            )}
-          </p>
-          <p className="text-xs text-gray-500">{truck.carrier ?? "No carrier specified"}</p>
-          <p className="text-xs text-gray-500">
-            Driver: {truck.driver_name ?? "—"}
-            {(truck.helper1_name || truck.helper2_name) && (
-              <>
-                {" "}
-                · Helpers: {[truck.helper1_name, truck.helper2_name].filter(Boolean).join(", ")}
-              </>
-            )}
-          </p>
-          {isConvoy ? (
-            <p className="text-xs text-gray-400">Rate included in the main truck's rate</p>
-          ) : (
-            <p className="text-xs text-gray-500">
-              Truck Rate:{" "}
-              {canSeeTruckRate
-                ? (truck.truck_rate ?? 0).toLocaleString(undefined, {
-                    minimumFractionDigits: 2,
-                    maximumFractionDigits: 2,
-                  })
-                : "—"}
-            </p>
-          )}
-        </div>
+        <table className="text-xs">
+          <tbody>
+            <tr>
+              <td className="py-0.5 pr-3 font-semibold text-gray-500">Truck</td>
+              <td className="py-0.5 font-semibold text-gray-800">
+                {truckLabel}
+                {truck.plate_number && (
+                  <span className="ml-2 font-normal text-gray-500">({truck.plate_number})</span>
+                )}
+              </td>
+            </tr>
+            <tr>
+              <td className="py-0.5 pr-3 text-gray-500">Carrier</td>
+              <td className="py-0.5 text-gray-700">{truck.carrier ?? "—"}</td>
+            </tr>
+            <tr>
+              <td className="py-0.5 pr-3 text-gray-500">Driver</td>
+              <td className="py-0.5 text-gray-700">{truck.driver_name ?? "—"}</td>
+            </tr>
+            <tr>
+              <td className="py-0.5 pr-3 text-gray-500">Helpers</td>
+              <td className="py-0.5 text-gray-700">
+                {[truck.helper1_name, truck.helper2_name].filter(Boolean).join(", ") || "—"}
+              </td>
+            </tr>
+            <tr>
+              <td className="py-0.5 pr-3 text-gray-500">
+                {isConvoy ? "Rate" : "Truck Rate"}
+              </td>
+              <td className="py-0.5 text-gray-700">
+                {isConvoy
+                  ? "Included in main truck's rate"
+                  : canSeeTruckRate
+                    ? (truck.truck_rate ?? 0).toLocaleString(undefined, {
+                        minimumFractionDigits: 2,
+                        maximumFractionDigits: 2,
+                      })
+                    : "—"}
+              </td>
+            </tr>
+          </tbody>
+        </table>
         <div className="flex items-center gap-3">
           {cts && (
             <span

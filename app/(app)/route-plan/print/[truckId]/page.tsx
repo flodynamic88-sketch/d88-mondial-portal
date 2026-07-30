@@ -38,7 +38,7 @@ export default function PrintTruckItineraryPage() {
         const supabase = createClient();
         const [{ data: truckData, error: truckErr }, { data: invoiceRows }, logo] =
           await Promise.all([
-            supabase.from("route_plan_trucks").select("*").eq("id", truckId).maybeSingle(),
+            supabase.from("v_route_plan_trucks").select("*").eq("id", truckId).maybeSingle(),
             supabase
               .from("route_plan_invoices")
               .select("*, invoice:invoices(*)")
@@ -68,12 +68,12 @@ export default function PrintTruckItineraryPage() {
         if (truckData.main_truck_id) {
           const [{ data: mainTruck }, { data: siblings }] = await Promise.all([
             supabase
-              .from("route_plan_trucks")
+              .from("v_route_plan_trucks")
               .select("id")
               .eq("id", truckData.main_truck_id)
               .maybeSingle(),
             supabase
-              .from("route_plan_trucks")
+              .from("v_route_plan_trucks")
               .select("id, created_at")
               .eq("main_truck_id", truckData.main_truck_id)
               .order("created_at", { ascending: true }),
