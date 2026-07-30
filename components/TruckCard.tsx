@@ -637,7 +637,7 @@ export default function TruckCard({
                           assign it for redelivery.
                         </p>
                       ) : (
-                      <div className="flex flex-col gap-1 sm:flex-row sm:items-center">
+                      <div className="flex flex-col flex-wrap gap-1 sm:flex-row sm:items-center">
                         {canUpdateDelivery ? (
                           <>
                         <input
@@ -706,10 +706,10 @@ export default function TruckCard({
                           </button>
                         )}
                         {canUpdateDelivery && customEntry?.rowId === row.id && (
-                          <div className="flex items-center gap-1">
+                          <div className="flex w-full items-center gap-1 sm:w-auto">
                             <input
                               type="text"
-                              className="input"
+                              className="input w-full min-w-[12rem] flex-none sm:w-48"
                               autoFocus
                               placeholder={
                                 customEntry.type === "DISCREPANCY"
