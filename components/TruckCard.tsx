@@ -535,14 +535,18 @@ export default function TruckCard({
                     </td>
                     <td className="py-2 pr-4">
                       {canSeeTruckRate ? (
-                        <input
-                          type="number"
-                          step="0.01"
-                          min="0"
-                          className="input w-20"
-                          defaultValue={row.service_rate_pct ?? ""}
-                          onBlur={(e) => handleRateChange(row.id, e.target.value)}
-                        />
+                        <div className="flex items-center gap-1">
+                          <input
+                            type="number"
+                            step="0.01"
+                            min="0"
+                            placeholder="0.00"
+                            className="input w-20"
+                            defaultValue={row.service_rate_pct ?? ""}
+                            onBlur={(e) => handleRateChange(row.id, e.target.value)}
+                          />
+                          <span className="text-xs text-gray-400">%</span>
+                        </div>
                       ) : (
                         <span className="text-gray-400">
                           {row.service_rate_pct !== null && row.service_rate_pct !== undefined
