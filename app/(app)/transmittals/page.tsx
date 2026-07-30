@@ -5,6 +5,7 @@ import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import RequireRole from "@/components/RequireRole";
 import { useAuth } from "@/components/AuthProvider";
+import { useToast } from "@/components/Toast";
 import { dateToMonthValue } from "@/lib/dateHelpers";
 import type { Invoice, InvoiceCategory, TransmittalStatus, VTransmittal } from "@/types/database";
 
@@ -120,6 +121,7 @@ function GenerateTab({
   canGenerate: boolean;
   canDelete: boolean;
 }) {
+  const { showToast } = useToast();
   const label = CATEGORIES.find((c) => c.value === category)?.label ?? category;
   const showRemarks = category !== "CONSIGNMENT";
 
@@ -222,12 +224,16 @@ function GenerateTab({
       const supabase = createClient();
       const { error } = await supabase.from("transmittals").delete().eq("id", t.id);
       if (error) {
-        setDeleteError(`Failed to delete transmittal: ${error.message}`);
+        const msg = `Failed to delete transmittal: ${error.message}`;
+        setDeleteError(msg);
+        showToast(msg, "error");
         return;
       }
+      showToast("Transmittal deleted.", "success");
       await Promise.all([load(), loadRecent()]);
     } catch {
       setDeleteError("Could not delete the transmittal. Make sure a Supabase project is connected.");
+      showToast("Could not delete the transmittal.", "error");
     } finally {
       setDeletingId(null);
     }
@@ -321,7 +327,9 @@ function GenerateTab({
         .select("*")
         .single();
       if (error || !newTransmittal) {
-        setGenError(`Failed to create transmittal: ${error?.message ?? "unknown error"}`);
+        const msg = `Failed to create transmittal: ${error?.message ?? "unknown error"}`;
+        setGenError(msg);
+        showToast(msg, "error");
         return;
       }
       const itemsPayload = ids.map((id) => ({
@@ -331,14 +339,18 @@ function GenerateTab({
       }));
       const { error: itemsErr } = await supabase.from("transmittal_items").insert(itemsPayload);
       if (itemsErr) {
-        setGenError(`Transmittal created but failed to attach invoices: ${itemsErr.message}`);
+        const msg = `Transmittal created but failed to attach invoices: ${itemsErr.message}`;
+        setGenError(msg);
+        showToast(msg, "error");
         return;
       }
+      showToast(`${label} transmittal generated.`, "success");
       window.open(`/transmittals/print/${newTransmittal.id}`, "_blank");
       await load();
       await loadRecent();
     } catch {
       setGenError("Could not generate the transmittal. Make sure a Supabase project is connected.");
+      showToast("Could not generate the transmittal.", "error");
     } finally {
       setGenerating(false);
     }
@@ -374,33 +386,40 @@ function GenerateTab({
         set directly on Encode Invoices.
       </p>
 
-      <form
-        onSubmit={handleAddByDocument}
-        className="mt-4 flex flex-wrap items-end gap-2 rounded-md border border-dashed border-gray-300 p-3"
-      >
-        <div className="min-w-[220px] flex-1">
-          <label className="label" htmlFor={`add-doc-${category}`}>
-            Add by Document #
-          </label>
-          <input
-            id={`add-doc-${category}`}
-            type="text"
-            className="input"
-            placeholder="e.g. CD_00123, PSI-00456, BR_00789"
-            value={docQuery}
-            onChange={(e) => setDocQuery(e.target.value)}
-          />
-        </div>
-        <button type="submit" className="btn-primary" disabled={docSearching}>
-          {docSearching ? "Searching…" : "Add"}
-        </button>
-      </form>
-      {docError && <p className="mt-2 text-sm text-red-600">{docError}</p>}
-      <p className="mt-1 text-xs text-gray-400">
-        Missed from the list above? Add an already-delivered {label.toLowerCase()} invoice here by
-        its own document number. Invoices that aren&apos;t Delivered yet won&apos;t be found — mark
-        them Delivered in Route Plan or set their Actual Delivery Date in Encode Invoices first.
-      </p>
+      {canGenerate ? (
+        <>
+          <form
+            onSubmit={handleAddByDocument}
+            className="mt-4 flex flex-wrap items-end gap-2 rounded-md border border-dashed border-gray-300 p-3"
+          >
+            <div className="min-w-[220px] flex-1">
+              <label className="label" htmlFor={`add-doc-${category}`}>
+                Add by Document #
+              </label>
+              <input
+                id={`add-doc-${category}`}
+                type="text"
+                className="input"
+                placeholder="e.g. CD_00123, PSI-00456, BR_00789"
+                value={docQuery}
+                onChange={(e) => setDocQuery(e.target.value)}
+              />
+            </div>
+            <button type="submit" className="btn-primary" disabled={docSearching}>
+              {docSearching ? "Searching…" : "Add"}
+            </button>
+          </form>
+          {docError && <p className="mt-2 text-sm text-red-600">{docError}</p>}
+          <p className="mt-1 text-xs text-gray-400">
+            Missed from the list above? Add an already-delivered {label.toLowerCase()} invoice
+            here by its own document number. Invoices that aren&apos;t Delivered yet won&apos;t be
+            found — mark them Delivered in Route Plan or set their Actual Delivery Date in Encode
+            Invoices first.
+          </p>
+        </>
+      ) : (
+        <p className="mt-4 text-xs text-gray-400">View-only access — generating transmittals is handled by Logistics.</p>
+      )}
 
       {loading && <p className="mt-3 text-sm text-gray-400">Loading…</p>}
       {!loading && errorMsg && <p className="mt-3 text-sm text-gray-400">{errorMsg}</p>}
@@ -410,7 +429,7 @@ function GenerateTab({
         </p>
       )}
       {!loading && !errorMsg && invoices.length > 0 && (
-        <div className="mt-3 overflow-x-auto">
+        <div className="mt-3 table-scroll-container">
           <table className="min-w-full divide-y divide-gray-200 text-sm">
             <thead>
               <tr className="text-left text-xs font-semibold uppercase text-gray-500">
@@ -432,6 +451,7 @@ function GenerateTab({
                       type="checkbox"
                       checked={checked.has(inv.id)}
                       onChange={() => toggleRow(inv.id)}
+                      disabled={!canGenerate}
                     />
                   </td>
                   <td className="py-2 pr-4 font-medium text-gray-800">{inv.document_no}</td>
@@ -455,6 +475,7 @@ function GenerateTab({
                         onChange={(e) =>
                           setRemarks((prev) => ({ ...prev, [inv.id]: e.target.value }))
                         }
+                        disabled={!canGenerate}
                       />
                     </td>
                   )}
@@ -486,7 +507,7 @@ function GenerateTab({
             No transmittals generated yet for this category.
           </p>
         ) : (
-          <div className="mt-2 overflow-x-auto">
+          <div className="mt-2 table-scroll-container">
             <table className="min-w-full divide-y divide-gray-200 text-sm">
               <thead>
                 <tr className="text-left text-xs font-semibold uppercase text-gray-500">
@@ -515,9 +536,9 @@ function GenerateTab({
                     <td className="py-2 pr-4">{formatMoney(t.amount)}</td>
                     <td className="py-2 pr-4">
                       {t.status === "TRANSMITTED" ? (
-                        <span className="text-green-600">Transmitted</span>
+                        <span className="badge-success">Transmitted</span>
                       ) : (
-                        <span className="text-amber-600">Pending</span>
+                        <span className="badge-warning">Pending</span>
                       )}
                     </td>
                     <td className="py-2 pr-4">
@@ -559,12 +580,14 @@ function SummaryTab({
   canUpdateStatus: boolean;
   canDelete: boolean;
 }) {
+  const { showToast } = useToast();
   const [category, setCategory] = useState<InvoiceCategory>("CONSIGNMENT");
   const [rows, setRows] = useState<VTransmittal[]>([]);
   const [loading, setLoading] = useState(true);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [deleteError, setDeleteError] = useState<string | null>(null);
+  const [search, setSearch] = useState("");
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -602,9 +625,15 @@ function SummaryTab({
     try {
       const supabase = createClient();
       const { error } = await supabase.from("transmittals").update({ status }).eq("id", id);
-      if (!error) await load();
+      if (!error) {
+        showToast("Transmittal status updated.", "success");
+        await load();
+      } else {
+        showToast("Failed to update transmittal status.", "error");
+      }
     } catch {
       // Row keeps its last-known status until the next reload.
+      showToast("Failed to update transmittal status.", "error");
     }
   }
 
@@ -622,34 +651,56 @@ function SummaryTab({
       const supabase = createClient();
       const { error } = await supabase.from("transmittals").delete().eq("id", t.id);
       if (error) {
-        setDeleteError(`Failed to delete transmittal: ${error.message}`);
+        const msg = `Failed to delete transmittal: ${error.message}`;
+        setDeleteError(msg);
+        showToast(msg, "error");
         return;
       }
+      showToast("Transmittal deleted.", "success");
       await load();
     } catch {
       setDeleteError("Could not delete the transmittal. Make sure a Supabase project is connected.");
+      showToast("Could not delete the transmittal.", "error");
     } finally {
       setDeletingId(null);
     }
   }
 
   const totalAmount = useMemo(() => rows.reduce((sum, r) => sum + (r.amount ?? 0), 0), [rows]);
+  const filteredRows = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    if (!q) return rows;
+    return rows.filter((t) =>
+      [t.transmittal_no, t.first_document_no, t.last_document_no]
+        .filter(Boolean)
+        .some((v) => (v as string).toLowerCase().includes(q))
+    );
+  }, [rows, search]);
 
   return (
     <div className="card mt-4">
-      <div className="flex flex-wrap gap-2">
-        {CATEGORIES.map((c) => (
-          <button
-            key={c.value}
-            type="button"
-            className={
-              category === c.value ? "tab-button tab-button-active" : "tab-button tab-button-inactive"
-            }
-            onClick={() => setCategory(c.value)}
-          >
-            {c.label}
-          </button>
-        ))}
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div className="flex flex-wrap gap-2">
+          {CATEGORIES.map((c) => (
+            <button
+              key={c.value}
+              type="button"
+              className={
+                category === c.value ? "tab-button tab-button-active" : "tab-button tab-button-inactive"
+              }
+              onClick={() => setCategory(c.value)}
+            >
+              {c.label}
+            </button>
+          ))}
+        </div>
+        <input
+          type="text"
+          className="input max-w-[240px]"
+          placeholder="Search transmittal # or document #…"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+        />
       </div>
 
       <div className="mt-4 flex flex-wrap items-center justify-between gap-2">
@@ -668,8 +719,11 @@ function SummaryTab({
           No transmittals generated yet for this category.
         </p>
       )}
-      {!loading && !errorMsg && rows.length > 0 && (
-        <div className="mt-3 overflow-x-auto">
+      {!loading && !errorMsg && rows.length > 0 && filteredRows.length === 0 && (
+        <p className="mt-3 text-sm text-gray-400">No transmittals match &quot;{search}&quot;.</p>
+      )}
+      {!loading && !errorMsg && filteredRows.length > 0 && (
+        <div className="mt-3 table-scroll-container">
           <table className="min-w-full divide-y divide-gray-200 text-sm">
             <thead>
               <tr className="text-left text-xs font-semibold uppercase text-gray-500">
@@ -682,7 +736,7 @@ function SummaryTab({
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
-              {rows.map((t) => (
+              {filteredRows.map((t) => (
                 <tr key={t.id}>
                   <td className="py-2 pr-4 font-medium text-gray-800">
                     {formatDocRange(t.first_document_no, t.last_document_no)}

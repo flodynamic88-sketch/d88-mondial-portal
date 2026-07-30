@@ -62,6 +62,7 @@ export default function DeliveryVarianceLogPage() {
 
   const [dateFrom, setDateFrom] = useState(firstOfMonthStr());
   const [dateTo, setDateTo] = useState(todayStr());
+  const [search, setSearch] = useState("");
 
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [items, setItems] = useState<DeliveryVarianceLogItem[]>([]);
@@ -140,10 +141,16 @@ export default function DeliveryVarianceLogPage() {
     getAppSetting(LOGO_SETTING_KEY).then(setLogoUrl);
   }, []);
 
-  const filteredLogs = useMemo(
-    () => logs.filter((l) => l.log_date >= dateFrom && l.log_date <= dateTo),
-    [logs, dateFrom, dateTo]
-  );
+  const filteredLogs = useMemo(() => {
+    const inRange = logs.filter((l) => l.log_date >= dateFrom && l.log_date <= dateTo);
+    const q = search.trim().toLowerCase();
+    if (!q) return inRange;
+    return inRange.filter((l) =>
+      [l.series_no, l.document_no, l.retail_chain, l.branch_address]
+        .filter(Boolean)
+        .some((v) => (v as string).toLowerCase().includes(q))
+    );
+  }, [logs, dateFrom, dateTo, search]);
 
   const summary = useMemo(() => {
     const discrepancy = filteredLogs.filter((l) => l.reason_type === "DISCREPANCY").length;
@@ -535,6 +542,19 @@ export default function DeliveryVarianceLogPage() {
                   onChange={(e) => setDateTo(e.target.value)}
                 />
               </div>
+              <div>
+                <label className="label" htmlFor="varianceSearch">
+                  Search
+                </label>
+                <input
+                  id="varianceSearch"
+                  type="text"
+                  className="input max-w-[220px]"
+                  placeholder="Series #, doc #, retail chain…"
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                />
+              </div>
             </div>
             <div className="flex flex-wrap gap-2">
               {canEdit && (
@@ -640,10 +660,14 @@ export default function DeliveryVarianceLogPage() {
           {loading && <p className="mt-3 text-sm text-gray-400">Loading…</p>}
           {!loading && errorMsg && <p className="mt-3 text-sm text-gray-400">{errorMsg}</p>}
           {!loading && !errorMsg && filteredLogs.length === 0 && (
-            <p className="mt-3 text-sm text-gray-400">No delivery variance logs in this date range.</p>
+            <p className="mt-3 text-sm text-gray-400">
+              {search
+                ? `No delivery variance logs match "${search}" in this date range.`
+                : "No delivery variance logs in this date range."}
+            </p>
           )}
           {!loading && !errorMsg && filteredLogs.length > 0 && (
-            <div className="mt-3 overflow-x-auto">
+            <div className="mt-3 table-scroll-container">
               <table className="min-w-full divide-y divide-gray-200 text-sm">
                 <thead>
                   <tr className="text-left text-xs font-semibold uppercase text-gray-500">
@@ -669,7 +693,7 @@ export default function DeliveryVarianceLogPage() {
                         {log.reason_label ? (
                           <span
                             className={
-                              log.reason_type === "BACKLOAD" ? "text-red-600" : "text-amber-600"
+                              log.reason_type === "BACKLOAD" ? "badge-danger" : "badge-warning"
                             }
                           >
                             {log.reason_label}

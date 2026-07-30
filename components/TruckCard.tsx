@@ -5,6 +5,7 @@ import { createClient } from "@/lib/supabase/client";
 import DocumentLookup from "@/components/DocumentLookup";
 import AddTruckForm from "@/components/AddTruckForm";
 import { useAuth } from "@/components/AuthProvider";
+import { useToast } from "@/components/Toast";
 import { findOrCreateDeliveryReason } from "@/lib/invoiceHelpers";
 import { ensureVarianceLog } from "@/lib/varianceLog";
 import type {
@@ -66,6 +67,7 @@ export default function TruckCard({
   onToggleExpand,
 }: TruckCardProps) {
   const profile = useAuth();
+  const { showToast } = useToast();
   const role = profile?.role;
   // Matches the server-side RLS/trigger rules in 0003_user_management.sql —
   // the UI hides actions the backend would reject, but the DB is still the
@@ -150,11 +152,14 @@ export default function TruckCard({
         .eq("id", truck.id);
       if (error) {
         setActionError("Failed to mark truck as dispatched.");
+        showToast("Failed to mark truck as dispatched.", "error");
       } else {
+        showToast(`${truckLabel} marked as dispatched.`, "success");
         onRefreshTrucks();
       }
     } catch {
       setActionError("Could not dispatch truck. Make sure a Supabase project is connected.");
+      showToast("Could not dispatch truck.", "error");
     } finally {
       setDispatching(false);
     }
@@ -175,17 +180,22 @@ export default function TruckCard({
       const { error } = await supabase.from("route_plan_trucks").delete().eq("id", truck.id);
       if (error) {
         if (error.code === "23503") {
-          setActionError(
-            "Cannot remove this truck because it still has convoy trucks linked to it. Remove those convoy trucks first."
-          );
+          const msg =
+            "Cannot remove this truck because it still has convoy trucks linked to it. Remove those convoy trucks first.";
+          setActionError(msg);
+          showToast(msg, "error");
         } else {
-          setActionError(`Failed to remove truck: ${error.message}`);
+          const msg = `Failed to remove truck: ${error.message}`;
+          setActionError(msg);
+          showToast(msg, "error");
         }
         return;
       }
+      showToast(`${truckLabel} removed from the route plan.`, "success");
       onRefreshTrucks();
     } catch {
       setActionError("Could not remove truck. Make sure a Supabase project is connected.");
+      showToast("Could not remove truck.", "error");
     } finally {
       setDeletingTruck(false);
     }
@@ -437,12 +447,12 @@ export default function TruckCard({
         <td className="py-2 pr-3">
           {cts ? (
             <span
-              className={`inline-block whitespace-nowrap rounded-full px-2 py-0.5 text-xs font-medium ${
+              className={`whitespace-nowrap ${
                 cts.cts_pass === null || cts.cts_pass === undefined
-                  ? "bg-gray-100 text-gray-500"
+                  ? "badge-neutral"
                   : cts.cts_pass
-                    ? "bg-green-50 text-green-700"
-                    : "bg-red-50 text-red-700"
+                    ? "badge-success"
+                    : "badge-danger"
               }`}
             >
               {canSeeTruckRate && cts.cts_pct !== null && cts.cts_pct !== undefined
@@ -524,7 +534,7 @@ export default function TruckCard({
           <p className="mt-2 text-sm text-gray-400">No invoices assigned yet.</p>
         )}
         {!loadingRows && !rowsError && rows.length > 0 && (
-          <div className="mt-2 overflow-x-auto">
+          <div className="mt-2 table-scroll-container">
             <table className="min-w-full divide-y divide-gray-200 text-sm">
               <thead>
                 <tr className="text-left text-xs font-semibold uppercase text-gray-500">
@@ -607,25 +617,23 @@ export default function TruckCard({
                       )}
                     </td>
                     <td className="py-2 pr-4">
-                      <div className="flex flex-col gap-1">
+                      <div className="flex flex-col items-start gap-1">
                         {row.delivered_at && (
-                          <span className="text-green-600">
+                          <span className="badge-success">
                             Delivered {toDateInputValue(row.delivered_at)}
                           </span>
                         )}
                         {row.reason_id && (
-                          <span className="text-amber-600">
+                          <span className="badge-warning">
                             {deliveryReasons.find((r) => r.id === row.reason_id)?.label ??
                               "Issue reported"}
                           </span>
                         )}
                         {row.superseded_at && (
-                          <span className="w-fit rounded-full bg-purple-50 px-2 py-0.5 text-xs font-medium text-purple-700">
-                            Subject for Redelivery
-                          </span>
+                          <span className="badge-info">Subject for Redelivery</span>
                         )}
                         {!row.delivered_at && !row.reason_id && !row.superseded_at && (
-                          <span className="text-gray-400">Pending</span>
+                          <span className="badge-neutral">Pending</span>
                         )}
                       </div>
                     </td>

@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
+import { useToast } from "@/components/Toast";
 import { findOrCreateBranchAddress, findOrCreateCompany } from "@/lib/invoiceHelpers";
 import { monthValueToDate, currentMonthValue } from "@/lib/dateHelpers";
 import type { InvoiceCategory } from "@/types/database";
@@ -130,6 +131,7 @@ function unformatAmountForEditing(raw: string): string {
 }
 
 export default function BulkEncodeGrid({ category, onSaved }: BulkEncodeGridProps) {
+  const { showToast } = useToast();
   const [rows, setRows] = useState<GridRow[]>(() => makeInitialRows(8));
   const [companyOptions, setCompanyOptions] = useState<string[]>([]);
   const [branchOptions, setBranchOptions] = useState<string[]>([]);
@@ -396,24 +398,21 @@ export default function BulkEncodeGrid({ category, onSaved }: BulkEncodeGridProp
       });
 
       if (failed.length === 0) {
-        setFeedback({
-          type: "success",
-          message: `${succeeded.length} invoice${succeeded.length === 1 ? "" : "s"} encoded successfully.`,
-        });
+        const msg = `${succeeded.length} invoice${succeeded.length === 1 ? "" : "s"} encoded successfully.`;
+        setFeedback({ type: "success", message: msg });
+        showToast(msg, "success");
       } else if (succeeded.length === 0) {
-        setFeedback({
-          type: "error",
-          message: `Nothing was saved. ${failed
-            .map((f) => `${f.docNo} (${f.reason})`)
-            .join(", ")}.`,
-        });
+        const msg = `Nothing was saved. ${failed
+          .map((f) => `${f.docNo} (${f.reason})`)
+          .join(", ")}.`;
+        setFeedback({ type: "error", message: msg });
+        showToast("Nothing was saved. See details below.", "error");
       } else {
-        setFeedback({
-          type: "error",
-          message: `${succeeded.length} saved. Not saved: ${failed
-            .map((f) => `${f.docNo} (${f.reason})`)
-            .join(", ")}.`,
-        });
+        const msg = `${succeeded.length} saved. Not saved: ${failed
+          .map((f) => `${f.docNo} (${f.reason})`)
+          .join(", ")}.`;
+        setFeedback({ type: "error", message: msg });
+        showToast(`${succeeded.length} saved, ${failed.length} failed. See details below.`, "error");
       }
 
       if (succeeded.length > 0) onSaved?.();
@@ -445,7 +444,7 @@ export default function BulkEncodeGrid({ category, onSaved }: BulkEncodeGridProp
         </div>
       </div>
 
-      <div className="mt-4 overflow-x-auto">
+      <div className="mt-4 table-scroll-container">
         <table className="min-w-full divide-y divide-gray-200 text-xs">
           <thead>
             <tr className="text-left text-[11px] font-semibold uppercase text-gray-500">

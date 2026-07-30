@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
+import { useToast } from "@/components/Toast";
 import { exportToExcel } from "@/lib/exportExcel";
 import { findOrCreateBranchAddress, findOrCreateCompany } from "@/lib/invoiceHelpers";
 import { dateToMonthValue, monthValueToDate } from "@/lib/dateHelpers";
@@ -31,10 +32,27 @@ function formatMoney(value: number) {
   });
 }
 
+function statusBadgeClass(status: Invoice["status"]) {
+  switch (status) {
+    case "DELIVERED":
+      return "badge-success";
+    case "CANCELLED":
+      return "badge-danger";
+    case "DISPATCHED":
+      return "badge-info";
+    default:
+      return "badge-neutral";
+  }
+}
+
+const PAGE_SIZE = 20;
+
 export default function RecentInvoicesTable({ refreshKey, readOnly = false }: RecentInvoicesTableProps) {
+  const { showToast } = useToast();
   const [activeTab, setActiveTab] = useState<InvoiceCategory>("CONSIGNMENT");
   const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [deleteError, setDeleteError] = useState<string | null>(null);
@@ -42,6 +60,15 @@ export default function RecentInvoicesTable({ refreshKey, readOnly = false }: Re
   const [rowErrors, setRowErrors] = useState<Record<string, string>>({});
   const [companyOptions, setCompanyOptions] = useState<string[]>([]);
   const [branchOptions, setBranchOptions] = useState<string[]>([]);
+  const [search, setSearch] = useState("");
+  const [searchInput, setSearchInput] = useState("");
+  const [hasMore, setHasMore] = useState(false);
+
+  // Debounce the search box so we're not firing a query per keystroke.
+  useEffect(() => {
+    const t = setTimeout(() => setSearch(searchInput.trim()), 300);
+    return () => clearTimeout(t);
+  }, [searchInput]);
 
   useEffect(() => {
     let cancelled = false;
@@ -51,12 +78,18 @@ export default function RecentInvoicesTable({ refreshKey, readOnly = false }: Re
       setErrorMsg(null);
       try {
         const supabase = createClient();
-        const { data, error } = await supabase
+        let query = supabase
           .from("invoices")
           .select("*")
-          .eq("category", activeTab)
+          .eq("category", activeTab);
+        if (search) {
+          query = query.or(
+            `document_no.ilike.%${search}%,company_name_raw.ilike.%${search}%,branch_address.ilike.%${search}%`
+          );
+        }
+        const { data, error } = await query
           .order("created_at", { ascending: false })
-          .limit(20);
+          .range(0, PAGE_SIZE - 1);
 
         if (cancelled) return;
 
@@ -65,8 +98,10 @@ export default function RecentInvoicesTable({ refreshKey, readOnly = false }: Re
             "Could not load recent invoices. Connect a Supabase project to see live data."
           );
           setInvoices([]);
+          setHasMore(false);
         } else {
           setInvoices(data ?? []);
+          setHasMore((data ?? []).length === PAGE_SIZE);
         }
       } catch {
         if (!cancelled) {
@@ -74,6 +109,7 @@ export default function RecentInvoicesTable({ refreshKey, readOnly = false }: Re
             "Could not load recent invoices. Connect a Supabase project to see live data."
           );
           setInvoices([]);
+          setHasMore(false);
         }
       } finally {
         if (!cancelled) setLoading(false);
@@ -84,7 +120,29 @@ export default function RecentInvoicesTable({ refreshKey, readOnly = false }: Re
     return () => {
       cancelled = true;
     };
-  }, [activeTab, refreshKey]);
+  }, [activeTab, refreshKey, search]);
+
+  async function handleLoadMore() {
+    setLoadingMore(true);
+    try {
+      const supabase = createClient();
+      let query = supabase.from("invoices").select("*").eq("category", activeTab);
+      if (search) {
+        query = query.or(
+          `document_no.ilike.%${search}%,company_name_raw.ilike.%${search}%,branch_address.ilike.%${search}%`
+        );
+      }
+      const { data, error } = await query
+        .order("created_at", { ascending: false })
+        .range(invoices.length, invoices.length + PAGE_SIZE - 1);
+      if (!error) {
+        setInvoices((prev) => [...prev, ...(data ?? [])]);
+        setHasMore((data ?? []).length === PAGE_SIZE);
+      }
+    } finally {
+      setLoadingMore(false);
+    }
+  }
 
   useEffect(() => {
     async function loadOptions() {
@@ -204,18 +262,22 @@ export default function RecentInvoicesTable({ refreshKey, readOnly = false }: Re
 
       if (error) {
         if (error.code === "23503") {
-          setDeleteError(
-            `Cannot delete ${inv.document_no} because it's already assigned to a route plan/truck. Remove it from the route plan first before deleting.`
-          );
+          const msg = `Cannot delete ${inv.document_no} because it's already assigned to a route plan/truck. Remove it from the route plan first before deleting.`;
+          setDeleteError(msg);
+          showToast(msg, "error");
         } else {
-          setDeleteError(`Failed to delete ${inv.document_no}: ${error.message}`);
+          const msg = `Failed to delete ${inv.document_no}: ${error.message}`;
+          setDeleteError(msg);
+          showToast(msg, "error");
         }
         return;
       }
 
+      showToast(`Deleted invoice ${inv.document_no}.`, "success");
       setInvoices((prev) => prev.filter((row) => row.id !== inv.id));
     } catch {
       setDeleteError("Could not delete invoice. Make sure a Supabase project is connected.");
+      showToast("Could not delete invoice.", "error");
     } finally {
       setDeletingId(null);
     }
@@ -255,30 +317,41 @@ export default function RecentInvoicesTable({ refreshKey, readOnly = false }: Re
         )}
       </div>
 
-      <div className="mt-3 flex gap-2 border-b border-gray-200 pb-2">
-        {TABS.map((tab) => (
-          <button
-            key={tab.value}
-            type="button"
-            onClick={() => setActiveTab(tab.value)}
-            className={`tab-button ${
-              activeTab === tab.value ? "tab-button-active" : "tab-button-inactive"
-            }`}
-          >
-            {tab.label}
-          </button>
-        ))}
+      <div className="mt-3 flex flex-wrap items-center justify-between gap-2 border-b border-gray-200 pb-2">
+        <div className="flex gap-2">
+          {TABS.map((tab) => (
+            <button
+              key={tab.value}
+              type="button"
+              onClick={() => setActiveTab(tab.value)}
+              className={`tab-button ${
+                activeTab === tab.value ? "tab-button-active" : "tab-button-inactive"
+              }`}
+            >
+              {tab.label}
+            </button>
+          ))}
+        </div>
+        <input
+          type="text"
+          className="input-sm max-w-[220px]"
+          placeholder="Search doc #, retail chain, branch…"
+          value={searchInput}
+          onChange={(e) => setSearchInput(e.target.value)}
+        />
       </div>
 
       {loading && <p className="mt-3 text-sm text-gray-400">Loading…</p>}
       {!loading && errorMsg && <p className="mt-3 text-sm text-gray-400">{errorMsg}</p>}
       {!loading && !errorMsg && invoices.length === 0 && (
-        <p className="mt-3 text-sm text-gray-400">No invoices encoded yet.</p>
+        <p className="mt-3 text-sm text-gray-400">
+          {search ? `No invoices match "${search}".` : "No invoices encoded yet."}
+        </p>
       )}
       {deleteError && <p className="mt-3 text-sm text-red-600">{deleteError}</p>}
 
       {!loading && !errorMsg && invoices.length > 0 && (
-        <div className="mt-3 overflow-x-auto">
+        <div className="mt-3 table-scroll-container">
           <table className="min-w-full divide-y divide-gray-200 text-xs">
             <thead>
               <tr className="text-left text-[11px] font-semibold uppercase text-gray-500">
@@ -443,7 +516,7 @@ export default function RecentInvoicesTable({ refreshKey, readOnly = false }: Re
                     />
                   </td>
                   <td className="py-1.5 pr-1.5 whitespace-nowrap">
-                    {inv.status}
+                    <span className={statusBadgeClass(inv.status)}>{inv.status}</span>
                     {savingId === inv.id && (
                       <span className="ml-1 text-[11px] text-gray-400">saving…</span>
                     )}
@@ -467,6 +540,19 @@ export default function RecentInvoicesTable({ refreshKey, readOnly = false }: Re
               ))}
             </tbody>
           </table>
+        </div>
+      )}
+
+      {!loading && !errorMsg && hasMore && (
+        <div className="mt-3 flex justify-center">
+          <button
+            type="button"
+            className="tab-button tab-button-inactive"
+            onClick={handleLoadMore}
+            disabled={loadingMore}
+          >
+            {loadingMore ? "Loading…" : "Load more"}
+          </button>
         </div>
       )}
 
