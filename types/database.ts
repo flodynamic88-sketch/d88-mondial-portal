@@ -116,6 +116,8 @@ export interface RoutePlanInvoice {
    * a new truck/date, and its amount is excluded from CTS once Backload is set.
    */
   superseded_at: string | null;
+  /** Number of boxes for this invoice as loaded onto the truck. */
+  qty_box: number | null;
 }
 
 export interface MondialConfirmation {

@@ -156,7 +156,7 @@ export default function BillingPage() {
   const [activeTab, setActiveTab] = useState<InvoiceCategory>("CONSIGNMENT");
 
   return (
-    <RequireRole roles={["ADMIN", "LOGISTICS_OFFICER", "GENERAL_MANAGER"]}>
+    <RequireRole roles={["ADMIN", "GENERAL_MANAGER"]}>
     <div>
       <div className="page-header border-b-0 pb-0">
         <div>

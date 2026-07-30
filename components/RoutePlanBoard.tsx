@@ -5,7 +5,18 @@ import { createClient } from "@/lib/supabase/client";
 import TruckCard from "@/components/TruckCard";
 import AddTruckForm from "@/components/AddTruckForm";
 import { useAuth } from "@/components/AuthProvider";
-import type { RoutePlan, RoutePlanTruck, DeliveryReason } from "@/types/database";
+import { exportToExcel } from "@/lib/exportExcel";
+import type {
+  RoutePlan,
+  RoutePlanTruck,
+  RoutePlanInvoice,
+  Invoice,
+  DeliveryReason,
+} from "@/types/database";
+
+interface ExportInvoiceRow extends RoutePlanInvoice {
+  invoice: Invoice | null;
+}
 
 export default function RoutePlanBoard() {
   const profile = useAuth();
@@ -40,6 +51,9 @@ export default function RoutePlanBoard() {
   const [trucksError, setTrucksError] = useState<string | null>(null);
 
   const [deliveryReasons, setDeliveryReasons] = useState<DeliveryReason[]>([]);
+
+  const [exportingPlan, setExportingPlan] = useState(false);
+  const [exportError, setExportError] = useState<string | null>(null);
 
   const loadRoutePlans = useCallback(async (selectAfter?: string) => {
     setLoadingPlans(true);
@@ -318,7 +332,69 @@ export default function RoutePlanBoard() {
     return acc;
   }, {});
 
+  const truckLabelById: Record<string, string> = {};
+  mainTrucks.forEach((truck, index) => {
+    truckLabelById[truck.id] = `Truck ${index + 1}`;
+    (convoysByMain[truck.id] ?? []).forEach((convoy, convoyIndex) => {
+      truckLabelById[convoy.id] = `Truck ${index + 1} · Convoy ${convoyIndex + 1}`;
+    });
+  });
+
   const selectedPlan = routePlans.find((p) => p.id === selectedId) ?? null;
+
+  async function handleExportRoutePlan() {
+    if (!selectedPlan || trucks.length === 0) return;
+    setExportingPlan(true);
+    setExportError(null);
+    try {
+      const supabase = createClient();
+      const truckIds = trucks.map((t) => t.id);
+      const { data, error } = await supabase
+        .from("route_plan_invoices")
+        .select("*, invoice:invoices(*)")
+        .in("route_plan_truck_id", truckIds)
+        .is("superseded_at", null)
+        .order("created_at", { ascending: true });
+
+      if (error) {
+        setExportError("Failed to export route plan.");
+        return;
+      }
+
+      const rows = (data ?? []) as unknown as ExportInvoiceRow[];
+      const trucksById = Object.fromEntries(trucks.map((t) => [t.id, t]));
+
+      exportToExcel(`route-plan-${selectedPlan.route_date}`, [
+        {
+          name: "Route Plan",
+          rows: rows.map((row) => {
+            const truck = row.route_plan_truck_id ? trucksById[row.route_plan_truck_id] : null;
+            return {
+              Truck: truck ? truckLabelById[truck.id] ?? "" : "",
+              "Plate Number": truck?.plate_number ?? "",
+              Carrier: truck?.carrier ?? "",
+              Driver: truck?.driver_name ?? "",
+              "Helper 1": truck?.helper1_name ?? "",
+              "Helper 2": truck?.helper2_name ?? "",
+              "Document No.": row.invoice?.document_no ?? "",
+              "Company / Store": row.invoice?.company_name_raw ?? "",
+              "Branch Address": row.invoice?.branch_address ?? "",
+              "Qty/Box": row.qty_box ?? "",
+              Amount: row.invoice?.amount ?? 0,
+              "Rate %": row.service_rate_pct ?? "",
+              "Delivered On": row.delivered_at
+                ? new Date(row.delivered_at).toLocaleDateString()
+                : "",
+            };
+          }),
+        },
+      ]);
+    } catch {
+      setExportError("Could not export route plan. Make sure a Supabase project is connected.");
+    } finally {
+      setExportingPlan(false);
+    }
+  }
 
   return (
     <div>
@@ -457,6 +533,17 @@ export default function RoutePlanBoard() {
                   )}
 
                   <div className="flex items-center gap-2">
+                    {!editingHeader && (
+                      <button
+                        type="button"
+                        className="tab-button tab-button-inactive"
+                        onClick={handleExportRoutePlan}
+                        disabled={exportingPlan || trucks.length === 0}
+                        title="Export this route plan's trucks and invoices to Excel"
+                      >
+                        {exportingPlan ? "Exporting…" : "Export to Excel"}
+                      </button>
+                    )}
                     {editingHeader ? (
                       <>
                         <button
@@ -511,6 +598,7 @@ export default function RoutePlanBoard() {
                 </div>
 
                 {headerError && <p className="mt-2 text-sm text-red-600">{headerError}</p>}
+                {exportError && <p className="mt-2 text-sm text-red-600">{exportError}</p>}
 
                 {!editingHeader && selectedPlan.prepared_by && (
                   <p className="mt-1 text-xs text-gray-500">

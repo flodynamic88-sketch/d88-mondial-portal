@@ -35,7 +35,7 @@ const NAV_ITEMS: NavItem[] = [
   {
     href: "/billing",
     label: "Billing",
-    roles: ["ADMIN", "LOGISTICS_OFFICER", "GENERAL_MANAGER"],
+    roles: ["ADMIN", "GENERAL_MANAGER"],
   },
   {
     href: "/mondial-confirmation",

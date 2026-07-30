@@ -243,6 +243,26 @@ export default function TruckCard({
     }
   }
 
+  async function handleQtyBoxChange(rowId: string, value: string) {
+    const trimmed = value.trim();
+    const num = trimmed === "" ? null : Number(trimmed);
+    if (num !== null && Number.isNaN(num)) return;
+    try {
+      const supabase = createClient();
+      const { error } = await supabase
+        .from("route_plan_invoices")
+        .update({ qty_box: num })
+        .eq("id", rowId);
+      if (error) {
+        setActionError("Failed to update qty per box.");
+      } else {
+        setRefreshKey((k) => k + 1);
+      }
+    } catch {
+      setActionError("Could not update qty per box. Make sure a Supabase project is connected.");
+    }
+  }
+
   async function handleDeliveryDateChange(row: AssignedInvoiceRow, value: string) {
     setActionError(null);
     try {
@@ -413,6 +433,15 @@ export default function TruckCard({
           ) : (
             <span className="text-xs text-gray-400">Not yet dispatched</span>
           )}
+          <a
+            href={`/route-plan/print/${truck.id}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="tab-button tab-button-inactive text-xs"
+            title="Open a printable itinerary for this truck"
+          >
+            Print Itinerary
+          </a>
           {canManageTruck && (
             <button
               type="button"
@@ -452,6 +481,7 @@ export default function TruckCard({
                 <tr className="text-left text-xs font-semibold uppercase text-gray-500">
                   <th className="py-2 pr-4">Document No.</th>
                   <th className="py-2 pr-4">Company / Branch</th>
+                  <th className="py-2 pr-4">Qty/Box</th>
                   <th className="py-2 pr-4">Amount</th>
                   <th className="py-2 pr-4">Rate %</th>
                   <th className="py-2 pr-4">Status</th>
@@ -467,6 +497,16 @@ export default function TruckCard({
                     <td className="py-2 pr-4">
                       <p>{row.invoice?.company_name_raw ?? "—"}</p>
                       <p className="text-xs text-gray-400">{row.invoice?.branch_address ?? "—"}</p>
+                    </td>
+                    <td className="py-2 pr-4">
+                      <input
+                        type="number"
+                        step="1"
+                        min="0"
+                        className="input w-16"
+                        defaultValue={row.qty_box ?? ""}
+                        onBlur={(e) => handleQtyBoxChange(row.id, e.target.value)}
+                      />
                     </td>
                     <td className="py-2 pr-4">
                       {(row.invoice?.amount ?? 0).toLocaleString(undefined, {
