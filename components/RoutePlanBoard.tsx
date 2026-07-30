@@ -153,7 +153,13 @@ export default function RoutePlanBoard() {
   const selectedPlanForSync = routePlans.find((p) => p.id === selectedId) ?? null;
 
   useEffect(() => {
-    setCheckedByInput(selectedPlanForSync?.checked_by ?? "");
+    // Checked By is the Logistics Officer's own name, auto-filled the same
+    // way Approved By is auto-filled for Admin below -- Logistics Officers
+    // don't pick a name from a list, they check their own route plans.
+    setCheckedByInput(
+      selectedPlanForSync?.checked_by ??
+        (profile?.role === "LOGISTICS_OFFICER" ? profile.full_name || profile.username : "")
+    );
     // Approval is Admin-only, so the Approved By name is always the current
     // Admin's own name -- never a pick-list. Auto-fill it for the logged-in
     // Admin so approving a plan is just one click.
@@ -614,15 +620,20 @@ export default function RoutePlanBoard() {
                 <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
                   <div>
                     <label className="label">Checked By</label>
-                    <select
-                      className="input"
-                      value={checkedByInput}
-                      onChange={(e) => setCheckedByInput(e.target.value)}
-                      disabled={Boolean(selectedPlan.approved_at)}
-                    >
-                      <option value="">Select</option>
-                      <option value="Emmanuel Miagao">Emmanuel Miagao</option>
-                    </select>
+                    {profile?.role === "LOGISTICS_OFFICER" ? (
+                      <p className="input flex items-center bg-gray-50 text-gray-700">
+                        {checkedByInput || "—"}
+                      </p>
+                    ) : (
+                      <input
+                        type="text"
+                        className="input"
+                        placeholder="Checked by name"
+                        value={checkedByInput}
+                        onChange={(e) => setCheckedByInput(e.target.value)}
+                        disabled={Boolean(selectedPlan.approved_at)}
+                      />
+                    )}
                   </div>
                   <div>
                     <label className="label">Approved By</label>

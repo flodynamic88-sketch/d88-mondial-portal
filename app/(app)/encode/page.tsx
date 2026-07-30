@@ -21,7 +21,7 @@ export default function EncodeInvoicesPage() {
   const [refreshKey, setRefreshKey] = useState(0);
 
   return (
-    <RequireRole roles={["ADMIN", "JMD_PLANNER"]}>
+    <RequireRole roles={["ADMIN"]}>
     <div>
       <div className="page-header border-b-0 pb-0">
         <div>

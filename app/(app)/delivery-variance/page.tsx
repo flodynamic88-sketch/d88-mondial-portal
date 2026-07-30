@@ -432,7 +432,7 @@ export default function DeliveryVarianceLogPage() {
 
   return (
     <RequireRole
-      roles={["ADMIN", "LOGISTICS_OFFICER", "JMD_PLANNER", "LOGISTICS_ASSOCIATE", "GENERAL_MANAGER"]}
+      roles={["ADMIN", "LOGISTICS_OFFICER", "LOGISTICS_ASSOCIATE", "GENERAL_MANAGER"]}
     >
       <div>
         <div className="page-header border-b-0 pb-0">

@@ -52,13 +52,8 @@ type TabKey = InvoiceCategory | "SUMMARY";
 export default function TransmittalsPage() {
   const profile = useAuth();
   const role = profile?.role;
-  const canGenerate =
-    role === "ADMIN" ||
-    role === "LOGISTICS_OFFICER" ||
-    role === "LOGISTICS_ASSOCIATE" ||
-    role === "JMD_PLANNER";
-  const canUpdateStatus =
-    role === "ADMIN" || role === "LOGISTICS_OFFICER" || role === "LOGISTICS_ASSOCIATE";
+  const canGenerate = role === "ADMIN" || role === "LOGISTICS_ASSOCIATE";
+  const canUpdateStatus = role === "ADMIN" || role === "LOGISTICS_ASSOCIATE";
   // Matches the "transmittals delete" RLS policy (ADMIN only) -- deleting a
   // transmittal cascades to its transmittal_items and, via
   // invoices.transmittal_id's ON DELETE SET NULL, automatically frees its
@@ -69,7 +64,7 @@ export default function TransmittalsPage() {
 
   return (
     <RequireRole
-      roles={["ADMIN", "LOGISTICS_OFFICER", "JMD_PLANNER", "LOGISTICS_ASSOCIATE", "GENERAL_MANAGER"]}
+      roles={["ADMIN", "LOGISTICS_ASSOCIATE", "GENERAL_MANAGER", "INVOICING_TEAM"]}
     >
       <div>
         <div className="page-header border-b-0 pb-0">

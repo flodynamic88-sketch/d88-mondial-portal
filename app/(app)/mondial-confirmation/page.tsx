@@ -125,7 +125,7 @@ export default function MondialConfirmationPage() {
   }
 
   return (
-    <RequireRole roles={["ADMIN", "MONDIAL_TEAM"]}>
+    <RequireRole roles={["ADMIN", "MONDIAL_TEAM", "INVOICING_TEAM"]}>
     <div>
       <div className="page-header border-b-0 pb-0">
         <div>

@@ -13,7 +13,8 @@ export type UserRole =
   | "JMD_PLANNER"
   | "MONDIAL_TEAM"
   | "LOGISTICS_ASSOCIATE"
-  | "GENERAL_MANAGER";
+  | "GENERAL_MANAGER"
+  | "INVOICING_TEAM";
 
 export interface UserProfile {
   id: string;

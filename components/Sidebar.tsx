@@ -20,7 +20,7 @@ const NAV_ITEMS: NavItem[] = [
   {
     href: "/encode",
     label: "Encode Invoices",
-    roles: ["ADMIN", "JMD_PLANNER"],
+    roles: ["ADMIN"],
   },
   {
     href: "/route-plan",
@@ -30,7 +30,7 @@ const NAV_ITEMS: NavItem[] = [
   {
     href: "/deliveries",
     label: "Deliveries Fulfillment",
-    roles: ["ADMIN", "LOGISTICS_OFFICER", "JMD_PLANNER", "LOGISTICS_ASSOCIATE", "GENERAL_MANAGER"],
+    roles: ["ADMIN", "LOGISTICS_OFFICER", "LOGISTICS_ASSOCIATE", "GENERAL_MANAGER"],
   },
   {
     href: "/billing",
@@ -40,22 +40,22 @@ const NAV_ITEMS: NavItem[] = [
   {
     href: "/mondial-confirmation",
     label: "Mondial Confirmation",
-    roles: ["ADMIN", "MONDIAL_TEAM"],
+    roles: ["ADMIN", "MONDIAL_TEAM", "INVOICING_TEAM"],
   },
   {
     href: "/delivery-variance",
     label: "Delivery Variance Log",
-    roles: ["ADMIN", "LOGISTICS_OFFICER", "JMD_PLANNER", "LOGISTICS_ASSOCIATE", "GENERAL_MANAGER"],
+    roles: ["ADMIN", "LOGISTICS_OFFICER", "LOGISTICS_ASSOCIATE", "GENERAL_MANAGER"],
   },
   {
     href: "/transmittals",
     label: "Transmittals",
-    roles: ["ADMIN", "LOGISTICS_OFFICER", "JMD_PLANNER", "LOGISTICS_ASSOCIATE", "GENERAL_MANAGER"],
+    roles: ["ADMIN", "LOGISTICS_ASSOCIATE", "GENERAL_MANAGER", "INVOICING_TEAM"],
   },
   {
     href: "/final-billing",
     label: "Final Billing",
-    roles: ["ADMIN", "LOGISTICS_OFFICER", "GENERAL_MANAGER"],
+    roles: ["ADMIN", "GENERAL_MANAGER"],
   },
   { href: "/admin/users", label: "User Management", roles: ["ADMIN"] },
 ];
