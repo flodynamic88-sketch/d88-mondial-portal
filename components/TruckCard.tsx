@@ -522,7 +522,7 @@ export default function TruckCard({
                         type="number"
                         step="1"
                         min="0"
-                        className="input w-16"
+                        className="input no-spinner w-20 text-center"
                         defaultValue={row.qty_box ?? ""}
                         onBlur={(e) => handleQtyBoxChange(row.id, e.target.value)}
                       />
@@ -541,7 +541,7 @@ export default function TruckCard({
                             step="0.01"
                             min="0"
                             placeholder="0.00"
-                            className="input w-20"
+                            className="input no-spinner w-20 text-center"
                             defaultValue={row.service_rate_pct ?? ""}
                             onBlur={(e) => handleRateChange(row.id, e.target.value)}
                           />

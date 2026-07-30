@@ -45,6 +45,18 @@ body {
   @apply w-full rounded-md border border-gray-300 px-1.5 py-1 text-xs text-gray-800 shadow-sm transition-colors placeholder:text-gray-400 focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-100;
 }
 
+/* Hides the browser's up/down spinner arrows on number inputs. On narrow
+   table-cell inputs (Qty/Box, Rate %) those spinner arrows eat into the
+   already-tight width and clip the typed value, so we drop them there. */
+.no-spinner::-webkit-outer-spin-button,
+.no-spinner::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+.no-spinner {
+  -moz-appearance: textfield;
+}
+
 .label {
   @apply mb-1 block text-sm font-medium text-gray-700;
 }
