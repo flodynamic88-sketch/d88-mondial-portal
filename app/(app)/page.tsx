@@ -42,6 +42,23 @@ function todayStr() {
   return new Date().toISOString().slice(0, 10);
 }
 
+function monthStartStr() {
+  const now = new Date();
+  return new Date(now.getFullYear(), now.getMonth(), 1).toISOString().slice(0, 10);
+}
+
+interface MtdCtsSummary {
+  /** Weighted MTD CTS % (sum truck_rate / sum invoice amount * 100). Null if
+   * the current role can't see cost figures (masked by v_truck_cts for
+   * anyone who isn't Admin/Logistics Officer) or there's no data yet. */
+  ctsPct: number | null;
+  /** % of this month's trucks that passed CTS (<=5%). Not cost data, so
+   * visible to every role, unlike ctsPct above. */
+  passRatePct: number | null;
+  passCount: number;
+  totalCount: number;
+}
+
 async function getTopVarianceReasons(): Promise<VarianceReasonRow[]> {
   try {
     const supabase = createClient();
@@ -216,16 +233,79 @@ async function getCtsTrend(): Promise<{ label: string; value: number }[]> {
   }
 }
 
+/** Month-to-date CTS: how the fleet is trending on cost efficiency for the
+ * current calendar month so far, not just the last few route plans. */
+async function getMtdCtsSummary(): Promise<MtdCtsSummary> {
+  try {
+    const supabase = createClient();
+    const { data: plans } = await supabase
+      .from("route_plans")
+      .select("id")
+      .gte("route_date", monthStartStr())
+      .lte("route_date", todayStr());
+    const planIds = new Set((plans ?? []).map((p) => p.id as string));
+    if (planIds.size === 0) {
+      return { ctsPct: null, passRatePct: null, passCount: 0, totalCount: 0 };
+    }
+
+    const { data: ctsRows } = await supabase
+      .from("v_truck_cts")
+      .select("route_plan_id, truck_rate, total_invoice_amount, cts_pass");
+    const rows = (
+      (ctsRows ?? []) as {
+        route_plan_id: string | null;
+        truck_rate: number | null;
+        total_invoice_amount: number | null;
+        cts_pass: boolean | null;
+      }[]
+    ).filter((r) => r.route_plan_id && planIds.has(r.route_plan_id));
+
+    let sumRate = 0;
+    let sumAmount = 0;
+    let sawCost = false;
+    let passCount = 0;
+    let totalCount = 0;
+    for (const row of rows) {
+      if (row.truck_rate !== null && row.total_invoice_amount !== null) {
+        sawCost = true;
+        sumRate += row.truck_rate;
+        sumAmount += row.total_invoice_amount;
+      }
+      if (row.cts_pass !== null && row.cts_pass !== undefined) {
+        totalCount += 1;
+        if (row.cts_pass) passCount += 1;
+      }
+    }
+
+    return {
+      ctsPct: sawCost && sumAmount > 0 ? Math.round((sumRate / sumAmount) * 1000) / 10 : null,
+      passRatePct: totalCount > 0 ? Math.round((passCount / totalCount) * 100) : null,
+      passCount,
+      totalCount,
+    };
+  } catch {
+    return { ctsPct: null, passRatePct: null, passCount: 0, totalCount: 0 };
+  }
+}
+
 export default async function DashboardPage() {
-  const [kpis, topVarianceReasons, pendingRoutePlans, todayTrucks, transmittalBacklog, ctsTrend] =
-    await Promise.all([
-      getKpis(),
-      getTopVarianceReasons(),
-      getPendingRoutePlans(),
-      getTodayTruckStatus(),
-      getTransmittalBacklog(),
-      getCtsTrend(),
-    ]);
+  const [
+    kpis,
+    topVarianceReasons,
+    pendingRoutePlans,
+    todayTrucks,
+    transmittalBacklog,
+    ctsTrend,
+    mtdCts,
+  ] = await Promise.all([
+    getKpis(),
+    getTopVarianceReasons(),
+    getPendingRoutePlans(),
+    getTodayTruckStatus(),
+    getTransmittalBacklog(),
+    getCtsTrend(),
+    getMtdCtsSummary(),
+  ]);
   const topReason = topVarianceReasons[0];
   const totalBacklog = transmittalBacklog.reduce((sum, r) => sum + r.count, 0);
 
@@ -310,13 +390,52 @@ export default async function DashboardPage() {
       <div className="mt-6 grid grid-cols-1 gap-4 lg:grid-cols-2">
         <div className="card">
           <div className="flex flex-wrap items-center justify-between gap-2">
-            <h2 className="text-lg font-semibold text-gray-800">CTS Pass Rate — Recent Route Plans</h2>
+            <h2 className="text-lg font-semibold text-gray-800">CTS — Month to Date</h2>
             <Link href="/deliveries" className="text-sm font-medium text-brand-600 hover:text-brand-700">
               View Deliveries Fulfillment →
             </Link>
           </div>
-          <div className="mt-4">
-            <BarChart data={ctsTrend} maxValue={100} valueSuffix="%" emptyLabel="No CTS data yet for recent route plans." />
+
+          <div className="mt-3 flex flex-wrap items-end gap-6">
+            <div>
+              <p className="text-xs uppercase tracking-wide text-gray-500">MTD CTS %</p>
+              {mtdCts.ctsPct !== null ? (
+                <p
+                  className={`text-3xl font-bold ${
+                    mtdCts.ctsPct <= 5 ? "text-green-600" : "text-red-600"
+                  }`}
+                >
+                  {mtdCts.ctsPct}%
+                </p>
+              ) : (
+                <p className="text-3xl font-bold text-gray-300">—</p>
+              )}
+              {mtdCts.ctsPct === null && (
+                <p className="mt-0.5 text-xs text-gray-400">
+                  {mtdCts.totalCount === 0
+                    ? "No route plans yet this month."
+                    : "Cost figures restricted to Admin/Logistics Officer."}
+                </p>
+              )}
+            </div>
+            {mtdCts.totalCount > 0 && (
+              <div>
+                <p className="text-xs uppercase tracking-wide text-gray-500">Trucks Passed MTD</p>
+                <p className="text-xl font-semibold text-gray-700">
+                  {mtdCts.passCount} / {mtdCts.totalCount}
+                  <span className="ml-1 text-sm font-medium text-gray-400">
+                    ({mtdCts.passRatePct}%)
+                  </span>
+                </p>
+              </div>
+            )}
+          </div>
+
+          <div className="mt-5 border-t border-gray-100 pt-4">
+            <p className="text-xs font-medium text-gray-500">Per route plan (last 7)</p>
+            <div className="mt-2">
+              <BarChart data={ctsTrend} maxValue={100} valueSuffix="%" emptyLabel="No CTS data yet for recent route plans." />
+            </div>
           </div>
         </div>
 
