@@ -9,6 +9,7 @@ import type { Invoice, InvoiceCategory, ZoneType } from "@/types/database";
 
 interface RecentInvoicesTableProps {
   refreshKey: number;
+  readOnly?: boolean;
 }
 
 const TABS: { value: InvoiceCategory; label: string }[] = [
@@ -30,7 +31,7 @@ function formatMoney(value: number) {
   });
 }
 
-export default function RecentInvoicesTable({ refreshKey }: RecentInvoicesTableProps) {
+export default function RecentInvoicesTable({ refreshKey, readOnly = false }: RecentInvoicesTableProps) {
   const [activeTab, setActiveTab] = useState<InvoiceCategory>("CONSIGNMENT");
   const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [loading, setLoading] = useState(true);
@@ -307,6 +308,7 @@ export default function RecentInvoicesTable({ refreshKey }: RecentInvoicesTableP
                       value={inv.document_no}
                       onChange={(e) => handleTextChange(inv, "document_no", e.target.value)}
                       onBlur={() => handleTextBlur(inv, "document_no")}
+                      disabled={readOnly}
                     />
                   </td>
                   <td className="py-0.5 pr-1.5">
@@ -318,6 +320,7 @@ export default function RecentInvoicesTable({ refreshKey }: RecentInvoicesTableP
                           zone: (e.target.value || null) as ZoneType | null,
                         })
                       }
+                      disabled={readOnly}
                     >
                       <option value="">Not set</option>
                       {ZONE_OPTIONS.map((z) => (
@@ -333,6 +336,7 @@ export default function RecentInvoicesTable({ refreshKey }: RecentInvoicesTableP
                       checked={inv.is_dc}
                       onChange={(e) => handleImmediateChange(inv, { is_dc: e.target.checked })}
                       className="h-3.5 w-3.5 rounded border-gray-300 text-brand-600 focus:ring-brand-500"
+                      disabled={readOnly}
                     />
                   </td>
                   <td className="py-0.5 pr-1.5">
@@ -343,6 +347,7 @@ export default function RecentInvoicesTable({ refreshKey }: RecentInvoicesTableP
                       value={inv.company_name_raw ?? ""}
                       onChange={(e) => handleTextChange(inv, "company_name_raw", e.target.value)}
                       onBlur={() => handleCompanyBlur(inv)}
+                      disabled={readOnly}
                     />
                   </td>
                   <td className="py-0.5 pr-1.5">
@@ -353,6 +358,7 @@ export default function RecentInvoicesTable({ refreshKey }: RecentInvoicesTableP
                       value={inv.branch_address ?? ""}
                       onChange={(e) => handleTextChange(inv, "branch_address", e.target.value)}
                       onBlur={() => handleBranchBlur(inv)}
+                      disabled={readOnly}
                     />
                   </td>
                   <td className="py-0.5 pr-1.5">
@@ -369,6 +375,7 @@ export default function RecentInvoicesTable({ refreshKey }: RecentInvoicesTableP
                         const num = Number(current.amount);
                         if (!Number.isNaN(num)) await saveField(inv.id, { amount: num });
                       }}
+                      disabled={readOnly}
                     />
                   </td>
                   <td className="py-0.5 pr-1.5">
@@ -378,6 +385,7 @@ export default function RecentInvoicesTable({ refreshKey }: RecentInvoicesTableP
                       value={inv.posting_date ?? ""}
                       onChange={(e) => handleTextChange(inv, "posting_date", e.target.value)}
                       onBlur={() => handleTextBlur(inv, "posting_date")}
+                      disabled={readOnly}
                     />
                   </td>
                   <td className="py-0.5 pr-1.5">
@@ -387,6 +395,7 @@ export default function RecentInvoicesTable({ refreshKey }: RecentInvoicesTableP
                       value={inv.plan_date ?? ""}
                       onChange={(e) => handleTextChange(inv, "plan_date", e.target.value)}
                       onBlur={() => handleTextBlur(inv, "plan_date")}
+                      disabled={readOnly}
                     />
                   </td>
                   <td className="py-0.5 pr-1.5">
@@ -398,6 +407,7 @@ export default function RecentInvoicesTable({ refreshKey }: RecentInvoicesTableP
                         handleTextChange(inv, "actual_delivery_date", e.target.value)
                       }
                       onBlur={() => handleDeliveryDateBlur(inv)}
+                      disabled={readOnly}
                     />
                   </td>
                   <td className="py-0.5 pr-1.5">
@@ -409,6 +419,7 @@ export default function RecentInvoicesTable({ refreshKey }: RecentInvoicesTableP
                         handleTextChange(inv, "transmittal_received_date", e.target.value)
                       }
                       onBlur={() => handleTextBlur(inv, "transmittal_received_date")}
+                      disabled={readOnly}
                     />
                   </td>
                   <td className="py-0.5 pr-1.5">
@@ -418,6 +429,7 @@ export default function RecentInvoicesTable({ refreshKey }: RecentInvoicesTableP
                       value={dateToMonthValue(inv.billing_period)}
                       onChange={(e) => handleMonthChange(inv, e.target.value)}
                       onBlur={() => handleMonthBlur(inv)}
+                      disabled={readOnly}
                     />
                   </td>
                   <td className="py-0.5 pr-1.5">
@@ -427,6 +439,7 @@ export default function RecentInvoicesTable({ refreshKey }: RecentInvoicesTableP
                       value={inv.remarks ?? ""}
                       onChange={(e) => handleTextChange(inv, "remarks", e.target.value)}
                       onBlur={() => handleTextBlur(inv, "remarks")}
+                      disabled={readOnly}
                     />
                   </td>
                   <td className="py-1.5 pr-1.5 whitespace-nowrap">
@@ -439,14 +452,16 @@ export default function RecentInvoicesTable({ refreshKey }: RecentInvoicesTableP
                     )}
                   </td>
                   <td className="py-1.5 pr-1.5">
-                    <button
-                      type="button"
-                      className="text-xs font-medium text-red-600 hover:text-red-800 disabled:opacity-50"
-                      onClick={() => handleDelete(inv)}
-                      disabled={deletingId === inv.id}
-                    >
-                      {deletingId === inv.id ? "Deleting…" : "Delete"}
-                    </button>
+                    {!readOnly && (
+                      <button
+                        type="button"
+                        className="text-xs font-medium text-red-600 hover:text-red-800 disabled:opacity-50"
+                        onClick={() => handleDelete(inv)}
+                        disabled={deletingId === inv.id}
+                      >
+                        {deletingId === inv.id ? "Deleting…" : "Delete"}
+                      </button>
+                    )}
                   </td>
                 </tr>
               ))}

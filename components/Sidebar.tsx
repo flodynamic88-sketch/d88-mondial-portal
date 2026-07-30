@@ -20,7 +20,7 @@ const NAV_ITEMS: NavItem[] = [
   {
     href: "/encode",
     label: "Encode Invoices",
-    roles: ["ADMIN"],
+    roles: ["ADMIN", "LOGISTICS_OFFICER", "JMD_PLANNER"],
   },
   {
     href: "/route-plan",
