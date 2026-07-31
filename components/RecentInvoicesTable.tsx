@@ -19,11 +19,12 @@ const TABS: { value: InvoiceCategory; label: string }[] = [
   { value: "MERCURY_DRUG", label: "Mercury Drug" },
 ];
 
-type RoutePlanSubTab = "UNASSIGNED" | "ASSIGNED";
+type RoutePlanSubTab = "UNASSIGNED" | "IN_TRANSIT" | "DELIVERED";
 
 const SUB_TABS: { value: RoutePlanSubTab; label: string }[] = [
   { value: "UNASSIGNED", label: "Not Yet in Route Plan" },
-  { value: "ASSIGNED", label: "Already in Route Plan" },
+  { value: "IN_TRANSIT", label: "In-Transit" },
+  { value: "DELIVERED", label: "Delivered" },
 ];
 
 const ZONE_OPTIONS: { value: ZoneType; label: string }[] = [
@@ -57,10 +58,13 @@ const PAGE_SIZE = 20;
 export default function RecentInvoicesTable({ refreshKey, readOnly = false }: RecentInvoicesTableProps) {
   const { showToast } = useToast();
   const [activeTab, setActiveTab] = useState<InvoiceCategory>("CONSIGNMENT");
-  // Once an invoice is actively assigned to a route plan truck (a live,
-  // non-superseded route_plan_invoices row), it's no longer something that
-  // needs action here -- it moves to the "Already in Route Plan" sub-tab so
-  // the default view only shows invoices still needing to be routed.
+  // Three-stage lifecycle for the default view:
+  //  - Not Yet in Route Plan: no live (non-superseded) route_plan_invoices
+  //    assignment yet -- the actionable list.
+  //  - In-Transit: has a live assignment, but no actual_delivery_date yet.
+  //  - Delivered: actual_delivery_date has been set (whether that happened
+  //    via the route plan truck or entered directly here) -- delivery date
+  //    wins over assignment status, since that's the more definitive signal.
   const [subTab, setSubTab] = useState<RoutePlanSubTab>("UNASSIGNED");
   const [assignedIds, setAssignedIds] = useState<string[]>([]);
   const [assignedLoaded, setAssignedLoaded] = useState(false);
@@ -115,19 +119,28 @@ export default function RecentInvoicesTable({ refreshKey, readOnly = false }: Re
     };
   }, [refreshKey]);
 
-  // Apply the sub-tab filter (assigned vs. not-yet-assigned) on top of the
-  // base invoices query. Returns null when the sub-tab is guaranteed to be
-  // empty (e.g. "Already in Route Plan" but nothing is assigned yet) so
-  // callers can skip the request entirely.
+  // Apply the sub-tab filter on top of the base invoices query. Returns null
+  // when the sub-tab is guaranteed to be empty (e.g. "In-Transit" but
+  // nothing is currently assigned) so callers can skip the request entirely.
   function applySubTabFilter<T extends ReturnType<typeof buildBaseQuery>>(
     query: T
   ): T | null {
-    if (subTab === "ASSIGNED") {
-      if (assignedIds.length === 0) return null;
-      return query.in("id", assignedIds) as T;
+    if (subTab === "DELIVERED") {
+      return query.not("actual_delivery_date", "is", null) as T;
     }
-    if (assignedIds.length === 0) return query;
-    return query.not("id", "in", `(${assignedIds.join(",")})`) as T;
+
+    // In-Transit and Not-Yet-in-Route-Plan are both restricted to invoices
+    // that haven't been delivered yet -- delivery date takes priority.
+    const undelivered = query.is("actual_delivery_date", null) as T;
+
+    if (subTab === "IN_TRANSIT") {
+      if (assignedIds.length === 0) return null;
+      return undelivered.in("id", assignedIds) as T;
+    }
+
+    // UNASSIGNED
+    if (assignedIds.length === 0) return undelivered;
+    return undelivered.not("id", "in", `(${assignedIds.join(",")})`) as T;
   }
 
   function buildBaseQuery() {
@@ -465,9 +478,11 @@ export default function RecentInvoicesTable({ refreshKey, readOnly = false }: Re
         <p className="mt-3 text-sm text-gray-400">
           {search
             ? `No invoices match "${search}".`
-            : subTab === "ASSIGNED"
-              ? "No invoices have been included in a route plan yet."
-              : "No invoices encoded yet."}
+            : subTab === "IN_TRANSIT"
+              ? "No invoices are currently in-transit on a route plan."
+              : subTab === "DELIVERED"
+                ? "No invoices have been marked delivered yet."
+                : "No invoices encoded yet."}
         </p>
       )}
       {deleteError && <p className="mt-3 text-sm text-red-600">{deleteError}</p>}
