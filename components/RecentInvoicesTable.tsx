@@ -399,9 +399,9 @@ export default function RecentInvoicesTable({ refreshKey, readOnly = false }: Re
                 <th className="py-1.5 pr-1.5 min-w-[140px]">Branch/Store Address</th>
                 <th className="py-1.5 pr-1.5 min-w-[85px]">Amount</th>
                 <th className="py-1.5 pr-1.5 min-w-[105px]">Posting Date</th>
-                <th className="py-1.5 pr-1.5 min-w-[105px] bg-blue-50">Plan Date</th>
-                <th className="py-1.5 pr-1.5 min-w-[115px] bg-amber-50">Actual Delivery Date</th>
-                <th className="py-1.5 pr-1.5 min-w-[105px] bg-emerald-50">Transmittal Date</th>
+                <th className="py-1.5 pr-1.5 min-w-[105px] bg-blue-100">Plan Date</th>
+                <th className="py-1.5 pr-1.5 min-w-[115px] bg-amber-100">Actual Delivery Date</th>
+                <th className="py-1.5 pr-1.5 min-w-[105px] bg-emerald-100">Transmittal Date</th>
                 <th className="py-1.5 pr-1.5 min-w-[95px]">Month</th>
                 <th className="py-1.5 pr-1.5 min-w-[115px]">Remarks</th>
                 <th className="py-1.5 pr-1.5">Status</th>
@@ -498,7 +498,7 @@ export default function RecentInvoicesTable({ refreshKey, readOnly = false }: Re
                       disabled={readOnly}
                     />
                   </td>
-                  <td className="py-0.5 pr-1.5 bg-blue-50/60">
+                  <td className="py-0.5 pr-1.5 bg-blue-100/70">
                     <input
                       type="date"
                       className="input-sm"
@@ -508,7 +508,7 @@ export default function RecentInvoicesTable({ refreshKey, readOnly = false }: Re
                       disabled={readOnly}
                     />
                   </td>
-                  <td className="py-0.5 pr-1.5 bg-amber-50/60">
+                  <td className="py-0.5 pr-1.5 bg-amber-100/70">
                     <input
                       type="date"
                       className="input-sm"
@@ -518,7 +518,7 @@ export default function RecentInvoicesTable({ refreshKey, readOnly = false }: Re
                       disabled={readOnly}
                     />
                   </td>
-                  <td className="py-0.5 pr-1.5 bg-emerald-50/60">
+                  <td className="py-0.5 pr-1.5 bg-emerald-100/70">
                     <input
                       type="date"
                       className="input-sm"
