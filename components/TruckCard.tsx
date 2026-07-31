@@ -81,6 +81,11 @@ export default function TruckCard({
   // Matches the route_plan_trucks/route_plan_invoices DELETE RLS policies.
   const canManageTruck = canAddConvoy;
   const canUnassignInvoice = role === "ADMIN" || role === "JMD_PLANNER";
+  // Truck details (Carrier / Plate # / Driver / Helpers) -- Admin and JMD
+  // Planner only. The route_plan_trucks UPDATE RLS policy also allows
+  // Logistics Officer, but this edit surface is intentionally scoped
+  // narrower per request.
+  const canEditTruckDetails = role === "ADMIN" || role === "JMD_PLANNER";
 
   const [rows, setRows] = useState<AssignedInvoiceRow[]>([]);
   const [loadingRows, setLoadingRows] = useState(true);
@@ -93,6 +98,15 @@ export default function TruckCard({
   const [actionError, setActionError] = useState<string | null>(null);
   const [deletingTruck, setDeletingTruck] = useState(false);
   const [removingRowId, setRemovingRowId] = useState<string | null>(null);
+  const [editingDetails, setEditingDetails] = useState(false);
+  const [savingDetails, setSavingDetails] = useState(false);
+  const [detailsDraft, setDetailsDraft] = useState({
+    carrier: truck.carrier ?? "",
+    plate_number: truck.plate_number ?? "",
+    driver_name: truck.driver_name ?? "",
+    helper1_name: truck.helper1_name ?? "",
+    helper2_name: truck.helper2_name ?? "",
+  });
   const [customEntry, setCustomEntry] = useState<{
     rowId: string;
     type: ReasonType;
@@ -140,6 +154,81 @@ export default function TruckCard({
   useEffect(() => {
     loadAssigned();
   }, [loadAssigned, refreshKey]);
+
+  // Keep the edit draft in sync with the latest truck data whenever we're
+  // not actively editing (e.g. after onRefreshTrucks() re-fetches).
+  useEffect(() => {
+    if (!editingDetails) {
+      setDetailsDraft({
+        carrier: truck.carrier ?? "",
+        plate_number: truck.plate_number ?? "",
+        driver_name: truck.driver_name ?? "",
+        helper1_name: truck.helper1_name ?? "",
+        helper2_name: truck.helper2_name ?? "",
+      });
+    }
+  }, [
+    truck.carrier,
+    truck.plate_number,
+    truck.driver_name,
+    truck.helper1_name,
+    truck.helper2_name,
+    editingDetails,
+  ]);
+
+  async function handleSaveTruckDetails() {
+    setSavingDetails(true);
+    setActionError(null);
+    try {
+      const supabase = createClient();
+      // .select() lets us tell apart "actually saved" from the classic RLS
+      // gotcha where an UPDATE whose USING clause matches 0 rows returns
+      // success with an empty result instead of an error.
+      const { data, error } = await supabase
+        .from("route_plan_trucks")
+        .update({
+          carrier: detailsDraft.carrier.trim() || null,
+          plate_number: detailsDraft.plate_number.trim() || null,
+          driver_name: detailsDraft.driver_name.trim() || null,
+          helper1_name: detailsDraft.helper1_name.trim() || null,
+          helper2_name: detailsDraft.helper2_name.trim() || null,
+        })
+        .eq("id", truck.id)
+        .select("id");
+      if (error) {
+        const msg = `Failed to update truck details: ${error.message}`;
+        setActionError(msg);
+        showToast(msg, "error");
+        return;
+      }
+      if (!data || data.length === 0) {
+        const msg =
+          "Truck details were not saved -- you may not have permission to edit this truck. Ask an Admin to check access.";
+        setActionError(msg);
+        showToast(msg, "error");
+        return;
+      }
+      showToast(`${truckLabel} details updated.`, "success");
+      setEditingDetails(false);
+      onRefreshTrucks();
+    } catch {
+      setActionError("Could not update truck details. Make sure a Supabase project is connected.");
+      showToast("Could not update truck details.", "error");
+    } finally {
+      setSavingDetails(false);
+    }
+  }
+
+  function handleCancelEditDetails() {
+    setDetailsDraft({
+      carrier: truck.carrier ?? "",
+      plate_number: truck.plate_number ?? "",
+      driver_name: truck.driver_name ?? "",
+      helper1_name: truck.helper1_name ?? "",
+      helper2_name: truck.helper2_name ?? "",
+    });
+    setEditingDetails(false);
+  }
 
   async function handleDispatch() {
     setDispatching(true);
@@ -437,7 +526,19 @@ export default function TruckCard({
   return (
     <>
       <tr className={`border-t border-gray-100 align-top ${isConvoy ? "bg-gray-50/60" : ""}`}>
-        <td className="py-2 pl-4 pr-3 text-xs text-gray-700">{truck.carrier ?? "—"}</td>
+        <td className="py-2 pl-4 pr-3 text-xs text-gray-700">
+          {editingDetails ? (
+            <input
+              type="text"
+              className="input w-24 text-xs"
+              value={detailsDraft.carrier}
+              onChange={(e) => setDetailsDraft((d) => ({ ...d, carrier: e.target.value }))}
+              placeholder="Carrier"
+            />
+          ) : (
+            truck.carrier ?? "—"
+          )}
+        </td>
         <td className="py-2 pr-3">
           <button
             type="button"
@@ -450,13 +551,54 @@ export default function TruckCard({
           <span className={isConvoy ? "text-sm text-gray-700" : "text-sm font-semibold text-gray-800"}>
             {truckLabel}
           </span>
-          {truck.plate_number && (
-            <p className="pl-4 text-xs text-gray-500">{truck.plate_number}</p>
+          {editingDetails ? (
+            <input
+              type="text"
+              className="input mt-1 ml-4 w-28 text-xs"
+              value={detailsDraft.plate_number}
+              onChange={(e) => setDetailsDraft((d) => ({ ...d, plate_number: e.target.value }))}
+              placeholder="Plate #"
+            />
+          ) : (
+            truck.plate_number && (
+              <p className="pl-4 text-xs text-gray-500">{truck.plate_number}</p>
+            )
           )}
         </td>
-        <td className="py-2 pr-3 text-xs text-gray-700">{truck.driver_name ?? "—"}</td>
         <td className="py-2 pr-3 text-xs text-gray-700">
-          {[truck.helper1_name, truck.helper2_name].filter(Boolean).join(", ") || "—"}
+          {editingDetails ? (
+            <input
+              type="text"
+              className="input w-28 text-xs"
+              value={detailsDraft.driver_name}
+              onChange={(e) => setDetailsDraft((d) => ({ ...d, driver_name: e.target.value }))}
+              placeholder="Driver"
+            />
+          ) : (
+            truck.driver_name ?? "—"
+          )}
+        </td>
+        <td className="py-2 pr-3 text-xs text-gray-700">
+          {editingDetails ? (
+            <div className="flex flex-col gap-1">
+              <input
+                type="text"
+                className="input w-28 text-xs"
+                value={detailsDraft.helper1_name}
+                onChange={(e) => setDetailsDraft((d) => ({ ...d, helper1_name: e.target.value }))}
+                placeholder="Helper 1"
+              />
+              <input
+                type="text"
+                className="input w-28 text-xs"
+                value={detailsDraft.helper2_name}
+                onChange={(e) => setDetailsDraft((d) => ({ ...d, helper2_name: e.target.value }))}
+                placeholder="Helper 2"
+              />
+            </div>
+          ) : (
+            [truck.helper1_name, truck.helper2_name].filter(Boolean).join(", ") || "—"
+          )}
         </td>
         <td className="py-2 pr-3 text-xs text-gray-700">
           {isConvoy ? (
@@ -523,6 +665,36 @@ export default function TruckCard({
             >
               Print
             </a>
+            {canEditTruckDetails && !editingDetails && (
+              <button
+                type="button"
+                className="whitespace-nowrap text-xs font-medium text-blue-600 hover:text-blue-800"
+                onClick={() => setEditingDetails(true)}
+                title="Edit carrier, plate #, driver, and helpers"
+              >
+                Edit
+              </button>
+            )}
+            {editingDetails && (
+              <>
+                <button
+                  type="button"
+                  className="whitespace-nowrap text-xs font-medium text-green-600 hover:text-green-800 disabled:opacity-50"
+                  onClick={handleSaveTruckDetails}
+                  disabled={savingDetails}
+                >
+                  {savingDetails ? "…" : "Save"}
+                </button>
+                <button
+                  type="button"
+                  className="whitespace-nowrap text-xs font-medium text-gray-500 hover:text-gray-700"
+                  onClick={handleCancelEditDetails}
+                  disabled={savingDetails}
+                >
+                  Cancel
+                </button>
+              </>
+            )}
             {canManageTruck && (
               <button
                 type="button"
