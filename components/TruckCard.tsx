@@ -177,7 +177,16 @@ export default function TruckCard({
     setActionError(null);
     try {
       const supabase = createClient();
-      const { error } = await supabase.from("route_plan_trucks").delete().eq("id", truck.id);
+      // .select() lets us tell apart "actually deleted" from the classic
+      // Postgres RLS gotcha where a DELETE whose USING clause matches 0 rows
+      // returns success with an empty result instead of an error -- without
+      // this check the UI would just silently refresh and the truck would
+      // reappear, with no clue why.
+      const { data, error } = await supabase
+        .from("route_plan_trucks")
+        .delete()
+        .eq("id", truck.id)
+        .select("id");
       if (error) {
         if (error.code === "23503") {
           const msg =
@@ -189,6 +198,13 @@ export default function TruckCard({
           setActionError(msg);
           showToast(msg, "error");
         }
+        return;
+      }
+      if (!data || data.length === 0) {
+        const msg =
+          "Truck was not removed -- you may not have permission to delete trucks on this route plan. Ask an Admin to check access.";
+        setActionError(msg);
+        showToast(msg, "error");
         return;
       }
       showToast(`${truckLabel} removed from the route plan.`, "success");
