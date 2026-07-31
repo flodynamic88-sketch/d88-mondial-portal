@@ -181,10 +181,15 @@ export default function TruckCard({
     setActionError(null);
     try {
       const supabase = createClient();
-      // .select() lets us tell apart "actually saved" from the classic RLS
-      // gotcha where an UPDATE whose USING clause matches 0 rows returns
-      // success with an empty result instead of an error.
-      const { data, error } = await supabase
+      // NOTE: route_plan_trucks intentionally has no SELECT RLS policy --
+      // reads are only meant to go through the v_route_plan_trucks view
+      // (see migrations 0003/0014). That means chaining .select() after this
+      // update would always come back empty regardless of role, so unlike
+      // route_plan_invoices (which does have a permissive SELECT policy) we
+      // can't use a 0-row RETURNING check here. We trust the `error` field:
+      // the UPDATE RLS policy already covers ADMIN/JMD_PLANNER/
+      // LOGISTICS_OFFICER, a superset of who the UI lets edit this form.
+      const { error } = await supabase
         .from("route_plan_trucks")
         .update({
           carrier: detailsDraft.carrier.trim() || null,
@@ -193,17 +198,9 @@ export default function TruckCard({
           helper1_name: detailsDraft.helper1_name.trim() || null,
           helper2_name: detailsDraft.helper2_name.trim() || null,
         })
-        .eq("id", truck.id)
-        .select("id");
+        .eq("id", truck.id);
       if (error) {
         const msg = `Failed to update truck details: ${error.message}`;
-        setActionError(msg);
-        showToast(msg, "error");
-        return;
-      }
-      if (!data || data.length === 0) {
-        const msg =
-          "Truck details were not saved -- you may not have permission to edit this truck. Ask an Admin to check access.";
         setActionError(msg);
         showToast(msg, "error");
         return;
@@ -266,16 +263,18 @@ export default function TruckCard({
     setActionError(null);
     try {
       const supabase = createClient();
-      // .select() lets us tell apart "actually deleted" from the classic
-      // Postgres RLS gotcha where a DELETE whose USING clause matches 0 rows
-      // returns success with an empty result instead of an error -- without
-      // this check the UI would just silently refresh and the truck would
-      // reappear, with no clue why.
-      const { data, error } = await supabase
+      // NOTE: route_plan_trucks has no SELECT RLS policy by design (reads
+      // only happen through v_route_plan_trucks -- see migrations
+      // 0003/0014), so a .select() chained after this delete would always
+      // come back empty regardless of role, making a 0-row RETURNING check
+      // meaningless here (unlike tables that do have a SELECT policy). We
+      // trust the `error` field instead: the DELETE RLS policy (migration
+      // 0008) already matches ADMIN/JMD_PLANNER/LOGISTICS_OFFICER, the same
+      // set the UI gates this button on.
+      const { error } = await supabase
         .from("route_plan_trucks")
         .delete()
-        .eq("id", truck.id)
-        .select("id");
+        .eq("id", truck.id);
       if (error) {
         if (error.code === "23503") {
           const msg =
@@ -287,13 +286,6 @@ export default function TruckCard({
           setActionError(msg);
           showToast(msg, "error");
         }
-        return;
-      }
-      if (!data || data.length === 0) {
-        const msg =
-          "Truck was not removed -- you may not have permission to delete trucks on this route plan. Ask an Admin to check access.";
-        setActionError(msg);
-        showToast(msg, "error");
         return;
       }
       showToast(`${truckLabel} removed from the route plan.`, "success");
