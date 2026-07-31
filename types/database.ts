@@ -7,6 +7,7 @@ export type InvoiceStatus = "PENDING" | "DISPATCHED" | "DELIVERED" | "CANCELLED"
 export type ReasonType = "DISCREPANCY" | "BACKLOAD";
 export type ReturnedStatus = "RETURNED" | "NOT_RETURNED" | "PARTIAL";
 export type TransmittalStatus = "PENDING" | "TRANSMITTED";
+export type TruckingBillingStatus = "FOR_BILLING" | "BILLED" | "PAID";
 export type UserRole =
   | "ADMIN"
   | "LOGISTICS_OFFICER"
@@ -187,6 +188,22 @@ export interface TransmittalItem {
   created_at: string | null;
 }
 
+export interface TruckingBillingStatement {
+  id: string;
+  route_plan_truck_id: string;
+  series_seq: number;
+  series_no: string;
+  waybill_no: string | null;
+  status: TruckingBillingStatus;
+  billed_at: string | null;
+  paid_at: string | null;
+  prepared_by: string | null;
+  approved_by: string | null;
+  created_by: string | null;
+  created_at: string | null;
+  updated_at: string | null;
+}
+
 // Views
 
 export interface VFulfillmentSummary {
@@ -293,6 +310,63 @@ export interface VTransmittalItem {
   amount: number;
 }
 
+export interface VTruckingBillingStatement {
+  id: string;
+  route_plan_truck_id: string;
+  series_no: string;
+  waybill_no: string | null;
+  status: TruckingBillingStatus;
+  billed_at: string | null;
+  paid_at: string | null;
+  prepared_by: string | null;
+  approved_by: string | null;
+  created_by: string | null;
+  created_at: string | null;
+  updated_at: string | null;
+  plate_number: string | null;
+  carrier: string | null;
+  driver_name: string | null;
+  helper1_name: string | null;
+  helper2_name: string | null;
+  /** Masked to null for roles other than ADMIN/LOGISTICS_OFFICER. */
+  truck_rate: number | null;
+  route_plan_id: string | null;
+  route_date: string | null;
+  route_plan_label: string | null;
+  item_count: number;
+  total_boxes: number;
+  total_amount: number;
+}
+
+export interface VTruckingBillingStatementItem {
+  statement_id: string;
+  route_plan_invoice_id: string;
+  invoice_id: string;
+  document_no: string;
+  category: InvoiceCategory;
+  company_name_raw: string | null;
+  branch_address: string | null;
+  declared_value: number;
+  qty_box: number | null;
+  actual_delivery_date: string | null;
+  posting_date: string | null;
+}
+
+export interface VTruckingBillingCandidate {
+  route_plan_truck_id: string;
+  plate_number: string | null;
+  carrier: string | null;
+  driver_name: string | null;
+  /** Masked to null for roles other than ADMIN/LOGISTICS_OFFICER. */
+  truck_rate: number | null;
+  route_plan_id: string;
+  route_date: string;
+  route_plan_label: string | null;
+  item_count: number;
+  total_boxes: number;
+  total_amount: number;
+}
+
 export interface Database {
   public: {
     Tables: {
@@ -391,6 +465,12 @@ export interface Database {
         Update: Partial<TransmittalItem>;
         Relationships: [];
       };
+      trucking_billing_statements: {
+        Row: TruckingBillingStatement;
+        Insert: Partial<TruckingBillingStatement> & { route_plan_truck_id: string };
+        Update: Partial<TruckingBillingStatement>;
+        Relationships: [];
+      };
     };
     Views: {
       v_fulfillment_summary: { Row: VFulfillmentSummary; Relationships: [] };
@@ -402,6 +482,9 @@ export interface Database {
       v_delivery_variance_reason_summary: { Row: VDeliveryVarianceReasonSummary; Relationships: [] };
       v_transmittals: { Row: VTransmittal; Relationships: [] };
       v_transmittal_items: { Row: VTransmittalItem; Relationships: [] };
+      v_trucking_billing_statements: { Row: VTruckingBillingStatement; Relationships: [] };
+      v_trucking_billing_statement_items: { Row: VTruckingBillingStatementItem; Relationships: [] };
+      v_trucking_billing_candidates: { Row: VTruckingBillingCandidate; Relationships: [] };
     };
     Functions: Record<string, never>;
   };
