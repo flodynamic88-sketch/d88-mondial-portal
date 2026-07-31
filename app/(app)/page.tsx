@@ -1,7 +1,8 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import BarChart from "@/components/BarChart";
-import type { InvoiceCategory } from "@/types/database";
+import type { InvoiceCategory, UserProfile } from "@/types/database";
 
 interface Kpi {
   label: string;
@@ -289,6 +290,24 @@ async function getMtdCtsSummary(): Promise<MtdCtsSummary> {
 }
 
 export default async function DashboardPage() {
+  // JMD Planner shouldn't see the Dashboard at all (nav link is hidden in
+  // Sidebar.tsx, but that alone doesn't stop direct navigation to "/", so
+  // enforce it here too, the same way AppLayout fetches the profile).
+  const authClient = createClient();
+  const {
+    data: { user },
+  } = await authClient.auth.getUser();
+  if (user) {
+    const { data: profile } = await authClient
+      .from("user_profiles")
+      .select("*")
+      .eq("id", user.id)
+      .maybeSingle<UserProfile>();
+    if (profile?.role === "JMD_PLANNER") {
+      redirect("/route-plan");
+    }
+  }
+
   const [
     kpis,
     topVarianceReasons,

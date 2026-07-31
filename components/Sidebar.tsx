@@ -16,7 +16,18 @@ interface NavItem {
 }
 
 const NAV_ITEMS: NavItem[] = [
-  { href: "/", label: "Dashboard" },
+  {
+    href: "/",
+    label: "Dashboard",
+    roles: [
+      "ADMIN",
+      "LOGISTICS_OFFICER",
+      "MONDIAL_TEAM",
+      "LOGISTICS_ASSOCIATE",
+      "GENERAL_MANAGER",
+      "INVOICING_TEAM",
+    ],
+  },
   {
     href: "/encode",
     label: "Encode Invoices",

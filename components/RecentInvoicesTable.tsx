@@ -262,7 +262,25 @@ export default function RecentInvoicesTable({ refreshKey, readOnly = false }: Re
 
       if (error) {
         if (error.code === "23503") {
-          const msg = `Cannot delete ${inv.document_no} because it's already assigned to a route plan/truck. Remove it from the route plan first before deleting.`;
+          // Postgres includes the blocking table name in `details`, e.g.
+          // `Key (id)=(...) is still referenced from table "transmittal_items".`
+          // Route plan assignment is NOT the only thing that can block a
+          // delete -- an invoice that's already been included in a
+          // transmittal is blocked too, and there's currently no UI to
+          // remove a single invoice from a transmittal (only deleting the
+          // whole transmittal frees it). Report the real cause instead of
+          // always blaming "route plan/truck".
+          const details = error.details ?? "";
+          let msg: string;
+          if (inv.transmittal_id || details.includes("transmittal_items")) {
+            msg = `Cannot delete ${inv.document_no} because it has already been included in a transmittal. The only way to free it is to delete that entire transmittal (Admin > Transmittals) -- there's no way to remove a single invoice from a transmittal yet.`;
+          } else if (details.includes("route_plan_invoices")) {
+            msg = `Cannot delete ${inv.document_no} because it's still linked to a route plan/truck (possibly a superseded/rescheduled assignment, not just the current one). Remove it from the route plan first before deleting.`;
+          } else {
+            msg = `Cannot delete ${inv.document_no} because other records still reference it${
+              details ? ` (${details})` : ""
+            }. Remove those first.`;
+          }
           setDeleteError(msg);
           showToast(msg, "error");
         } else {
@@ -362,9 +380,9 @@ export default function RecentInvoicesTable({ refreshKey, readOnly = false }: Re
                 <th className="py-1.5 pr-1.5 min-w-[140px]">Branch/Store Address</th>
                 <th className="py-1.5 pr-1.5 min-w-[85px]">Amount</th>
                 <th className="py-1.5 pr-1.5 min-w-[105px]">Posting Date</th>
-                <th className="py-1.5 pr-1.5 min-w-[105px]">Plan Date</th>
-                <th className="py-1.5 pr-1.5 min-w-[115px]">Actual Delivery Date</th>
-                <th className="py-1.5 pr-1.5 min-w-[105px]">Transmittal Date</th>
+                <th className="py-1.5 pr-1.5 min-w-[105px] bg-blue-50">Plan Date</th>
+                <th className="py-1.5 pr-1.5 min-w-[115px] bg-amber-50">Actual Delivery Date</th>
+                <th className="py-1.5 pr-1.5 min-w-[105px] bg-emerald-50">Transmittal Date</th>
                 <th className="py-1.5 pr-1.5 min-w-[95px]">Month</th>
                 <th className="py-1.5 pr-1.5 min-w-[115px]">Remarks</th>
                 <th className="py-1.5 pr-1.5">Status</th>
@@ -461,7 +479,7 @@ export default function RecentInvoicesTable({ refreshKey, readOnly = false }: Re
                       disabled={readOnly}
                     />
                   </td>
-                  <td className="py-0.5 pr-1.5">
+                  <td className="py-0.5 pr-1.5 bg-blue-50/60">
                     <input
                       type="date"
                       className="input-sm"
@@ -471,7 +489,7 @@ export default function RecentInvoicesTable({ refreshKey, readOnly = false }: Re
                       disabled={readOnly}
                     />
                   </td>
-                  <td className="py-0.5 pr-1.5">
+                  <td className="py-0.5 pr-1.5 bg-amber-50/60">
                     <input
                       type="date"
                       className="input-sm"
@@ -483,7 +501,7 @@ export default function RecentInvoicesTable({ refreshKey, readOnly = false }: Re
                       disabled={readOnly}
                     />
                   </td>
-                  <td className="py-0.5 pr-1.5">
+                  <td className="py-0.5 pr-1.5 bg-emerald-50/60">
                     <input
                       type="date"
                       className="input-sm"
