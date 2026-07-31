@@ -30,8 +30,11 @@ function fmtLongDateNoSpace(value: string | null | undefined) {
 }
 
 // Sheet names are capped at 31 chars and can't contain: \ / ? * [ ] :
-function safeSheetName(name: string, fallback: string) {
-  const cleaned = name.replace(/[\\/?*[\]:]/g, "").slice(0, 31);
+// Both waybill_no and series_no are now plain editable fields (see migration
+// 0025), so a freshly-generated statement can have both still blank -- name
+// must tolerate null/undefined, not just an empty string.
+function safeSheetName(name: string | null | undefined, fallback: string) {
+  const cleaned = (name ?? "").replace(/[\\/?*[\]:]/g, "").trim().slice(0, 31);
   return cleaned || fallback;
 }
 
@@ -101,11 +104,29 @@ export async function exportTruckingBillingExcel(statementIds: string[]) {
   workbook.creator = "Dynamic88 Mondial Portal";
   workbook.created = new Date();
 
+  // Excel sheet names must be unique within a workbook -- two trucks sharing
+  // the same waybill # (or both still blank) would otherwise crash the
+  // export, so duplicates get a " (2)", " (3)", ... suffix.
+  const usedSheetNames = new Set<string>();
+  function uniqueSheetName(base: string) {
+    if (!usedSheetNames.has(base)) {
+      usedSheetNames.add(base);
+      return base;
+    }
+    let n = 2;
+    let candidate = safeSheetName(`${base} (${n})`, base);
+    while (usedSheetNames.has(candidate)) {
+      n += 1;
+      candidate = safeSheetName(`${base} (${n})`, base);
+    }
+    usedSheetNames.add(candidate);
+    return candidate;
+  }
+
   statements.forEach((statement, idx) => {
     const items = itemsByStatement.get(statement.id) ?? [];
-    const sheetName = safeSheetName(
-      combinedWaybill(statement) || statement.series_no,
-      `Statement ${idx + 1}`
+    const sheetName = uniqueSheetName(
+      safeSheetName(combinedWaybill(statement) || statement.series_no, `Statement ${idx + 1}`)
     );
     const ws = workbook.addWorksheet(sheetName, {
       pageSetup: { orientation: "landscape", fitToPage: true, fitToWidth: 1 },
