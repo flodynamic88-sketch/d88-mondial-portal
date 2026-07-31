@@ -1,0 +1,46 @@
+-- ============================================================================
+-- Fix: route_plan_trucks UPDATE/DELETE silently matching 0 rows under RLS
+-- ============================================================================
+-- Root cause of "Truck Rate edit shows a success toast but never saves"
+-- (and, it turns out, the same silent-no-op affecting Truck Details edits --
+-- plate/carrier/driver/helper names -- and truck deletes, for EVERY role,
+-- including Admin):
+--
+-- Migration 0003 revoked table-wide SELECT on route_plan_trucks and granted
+-- back only specific columns (excluding truck_rate), so that normal reads
+-- would be forced through v_route_plan_trucks, which masks truck_rate for
+-- everyone except ADMIN/LOGISTICS_OFFICER. That part works fine for reads.
+--
+-- But no SELECT *policy* was ever created on the raw route_plan_trucks
+-- table. PostgreSQL RLS needs a matching SELECT policy to identify which
+-- rows a role may even see in order to locate rows for UPDATE/DELETE --
+-- this is separate from, and in addition to, the UPDATE/DELETE policies'
+-- own USING clauses. With zero SELECT policies present, RLS defaults to
+-- deny-all for row visibility, so every UPDATE/DELETE against
+-- route_plan_trucks matched 0 rows, with no error surfaced to the client
+-- (supabase-js calls here don't chain .select(), so PostgREST returns
+-- success with an empty result either way).
+--
+-- Confirmed live via the Supabase SQL Editor, impersonating a real ADMIN
+-- session:
+--   * `select count(*) from route_plan_trucks` returned 0 rows for ADMIN,
+--     despite current_user_role() correctly resolving to 'ADMIN'.
+--   * A `truck_rate` UPDATE matched 0 rows (via a RETURNING-1 rowcount
+--     check) before this policy existed, and matched 1 row immediately
+--     after adding it -- for both ADMIN and JMD_PLANNER sessions.
+--   * truck_rate masking was re-verified intact afterwards: a JMD_PLANNER
+--     session selecting truck_rate directly still gets
+--     "permission denied for column truck_rate", since that's enforced by
+--     the column-level GRANT from 0003, independent of this RLS policy.
+--
+-- This is the exact same failure signature already documented in migration
+-- 0020 for route_plan_invoices/JMD_PLANNER ("silently matched 0 rows under
+-- RLS -- no error, but nothing ever got saved"), just on a different table
+-- and for every role rather than one.
+--
+-- This SELECT policy has already been applied directly to production via
+-- the SQL Editor; this migration file records it for the tracked history.
+-- ============================================================================
+
+drop policy if exists "route_plan_trucks select" on route_plan_trucks;
+create policy "route_plan_trucks select" on route_plan_trucks for select to authenticated using (true);
