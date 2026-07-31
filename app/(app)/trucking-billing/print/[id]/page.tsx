@@ -5,6 +5,12 @@ import { useParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import type { VTruckingBillingStatement, VTruckingBillingStatementItem } from "@/types/database";
 
+// JMD's own Billing Statement always carries these two signatures --
+// there's no per-statement UI to set them (and none is needed), so they're
+// shown as fixed constants on every printed statement.
+const PREPARED_BY_NAME = "Algene Kianne Bueza";
+const APPROVED_BY_NAME = "Mr. Roshan Mirani";
+
 function formatMoney(value: number | null | undefined) {
   return (value ?? 0).toLocaleString(undefined, {
     minimumFractionDigits: 2,
@@ -307,13 +313,13 @@ export default function PrintTruckingBillingPage() {
           <div>
             <p className="font-bold">Prepared By:</p>
             <div className="mt-6 border-t border-gray-400 pt-1">
-              <p className="text-sm font-medium">{statement.prepared_by || " "}</p>
+              <p className="text-sm font-medium">{PREPARED_BY_NAME}</p>
             </div>
           </div>
           <div>
             <p className="font-bold">Approved By:</p>
             <div className="mt-6 border-t border-gray-400 pt-1">
-              <p className="text-sm font-medium">{statement.approved_by || " "}</p>
+              <p className="text-sm font-medium">{APPROVED_BY_NAME}</p>
             </div>
           </div>
         </div>

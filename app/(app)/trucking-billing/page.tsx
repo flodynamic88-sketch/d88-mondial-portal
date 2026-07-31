@@ -114,6 +114,7 @@ function GenerateTab({
   const { showToast } = useToast();
   const [startDate, setStartDate] = useState(startOfWeekStr());
   const [endDate, setEndDate] = useState(todayStr());
+  const [seriesNo, setSeriesNo] = useState("");
   const [candidates, setCandidates] = useState<VTruckingBillingCandidate[]>([]);
   const [checked, setChecked] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(false);
@@ -184,7 +185,10 @@ function GenerateTab({
     setGenerating(true);
     try {
       const supabase = createClient();
-      const payload = ids.map((route_plan_truck_id) => ({ route_plan_truck_id }));
+      const payload = ids.map((route_plan_truck_id) => ({
+        route_plan_truck_id,
+        series_no: seriesNo.trim() || null,
+      }));
       const { error } = await supabase
         .from("trucking_billing_statements")
         .upsert(payload, { onConflict: "route_plan_truck_id", ignoreDuplicates: true });
@@ -229,6 +233,20 @@ function GenerateTab({
               onChange={(e) => setEndDate(e.target.value)}
             />
           </div>
+          <div>
+            <label className="label" htmlFor="seriesNo">
+              Series # (SOA #)
+            </label>
+            <input
+              id="seriesNo"
+              type="text"
+              className="input"
+              placeholder="e.g. MND-0726-040"
+              value={seriesNo}
+              onChange={(e) => setSeriesNo(e.target.value)}
+              disabled={!canManage}
+            />
+          </div>
         </div>
         {canSeeRate && (
           <div className="text-right">
@@ -251,6 +269,8 @@ function GenerateTab({
         Match this range to whatever period JMD&apos;s billing submission covers. Only trucks not
         yet on a billing statement are listed. Waybill/delivery-report line items, retail-chain
         accounts, and rate are all pulled automatically from Route Plan — nothing to re-type here.
+        Series # is JMD&apos;s SOA # for the whole coverage period — type it once here and every
+        truck generated below will share it (editable per-row afterward if you need to fix one).
       </p>
 
       {!canManage && (
@@ -420,6 +440,18 @@ function StatusTab({
     }
   }
 
+  async function handleSeriesNoChange(row: VTruckingBillingStatement, seriesNo: string) {
+    try {
+      const supabase = createClient();
+      await supabase
+        .from("trucking_billing_statements")
+        .update({ series_no: seriesNo.trim() || null })
+        .eq("id", row.id);
+    } catch {
+      // Best-effort inline save; next full reload will show the last-saved value.
+    }
+  }
+
   async function handleWaybillChange(row: VTruckingBillingStatement, waybillNo: string) {
     try {
       const supabase = createClient();
@@ -547,7 +579,16 @@ function StatusTab({
             <tbody className="divide-y divide-gray-100">
               {filteredRows.map((r) => (
                 <tr key={r.id}>
-                  <td className="py-2 pr-4 text-gray-500">{r.series_no}</td>
+                  <td className="py-2 pr-4">
+                    <input
+                      type="text"
+                      className="input input-sm"
+                      defaultValue={r.series_no ?? ""}
+                      placeholder="e.g. MND-0726-040"
+                      onBlur={(e) => handleSeriesNoChange(r, e.target.value)}
+                      disabled={!canManage}
+                    />
+                  </td>
                   <td className="py-2 pr-4">
                     <input
                       type="text"
@@ -569,14 +610,16 @@ function StatusTab({
                     />
                   </td>
                   <td className="py-2 pr-4">
-                    <input
-                      type="text"
+                    <select
                       className="input input-sm"
-                      defaultValue={r.truck_type ?? ""}
-                      placeholder="e.g. 4W"
-                      onBlur={(e) => handleTruckTypeChange(r, e.target.value)}
+                      value={r.truck_type ?? ""}
+                      onChange={(e) => handleTruckTypeChange(r, e.target.value)}
                       disabled={!canManage}
-                    />
+                    >
+                      <option value="">—</option>
+                      <option value="4W">4W</option>
+                      <option value="6W">6W</option>
+                    </select>
                   </td>
                   <td className="py-2 pr-4">{formatDate(r.route_date)}</td>
                   <td className="py-2 pr-4 font-medium text-gray-800">{r.plate_number ?? "—"}</td>

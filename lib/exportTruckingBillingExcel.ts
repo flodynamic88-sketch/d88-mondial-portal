@@ -37,6 +37,12 @@ function safeSheetName(name: string, fallback: string) {
 
 const ACCOUNTING_FMT = '_-* #,##0.00_-;-* #,##0.00_-;_-* "-"??_-;_-@_-';
 
+// JMD's own Billing Statement always carries these two signatures -- there's
+// no per-statement UI to set them (and none is needed), so they're written
+// as fixed constants on every exported statement.
+const PREPARED_BY_NAME = "Algene Kianne Bueza";
+const APPROVED_BY_NAME = "Mr. Roshan Mirani";
+
 function headerCell(ws: ExcelJSType.Worksheet, addr: string, value: unknown) {
   const cell = ws.getCell(addr);
   cell.value = value as ExcelJSType.CellValue;
@@ -359,10 +365,10 @@ export async function exportTruckingBillingExcel(statementIds: string[]) {
     r += 1;
 
     ws.mergeCells(`B${r}:E${r}`);
-    ws.getCell(`B${r}`).value = statement.prepared_by || "";
+    ws.getCell(`B${r}`).value = PREPARED_BY_NAME;
     ws.getCell(`B${r}`).alignment = { horizontal: "center" };
     ws.mergeCells(`H${r}:K${r}`);
-    ws.getCell(`H${r}`).value = statement.approved_by || "";
+    ws.getCell(`H${r}`).value = APPROVED_BY_NAME;
     ws.getCell(`H${r}`).alignment = { horizontal: "center" };
   });
 
