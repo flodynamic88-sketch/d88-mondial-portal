@@ -28,8 +28,6 @@ select
   s.route_plan_truck_id,
   s.series_no,
   s.waybill_no,
-  s.area,
-  s.truck_type,
   s.status,
   s.billed_at,
   s.paid_at,
@@ -52,7 +50,14 @@ select
   rp.label as route_plan_label,
   coalesce(li.item_count, 0) as item_count,
   coalesce(li.total_boxes, 0) as total_boxes,
-  coalesce(li.total_amount, 0) as total_amount
+  coalesce(li.total_amount, 0) as total_amount,
+  -- New columns are appended at the end, not inserted where they logically
+  -- belong next to waybill_no -- `create or replace view` refuses to rename
+  -- a positional column (e.g. it would try to rename "status" to "area" if
+  -- these were inserted earlier in the list), so existing column positions
+  -- must stay untouched and new ones can only be added at the tail.
+  s.area,
+  s.truck_type
 from trucking_billing_statements s
 join route_plan_trucks t on t.id = s.route_plan_truck_id
 left join route_plans rp on rp.id = t.route_plan_id
