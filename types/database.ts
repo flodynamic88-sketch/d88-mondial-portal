@@ -194,6 +194,8 @@ export interface TruckingBillingStatement {
   series_seq: number;
   series_no: string;
   waybill_no: string | null;
+  /** Waybill # of the paired convoy truck, when this truck has one (see has_convoy on the view). */
+  convoy_waybill_no: string | null;
   /** Vendor-supplied delivery zone/area for the whole truck (e.g. "PARANAQUE"). */
   area: string | null;
   /** Vendor-supplied vehicle classification (e.g. "4W", "6W"). */
@@ -344,6 +346,10 @@ export interface VTruckingBillingStatement {
   area: string | null;
   /** Vendor-supplied vehicle classification (e.g. "4W", "6W"). */
   truck_type: string | null;
+  /** Waybill # of the paired convoy truck, when has_convoy is true. */
+  convoy_waybill_no: string | null;
+  /** True when a route_plan_trucks row exists with main_truck_id = this truck's id. */
+  has_convoy: boolean;
 }
 
 export interface VTruckingBillingStatementItem {
@@ -373,6 +379,8 @@ export interface VTruckingBillingCandidate {
   item_count: number;
   total_boxes: number;
   total_amount: number;
+  /** True when a route_plan_trucks row exists with main_truck_id = this truck's id. */
+  has_convoy: boolean;
 }
 
 export interface Database {

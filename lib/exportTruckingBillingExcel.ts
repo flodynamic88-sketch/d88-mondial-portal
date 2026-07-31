@@ -35,6 +35,16 @@ function safeSheetName(name: string, fallback: string) {
   return cleaned || fallback;
 }
 
+// When a convoy truck rides along on this truck's single rate, its waybill #
+// is joined onto the main truck's with " / " (e.g. "12345 / 67890") so both
+// show together on the one shared sheet.
+function combinedWaybill(statement: Pick<VTruckingBillingStatement, "waybill_no" | "convoy_waybill_no">) {
+  const main = statement.waybill_no ?? "";
+  const convoy = statement.convoy_waybill_no?.trim();
+  if (!convoy) return main;
+  return main ? `${main} / ${convoy}` : convoy;
+}
+
 const ACCOUNTING_FMT = '_-* #,##0.00_-;-* #,##0.00_-;_-* "-"??_-;_-@_-';
 
 // JMD's own Billing Statement always carries these two signatures -- there's
@@ -94,7 +104,7 @@ export async function exportTruckingBillingExcel(statementIds: string[]) {
   statements.forEach((statement, idx) => {
     const items = itemsByStatement.get(statement.id) ?? [];
     const sheetName = safeSheetName(
-      statement.waybill_no || statement.series_no,
+      combinedWaybill(statement) || statement.series_no,
       `Statement ${idx + 1}`
     );
     const ws = workbook.addWorksheet(sheetName, {
@@ -170,7 +180,7 @@ export async function exportTruckingBillingExcel(statementIds: string[]) {
     ws.getCell(`A${r}`).value = "WAYBILL No#:";
     ws.getCell(`A${r}`).font = { bold: true };
     ws.mergeCells(`B${r}:D${r}`);
-    ws.getCell(`B${r}`).value = statement.waybill_no ?? "";
+    ws.getCell(`B${r}`).value = combinedWaybill(statement);
     ws.getCell(`F${r}`).value = "PLATE#:";
     ws.getCell(`F${r}`).font = { bold: true };
     ws.mergeCells(`G${r}:K${r}`);
@@ -281,7 +291,7 @@ export async function exportTruckingBillingExcel(statementIds: string[]) {
 
     ws.getCell(`A${r}`).value = "WAYBILL NO.:";
     ws.getCell(`A${r}`).font = { bold: true };
-    ws.getCell(`B${r}`).value = statement.waybill_no ?? "";
+    ws.getCell(`B${r}`).value = combinedWaybill(statement);
     ws.getCell(`C${r}`).value = "PLATE NO.:";
     ws.getCell(`C${r}`).font = { bold: true };
     ws.getCell(`D${r}`).value = statement.plate_number ?? "";

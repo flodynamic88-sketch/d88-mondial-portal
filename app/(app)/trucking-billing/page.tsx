@@ -464,6 +464,22 @@ function StatusTab({
     }
   }
 
+  // Only meaningful when row.has_convoy is true -- the convoy truck shares
+  // this statement's single rate, so its waybill # is entered here instead
+  // of generating a separate statement for it. Print/export join the two
+  // waybill numbers with " / ".
+  async function handleConvoyWaybillChange(row: VTruckingBillingStatement, convoyWaybillNo: string) {
+    try {
+      const supabase = createClient();
+      await supabase
+        .from("trucking_billing_statements")
+        .update({ convoy_waybill_no: convoyWaybillNo.trim() || null })
+        .eq("id", row.id);
+    } catch {
+      // Best-effort inline save; next full reload will show the last-saved value.
+    }
+  }
+
   async function handleAreaChange(row: VTruckingBillingStatement, area: string) {
     try {
       const supabase = createClient();
@@ -598,6 +614,16 @@ function StatusTab({
                       onBlur={(e) => handleWaybillChange(r, e.target.value)}
                       disabled={!canManage}
                     />
+                    {r.has_convoy && (
+                      <input
+                        type="text"
+                        className="input input-sm mt-1"
+                        defaultValue={r.convoy_waybill_no ?? ""}
+                        placeholder="Convoy waybill #"
+                        onBlur={(e) => handleConvoyWaybillChange(r, e.target.value)}
+                        disabled={!canManage}
+                      />
+                    )}
                   </td>
                   <td className="py-2 pr-4">
                     <input

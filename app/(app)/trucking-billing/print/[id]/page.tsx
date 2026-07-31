@@ -37,6 +37,16 @@ function formatLongDateNoSpace(value: string | Date | null | undefined) {
   return `${month} ${d.getDate()},${d.getFullYear()}`;
 }
 
+// When a convoy truck rides along on this truck's single rate, its waybill #
+// is joined onto the main truck's with " / " (e.g. "12345 / 67890") so both
+// show together on the one shared sheet.
+function combinedWaybill(statement: Pick<VTruckingBillingStatement, "waybill_no" | "convoy_waybill_no">) {
+  const main = statement.waybill_no ?? "";
+  const convoy = statement.convoy_waybill_no?.trim();
+  if (!convoy) return main || "—";
+  return main ? `${main} / ${convoy}` : convoy;
+}
+
 export default function PrintTruckingBillingPage() {
   const params = useParams();
   const id = typeof params?.id === "string" ? params.id : "";
@@ -154,7 +164,7 @@ export default function PrintTruckingBillingPage() {
             <span className="font-bold">Trucker:</span> {statement.carrier ?? "—"}
           </p>
           <p>
-            <span className="font-bold">Waybill No#:</span> {statement.waybill_no ?? "—"}
+            <span className="font-bold">Waybill No#:</span> {combinedWaybill(statement)}
           </p>
           <p>
             <span className="font-bold">Plate#:</span> {statement.plate_number ?? "—"}
@@ -234,7 +244,7 @@ export default function PrintTruckingBillingPage() {
           </p>
           <div className="mt-3 grid grid-cols-2 gap-x-8 gap-y-1 text-sm sm:grid-cols-4">
             <p>
-              <span className="font-bold">Waybill No.:</span> {statement.waybill_no ?? "—"}
+              <span className="font-bold">Waybill No.:</span> {combinedWaybill(statement)}
             </p>
             <p>
               <span className="font-bold">Plate No.:</span> {statement.plate_number ?? "—"}
