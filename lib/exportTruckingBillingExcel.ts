@@ -15,8 +15,18 @@ function money(value: number | null | undefined) {
   return Math.round((value ?? 0) * 100) / 100;
 }
 
-function fmtDate(value: string | null | undefined) {
-  return value ? new Date(value).toLocaleDateString() : "";
+function toDate(value: string | null | undefined): Date | null {
+  if (!value) return null;
+  const d = new Date(value);
+  return Number.isNaN(d.getTime()) ? null : d;
+}
+
+// "JULY 14,2026", matching the Delivery Report's "DATE:" field on JMD's own sheet.
+function fmtLongDateNoSpace(value: string | null | undefined) {
+  const d = toDate(value);
+  if (!d) return "";
+  const month = d.toLocaleDateString(undefined, { month: "long" }).toUpperCase();
+  return `${month} ${d.getDate()},${d.getFullYear()}`;
 }
 
 // Sheet names are capped at 31 chars and can't contain: \ / ? * [ ] :
@@ -25,15 +35,30 @@ function safeSheetName(name: string, fallback: string) {
   return cleaned || fallback;
 }
 
+const ACCOUNTING_FMT = '_-* #,##0.00_-;-* #,##0.00_-;_-* "-"??_-;_-@_-';
+
+function headerCell(ws: ExcelJSType.Worksheet, addr: string, value: unknown) {
+  const cell = ws.getCell(addr);
+  cell.value = value as ExcelJSType.CellValue;
+  cell.font = { bold: true };
+  cell.alignment = { horizontal: "center", vertical: "middle", wrapText: true };
+  cell.border = thinBorder();
+  cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFF3F4F6" } };
+  return cell;
+}
+
 /**
  * Builds one worksheet per billing statement, laid out to match JMD
  * Industrial Trading's own "Billing Statement" + "Delivery Report" sheet
- * format (see the sample JMD BILLING workbook) -- header block, a one-line
- * billing summary row (Transaction Date / Account / Declared Value / No.
- * Cases / Unit / Rate / Total Rental / % CTS), then a Delivery Report
- * section listing every receipt on the truck. No VAT line -- this export
- * mirrors the vendor's own paperwork exactly; the 12% VAT total only ever
- * appears in this app's own Trucking Billing monitoring tab.
+ * format exactly (see the sample JMD BILLING workbook): the Mondial88
+ * Trading Corporation letterhead, an 11-column billing summary table
+ * (Transaction Date / Account / Branch Name / Delivery Date / Declared
+ * Value / No. Cases / Truck Class. / Unit / Rate / Total Rental / % CTS)
+ * with a bold totals row, a "DATE FORWARDED" line, then a Delivery Report
+ * section (with Truck Type) listing every receipt on the truck under a
+ * merged Sched/Area cell. No VAT line -- this export mirrors the vendor's
+ * own paperwork exactly; the 12% VAT total only ever appears in this app's
+ * own Trucking Billing monitoring tab.
  */
 export async function exportTruckingBillingExcel(statementIds: string[]) {
   if (statementIds.length === 0) return;
@@ -67,165 +92,278 @@ export async function exportTruckingBillingExcel(statementIds: string[]) {
       `Statement ${idx + 1}`
     );
     const ws = workbook.addWorksheet(sheetName, {
-      pageSetup: { orientation: "portrait", fitToPage: true, fitToWidth: 1 },
+      pageSetup: { orientation: "landscape", fitToPage: true, fitToWidth: 1 },
     });
 
     ws.columns = [
-      { width: 16 }, // A
-      { width: 22 }, // B
-      { width: 22 }, // C
-      { width: 16 }, // D
-      { width: 14 }, // E
-      { width: 12 }, // F
-      { width: 14 }, // G
+      { width: 14 }, // A - Transaction Date / Sched-Area
+      { width: 30 }, // B - Account / Inv-DR-CN
+      { width: 16 }, // C - Branch Name (own col in billing row; merged w/ B in item row)
+      { width: 12 }, // D - Delivery Date / Account Name
+      { width: 14 }, // E - Declared Value / Account Name (cont.)
+      { width: 10 }, // F - No. Cases / Account Name (cont.)
+      { width: 10 }, // G - Truck Class. / Branch
+      { width: 10 }, // H - Unit / Branch (cont.)
+      { width: 14 }, // I - Rate / Branch (cont.)
+      { width: 14 }, // J - Total Rental / Boxes
+      { width: 12 }, // K - % CTS / Price
     ];
 
-    // ── Company header ──────────────────────────────────────────────
-    ws.mergeCells("A1:G1");
-    ws.getCell("A1").value = "Dynamic88 Solutions";
-    ws.getCell("A1").font = { bold: true, size: 14 };
-    ws.mergeCells("A2:G2");
-    ws.getCell("A2").value = "Mondial Portal — Trucking Billing Statement";
-    ws.getCell("A2").font = { size: 10, color: { argb: "FF666666" } };
+    let r = 1;
 
-    // ── Title + date ────────────────────────────────────────────────
-    ws.mergeCells("A4:G4");
-    ws.getCell("A4").value = "BILLING STATEMENT";
-    ws.getCell("A4").font = { bold: true, size: 12 };
-    ws.getCell("A4").alignment = { horizontal: "center" };
+    // ── Letterhead ───────────────────────────────────────────────────
+    ws.mergeCells(`A${r}:K${r}`);
+    ws.getCell(`A${r}`).value = "MONDIAL88 TRADING CORPORATION";
+    ws.getCell(`A${r}`).font = { bold: true, size: 14 };
+    ws.getCell(`A${r}`).alignment = { horizontal: "center" };
+    r += 1;
+    ws.mergeCells(`A${r}:K${r}`);
+    ws.getCell(`A${r}`).value = "MIRAX BUILDING";
+    ws.getCell(`A${r}`).alignment = { horizontal: "center" };
+    r += 1;
+    ws.mergeCells(`A${r}:K${r}`);
+    ws.getCell(`A${r}`).value = "Unit A Ground Floor, 2270 Don Chino Roces Avenue, Makati City, Philippines";
+    ws.getCell(`A${r}`).alignment = { horizontal: "center" };
+    r += 1;
+    ws.mergeCells(`A${r}:K${r}`);
+    ws.getCell(`A${r}`).value = "Tel. No.: 840-3374-75   |   Telefax No.: 840-3390";
+    ws.getCell(`A${r}`).alignment = { horizontal: "center" };
+    r += 2;
 
-    ws.getCell("A5").value = "Date:";
-    ws.getCell("A5").font = { bold: true };
-    ws.getCell("B5").value = fmtDate(statement.route_date);
+    // "Date:" header field / "DATE FORWARDED" line -- when the statement
+    // was forwarded for billing. Falls back to today while still unbilled.
+    const forwardedDate = toDate(statement.billed_at) ?? new Date();
+    // "DELIVERY DATE" on the billing summary row / the Delivery Report's
+    // own "DATE:" field -- the actual route/delivery date.
+    const deliveryDate = toDate(statement.route_date);
 
-    // ── Series / Trucker / Waybill / Plate ─────────────────────────
-    ws.getCell("A6").value = "Series No.:";
-    ws.getCell("A6").font = { bold: true };
-    ws.getCell("B6").value = statement.series_no;
-    ws.getCell("D6").value = "Trucker:";
-    ws.getCell("D6").font = { bold: true };
-    ws.getCell("E6").value = statement.carrier ?? "";
+    // ── Title + date ─────────────────────────────────────────────────
+    ws.mergeCells(`A${r}:G${r}`);
+    ws.getCell(`A${r}`).value = "BILLING STATEMENT";
+    ws.getCell(`A${r}`).font = { bold: true, size: 12 };
+    ws.getCell(`A${r}`).alignment = { horizontal: "center" };
+    ws.getCell(`H${r}`).value = "Date:";
+    ws.getCell(`H${r}`).font = { bold: true };
+    ws.getCell(`H${r}`).alignment = { horizontal: "right" };
+    ws.mergeCells(`I${r}:K${r}`);
+    ws.getCell(`I${r}`).value = forwardedDate;
+    ws.getCell(`I${r}`).numFmt = "mm-dd-yy";
+    r += 1;
 
-    ws.getCell("A7").value = "Waybill No.:";
-    ws.getCell("A7").font = { bold: true };
-    ws.getCell("B7").value = statement.waybill_no ?? "";
-    ws.getCell("D7").value = "Plate No.:";
-    ws.getCell("D7").font = { bold: true };
-    ws.getCell("E7").value = statement.plate_number ?? "";
+    // ── Series / Trucker / Waybill / Plate ──────────────────────────
+    ws.getCell(`A${r}`).value = "SERIES NO#:";
+    ws.getCell(`A${r}`).font = { bold: true };
+    ws.mergeCells(`B${r}:D${r}`);
+    ws.getCell(`B${r}`).value = statement.series_no;
+    ws.getCell(`F${r}`).value = "TRUCKER:";
+    ws.getCell(`F${r}`).font = { bold: true };
+    ws.mergeCells(`G${r}:K${r}`);
+    ws.getCell(`G${r}`).value = statement.carrier ?? "";
+    r += 1;
 
-    // ── Billing summary table ───────────────────────────────────────
-    const billingHeaderRow = 9;
+    ws.getCell(`A${r}`).value = "WAYBILL No#:";
+    ws.getCell(`A${r}`).font = { bold: true };
+    ws.mergeCells(`B${r}:D${r}`);
+    ws.getCell(`B${r}`).value = statement.waybill_no ?? "";
+    ws.getCell(`F${r}`).value = "PLATE#:";
+    ws.getCell(`F${r}`).font = { bold: true };
+    ws.mergeCells(`G${r}:K${r}`);
+    ws.getCell(`G${r}`).value = statement.plate_number ?? "";
+    r += 2;
+
+    // ── Billing summary table (11 columns) ──────────────────────────
+    const billingHeaderRow = r;
     const billingHeaders = [
-      "Transaction Date",
-      "Account",
-      "Declared Value",
-      "No. Cases",
-      "Unit",
-      "Rate",
-      "Total Rental",
+      "TRANSACTION\nDATE",
+      "ACCOUNT",
+      "BRANCH\nNAME",
+      "DELIVERY\nDATE",
+      "DECLARED\nVALUE",
+      "No#\nCASES",
+      "TRUCK\nCLASS.",
+      "UNIT",
+      "RATE",
+      "TOTAL\nRENTAL",
       "% CTS",
     ];
-    ws.getRow(billingHeaderRow).values = billingHeaders;
-    ws.getRow(billingHeaderRow).font = { bold: true };
-    ws.getRow(billingHeaderRow).eachCell((cell) => {
-      cell.border = thinBorder();
-      cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFF3F4F6" } };
+    billingHeaders.forEach((h, i) => {
+      headerCell(ws, `${String.fromCharCode(65 + i)}${billingHeaderRow}`, h);
     });
+    r += 1;
 
-    const totalDeclaredValue = items.reduce((sum, r) => sum + (r.declared_value ?? 0), 0);
-    const totalBoxes = items.reduce((sum, r) => sum + (r.qty_box ?? 0), 0);
-    const ctsPct =
+    const totalDeclaredValue = items.reduce((sum, x) => sum + (x.declared_value ?? 0), 0);
+    const totalBoxes = items.reduce((sum, x) => sum + (x.qty_box ?? 0), 0);
+    const accountsLabel = Array.from(
+      new Set(items.map((x) => x.company_name_raw).filter(Boolean))
+    ).join(", ");
+    // Raw fraction (not multiplied by 100) so the "0.00%" number format
+    // renders it the same way JMD's own sheet does.
+    const ctsFraction =
       statement.truck_rate != null && totalDeclaredValue > 0
-        ? Math.round((100 * statement.truck_rate / totalDeclaredValue) * 100) / 100
-        : "";
+        ? statement.truck_rate / totalDeclaredValue
+        : null;
 
-    const billingDataRow = ws.getRow(billingHeaderRow + 1);
-    billingDataRow.values = [
-      fmtDate(statement.route_date),
-      Array.from(new Set(items.map((r) => r.company_name_raw).filter(Boolean))).join(", "),
-      money(totalDeclaredValue),
-      totalBoxes || "",
-      statement.plate_number ?? "",
-      statement.truck_rate != null ? money(statement.truck_rate) : "",
-      statement.truck_rate != null ? money(statement.truck_rate) : "",
-      ctsPct,
-    ];
-    billingDataRow.eachCell((cell) => {
+    const dataRow = ws.getRow(r);
+    dataRow.getCell(1).value = forwardedDate;
+    dataRow.getCell(1).numFmt = "mm-dd-yy";
+    dataRow.getCell(2).value = accountsLabel;
+    dataRow.getCell(3).value = statement.area ?? "";
+    if (deliveryDate) {
+      dataRow.getCell(4).value = deliveryDate;
+      dataRow.getCell(4).numFmt = "mm-dd-yy";
+    }
+    dataRow.getCell(5).value = money(totalDeclaredValue);
+    dataRow.getCell(5).numFmt = ACCOUNTING_FMT;
+    dataRow.getCell(6).value = totalBoxes || "";
+    dataRow.getCell(6).numFmt = "#,##0";
+    dataRow.getCell(7).value = statement.truck_type ?? "";
+    dataRow.getCell(8).value = 1;
+    dataRow.getCell(8).numFmt = "#,##0";
+    dataRow.getCell(9).value = statement.truck_rate != null ? money(statement.truck_rate) : "";
+    dataRow.getCell(9).numFmt = "#,##0.00";
+    dataRow.getCell(10).value = statement.truck_rate != null ? money(statement.truck_rate) : "";
+    dataRow.getCell(10).numFmt = "#,##0.00";
+    if (ctsFraction != null) {
+      dataRow.getCell(11).value = ctsFraction;
+      dataRow.getCell(11).numFmt = "0.00%";
+    }
+    dataRow.eachCell({ includeEmpty: true }, (cell, col) => {
+      if (col > 11) return;
       cell.border = thinBorder();
+      cell.alignment = { horizontal: "center", vertical: "middle", wrapText: true };
     });
-    billingDataRow.getCell(3).numFmt = "#,##0.00";
-    billingDataRow.getCell(6).numFmt = "#,##0.00";
-    billingDataRow.getCell(7).numFmt = "#,##0.00";
+    dataRow.getCell(2).alignment = { horizontal: "left", vertical: "middle", wrapText: true };
+    r += 1;
+
+    // ── Totals row (bold) ────────────────────────────────────────────
+    const totalsRow = ws.getRow(r);
+    totalsRow.getCell(5).value = money(totalDeclaredValue);
+    totalsRow.getCell(5).numFmt = ACCOUNTING_FMT;
+    totalsRow.getCell(9).value = statement.truck_rate != null ? money(statement.truck_rate) : "";
+    totalsRow.getCell(9).numFmt = "#,##0.00";
+    totalsRow.getCell(10).value = statement.truck_rate != null ? money(statement.truck_rate) : "";
+    totalsRow.getCell(10).numFmt = "#,##0.00";
+    if (ctsFraction != null) {
+      totalsRow.getCell(11).value = ctsFraction;
+      totalsRow.getCell(11).numFmt = "0.00%";
+    }
+    [5, 9, 10, 11].forEach((col) => {
+      const cell = totalsRow.getCell(col);
+      cell.font = { bold: true };
+      cell.border = thinBorder();
+      cell.alignment = { horizontal: "right", vertical: "middle" };
+    });
+    r += 2;
+
+    // ── Date Forwarded ───────────────────────────────────────────────
+    ws.getCell(`A${r}`).value = `DATE FORWARDED : ${
+      forwardedDate
+        ? `${String(forwardedDate.getMonth() + 1).padStart(2, "0")}/${String(
+            forwardedDate.getDate()
+          ).padStart(2, "0")}/${forwardedDate.getFullYear()}`
+        : ""
+    }`;
+    ws.getCell(`A${r}`).font = { bold: true };
+    r += 2;
 
     // ── Delivery Report ──────────────────────────────────────────────
-    let r = billingHeaderRow + 4;
-    ws.mergeCells(`A${r}:G${r}`);
+    ws.mergeCells(`A${r}:K${r}`);
     ws.getCell(`A${r}`).value = "DELIVERY REPORT";
     ws.getCell(`A${r}`).font = { bold: true, size: 12 };
+    ws.getCell(`A${r}`).alignment = { horizontal: "center" };
     r += 1;
 
-    ws.getCell(`A${r}`).value = "Waybill No.:";
+    ws.getCell(`A${r}`).value = "WAYBILL NO.:";
     ws.getCell(`A${r}`).font = { bold: true };
     ws.getCell(`B${r}`).value = statement.waybill_no ?? "";
-    ws.getCell(`D${r}`).value = "Plate No.:";
-    ws.getCell(`D${r}`).font = { bold: true };
-    ws.getCell(`E${r}`).value = statement.plate_number ?? "";
+    ws.getCell(`C${r}`).value = "PLATE NO.:";
+    ws.getCell(`C${r}`).font = { bold: true };
+    ws.getCell(`D${r}`).value = statement.plate_number ?? "";
+    ws.getCell(`E${r}`).value = "DRIVER'S NAME:";
+    ws.getCell(`E${r}`).font = { bold: true };
+    ws.mergeCells(`F${r}:H${r}`);
+    ws.getCell(`F${r}`).value = statement.driver_name ?? "";
+    ws.getCell(`I${r}`).value = "DATE:";
+    ws.getCell(`I${r}`).font = { bold: true };
+    ws.mergeCells(`J${r}:K${r}`);
+    ws.getCell(`J${r}`).value = fmtLongDateNoSpace(statement.route_date);
     r += 1;
 
-    ws.getCell(`A${r}`).value = "Driver's Name:";
+    ws.getCell(`A${r}`).value = "TRUCK TYPE:";
     ws.getCell(`A${r}`).font = { bold: true };
-    ws.getCell(`B${r}`).value = statement.driver_name ?? "";
-    ws.getCell(`D${r}`).value = "Date:";
-    ws.getCell(`D${r}`).font = { bold: true };
-    ws.getCell(`E${r}`).value = fmtDate(statement.route_date);
+    ws.getCell(`B${r}`).value = statement.truck_type ?? "";
     r += 2;
 
     const drHeaderRow = r;
-    const drHeaders = ["Inv./DR/CN", "Account Name", "Branch", "", "Boxes", "Price"];
-    ws.getRow(drHeaderRow).values = drHeaders;
-    ws.getRow(drHeaderRow).font = { bold: true };
-    ws.getRow(drHeaderRow).eachCell((cell) => {
-      if (!cell.value && cell.value !== 0) return;
-      cell.border = thinBorder();
-      cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFF3F4F6" } };
-    });
+    headerCell(ws, `A${drHeaderRow}`, "SCHED / AREA");
+    ws.mergeCells(`B${drHeaderRow}:C${drHeaderRow}`);
+    headerCell(ws, `B${drHeaderRow}`, "INV. / DR / CN");
+    ws.mergeCells(`D${drHeaderRow}:F${drHeaderRow}`);
+    headerCell(ws, `D${drHeaderRow}`, "ACCOUNT NAME");
+    ws.mergeCells(`G${drHeaderRow}:I${drHeaderRow}`);
+    headerCell(ws, `G${drHeaderRow}`, "BRANCH");
+    headerCell(ws, `J${drHeaderRow}`, "BOXES");
+    headerCell(ws, `K${drHeaderRow}`, "PRICE");
     r += 1;
 
+    const firstItemRow = r;
     items.forEach((item) => {
-      const row = ws.getRow(r);
-      row.values = [
-        item.document_no,
-        item.company_name_raw ?? "",
-        item.branch_address ?? "",
-        "",
-        item.qty_box ?? "",
-        money(item.declared_value),
-      ];
-      row.getCell(6).numFmt = "#,##0.00";
-      [1, 2, 3, 5, 6].forEach((col) => {
-        row.getCell(col).border = thinBorder();
+      ws.mergeCells(`B${r}:C${r}`);
+      ws.getCell(`B${r}`).value = item.document_no;
+      ws.mergeCells(`D${r}:F${r}`);
+      ws.getCell(`D${r}`).value = item.company_name_raw ?? "";
+      ws.mergeCells(`G${r}:I${r}`);
+      ws.getCell(`G${r}`).value = item.branch_address ?? "";
+      ws.getCell(`J${r}`).value = item.qty_box ?? "";
+      ws.getCell(`J${r}`).numFmt = "#,##0";
+      ws.getCell(`K${r}`).value = money(item.declared_value);
+      ws.getCell(`K${r}`).numFmt = "#,##0.00";
+      ["A", "B", "D", "G", "J", "K"].forEach((col) => {
+        ws.getCell(`${col}${r}`).border = thinBorder();
+        ws.getCell(`${col}${r}`).alignment = { horizontal: "center", vertical: "middle", wrapText: true };
       });
+      ws.getCell(`D${r}`).alignment = { horizontal: "left", vertical: "middle", wrapText: true };
+      ws.getCell(`G${r}`).alignment = { horizontal: "left", vertical: "middle", wrapText: true };
       r += 1;
     });
+    const lastItemRow = r - 1;
+    // "SCHED / AREA" is a single merged cell spanning every item row --
+    // one area value applies to the whole truck, not per receipt.
+    if (items.length > 0) {
+      ws.mergeCells(`A${firstItemRow}:A${lastItemRow}`);
+      ws.getCell(`A${firstItemRow}`).value = statement.area ?? "";
+      ws.getCell(`A${firstItemRow}`).alignment = { horizontal: "center", vertical: "middle", wrapText: true };
+      ws.getCell(`A${firstItemRow}`).border = thinBorder();
+    }
 
-    const totalRow = ws.getRow(r);
-    totalRow.getCell(2).value = "Total";
-    totalRow.getCell(2).font = { bold: true };
-    totalRow.getCell(5).value = totalBoxes || "";
-    totalRow.getCell(6).value = money(totalDeclaredValue);
-    totalRow.getCell(6).numFmt = "#,##0.00";
-    [2, 5, 6].forEach((col) => {
-      totalRow.getCell(col).border = thinBorder();
-      totalRow.getCell(col).font = { bold: true };
-    });
+    // ── Grand total ──────────────────────────────────────────────────
+    ws.mergeCells(`A${r}:J${r}`);
+    ws.getCell(`A${r}`).alignment = { horizontal: "right" };
+    ws.getCell(`A${r}`).font = { bold: true };
+    ws.getCell(`K${r}`).value = money(totalDeclaredValue);
+    ws.getCell(`K${r}`).numFmt = "#,##0.00";
+    ws.getCell(`K${r}`).font = { bold: true };
     r += 3;
 
-    ws.getCell(`A${r}`).value = statement.prepared_by || "";
-    ws.getCell(`A${r + 1}`).value = "Prepared By";
-    ws.getCell(`A${r + 1}`).font = { italic: true, size: 9, color: { argb: "FF888888" } };
-    ws.getCell(`D${r}`).value = statement.approved_by || "";
-    ws.getCell(`D${r + 1}`).value = "Approved By";
-    ws.getCell(`D${r + 1}`).font = { italic: true, size: 9, color: { argb: "FF888888" } };
+    // ── Signatures ───────────────────────────────────────────────────
+    ws.getCell(`A${r}`).value = "Prepared By:";
+    ws.getCell(`A${r}`).font = { bold: true };
+    ws.mergeCells(`B${r}:E${r}`);
+    ws.getCell(`B${r}`).value = "_________________________________";
+    ws.getCell(`B${r}`).alignment = { horizontal: "center" };
+    ws.getCell(`G${r}`).value = "Approved By:";
+    ws.getCell(`G${r}`).font = { bold: true };
+    ws.mergeCells(`H${r}:K${r}`);
+    ws.getCell(`H${r}`).value = "_________________________________";
+    ws.getCell(`H${r}`).alignment = { horizontal: "center" };
+    r += 1;
+
+    ws.mergeCells(`B${r}:E${r}`);
+    ws.getCell(`B${r}`).value = statement.prepared_by || "";
+    ws.getCell(`B${r}`).alignment = { horizontal: "center" };
+    ws.mergeCells(`H${r}:K${r}`);
+    ws.getCell(`H${r}`).value = statement.approved_by || "";
+    ws.getCell(`H${r}`).alignment = { horizontal: "center" };
   });
 
   const buffer = await workbook.xlsx.writeBuffer();

@@ -3,7 +3,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
-import { getAppSetting, LOGO_SETTING_KEY } from "@/lib/appSettings";
 import type { VTruckingBillingStatement, VTruckingBillingStatementItem } from "@/types/database";
 
 function formatMoney(value: number | null | undefined) {
@@ -13,8 +12,23 @@ function formatMoney(value: number | null | undefined) {
   });
 }
 
-function formatDate(value: string | null | undefined) {
-  return value ? new Date(value).toLocaleDateString() : "—";
+// MM/DD/YYYY, matching the "Date:" / "DATE FORWARDED" fields on JMD's own sheet.
+function formatMMDDYYYY(value: string | Date | null | undefined) {
+  if (!value) return "—";
+  const d = typeof value === "string" ? new Date(value) : value;
+  if (Number.isNaN(d.getTime())) return "—";
+  const mm = String(d.getMonth() + 1).padStart(2, "0");
+  const dd = String(d.getDate()).padStart(2, "0");
+  return `${mm}/${dd}/${d.getFullYear()}`;
+}
+
+// "JULY 14,2026", matching the Delivery Report's "DATE:" field on JMD's own sheet.
+function formatLongDateNoSpace(value: string | Date | null | undefined) {
+  if (!value) return "—";
+  const d = typeof value === "string" ? new Date(value) : value;
+  if (Number.isNaN(d.getTime())) return "—";
+  const month = d.toLocaleDateString(undefined, { month: "long" }).toUpperCase();
+  return `${month} ${d.getDate()},${d.getFullYear()}`;
 }
 
 export default function PrintTruckingBillingPage() {
@@ -23,7 +37,6 @@ export default function PrintTruckingBillingPage() {
 
   const [statement, setStatement] = useState<VTruckingBillingStatement | null>(null);
   const [items, setItems] = useState<VTruckingBillingStatementItem[]>([]);
-  const [logoUrl, setLogoUrl] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
@@ -34,13 +47,12 @@ export default function PrintTruckingBillingPage() {
       setErrorMsg(null);
       try {
         const supabase = createClient();
-        const [{ data: s, error: sErr }, { data: itemRows }, logo] = await Promise.all([
+        const [{ data: s, error: sErr }, { data: itemRows }] = await Promise.all([
           supabase.from("v_trucking_billing_statements").select("*").eq("id", id).maybeSingle(),
           supabase
             .from("v_trucking_billing_statement_items")
             .select("*")
             .eq("statement_id", id),
-          getAppSetting(LOGO_SETTING_KEY),
         ]);
 
         if (sErr || !s) {
@@ -49,7 +61,6 @@ export default function PrintTruckingBillingPage() {
         }
         setStatement(s as VTruckingBillingStatement);
         setItems((itemRows ?? []) as VTruckingBillingStatementItem[]);
-        setLogoUrl(logo);
       } catch {
         setErrorMsg("Could not load this billing statement.");
       } finally {
@@ -66,9 +77,12 @@ export default function PrintTruckingBillingPage() {
     () => items.reduce((sum, r) => sum + (r.declared_value ?? 0), 0),
     [items]
   );
-  const ctsPct =
+  // Raw fraction (not multiplied by 100) to match JMD's own "% CTS" column,
+  // which stores e.g. 0.0401 formatted as a percentage rather than the
+  // number 4.01.
+  const ctsFraction =
     statement?.truck_rate != null && totalDeclaredValue > 0
-      ? Math.round((100 * statement.truck_rate / totalDeclaredValue) * 100) / 100
+      ? statement.truck_rate / totalDeclaredValue
       : null;
 
   // The accounts on a JMD-format Billing Statement are the retail chains
@@ -81,6 +95,14 @@ export default function PrintTruckingBillingPage() {
     );
     return names.length > 0 ? names.join(", ") : "—";
   }, [items]);
+
+  // "DELIVERY DATE" on the billing summary row / the Delivery Report's own
+  // "DATE:" field -- the actual route/delivery date, distinct from the
+  // "Date:" header field (when the statement was forwarded for billing).
+  const deliveryDate = statement?.route_date ?? null;
+  // "Date:" header field / "DATE FORWARDED" line -- when the statement was
+  // forwarded for billing. Falls back to today while still unbilled.
+  const forwardedDate = statement?.billed_at ?? new Date().toISOString();
 
   if (loading) {
     return <p className="p-8 text-sm text-gray-400">Loading…</p>;
@@ -97,144 +119,185 @@ export default function PrintTruckingBillingPage() {
         </button>
       </div>
 
-      <div className="printable-area mx-auto max-w-4xl rounded-xl border border-gray-200 bg-white p-8 text-sm text-gray-800">
-        <div className="flex items-center justify-between border-b-2 border-brand-600 pb-4">
-          <div className="flex items-center gap-4">
-            {logoUrl ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img src={logoUrl} alt="Dynamic88 logo" className="h-16 w-auto" />
-            ) : (
-              <div className="flex h-16 w-16 items-center justify-center rounded-lg bg-brand-600 text-xl font-bold text-white">
-                D88
-              </div>
-            )}
-            <div>
-              <p className="text-lg font-bold tracking-tight text-gray-900">
-                Dynamic88 Solutions
-              </p>
-              <p className="text-xs text-gray-500">Trucking Billing Statement</p>
-            </div>
-          </div>
-          <div className="text-right">
-            <p className="text-lg font-bold uppercase tracking-wide text-gray-900">
-              Billing Statement
-            </p>
-            <p className="mt-1 text-sm text-gray-500">{formatDate(statement.route_date)}</p>
-          </div>
+      <div className="printable-area mx-auto max-w-5xl rounded-xl border border-gray-200 bg-white p-8 text-sm text-gray-800">
+        <div className="border-b-2 border-gray-800 pb-3 text-center">
+          <p className="text-lg font-bold uppercase tracking-tight text-gray-900">
+            Mondial88 Trading Corporation
+          </p>
+          <p className="text-xs text-gray-600">Mirax Building</p>
+          <p className="text-xs text-gray-600">
+            Unit A Ground Floor, 2270 Don Chino Roces Avenue, Makati City, Philippines
+          </p>
+          <p className="text-xs text-gray-600">Tel. No.: 840-3374-75 | Telefax No.: 840-3390</p>
         </div>
 
-        <div className="mt-5 grid grid-cols-2 gap-4 sm:grid-cols-4">
-          <div className="rounded-lg border border-gray-200 bg-gray-50 p-3">
-            <p className="text-xs uppercase tracking-wide text-gray-500">Series #</p>
-            <p className="mt-1 font-semibold">{statement.series_no}</p>
-          </div>
-          <div className="rounded-lg border border-gray-200 bg-gray-50 p-3">
-            <p className="text-xs uppercase tracking-wide text-gray-500">Waybill #</p>
-            <p className="mt-1 font-semibold">{statement.waybill_no ?? "—"}</p>
-          </div>
-          <div className="rounded-lg border border-gray-200 bg-gray-50 p-3">
-            <p className="text-xs uppercase tracking-wide text-gray-500">Trucker</p>
-            <p className="mt-1 font-semibold">{statement.carrier ?? "—"}</p>
-          </div>
-          <div className="rounded-lg border border-gray-200 bg-gray-50 p-3">
-            <p className="text-xs uppercase tracking-wide text-gray-500">Plate #</p>
-            <p className="mt-1 font-semibold">{statement.plate_number ?? "—"}</p>
-          </div>
+        <div className="mt-4 flex items-start justify-between">
+          <p className="text-base font-bold uppercase tracking-wide text-gray-900">
+            Billing Statement
+          </p>
+          <p className="text-sm">
+            <span className="font-bold">Date:</span> {formatMMDDYYYY(forwardedDate)}
+          </p>
         </div>
 
-        <div className="mt-6">
-          <table className="w-full border-collapse text-[11px]">
+        <div className="mt-2 grid grid-cols-2 gap-x-8 gap-y-1 text-sm">
+          <p>
+            <span className="font-bold">Series No#:</span> {statement.series_no}
+          </p>
+          <p>
+            <span className="font-bold">Trucker:</span> {statement.carrier ?? "—"}
+          </p>
+          <p>
+            <span className="font-bold">Waybill No#:</span> {statement.waybill_no ?? "—"}
+          </p>
+          <p>
+            <span className="font-bold">Plate#:</span> {statement.plate_number ?? "—"}
+          </p>
+        </div>
+
+        <div className="mt-4">
+          <table className="w-full border-collapse text-[10px]">
             <thead>
-              <tr className="border-b border-t border-gray-300 bg-gray-50 text-left uppercase text-gray-500">
-                <th className="py-1.5 pl-2">Transaction Date</th>
-                <th className="py-1.5">Account</th>
-                <th className="py-1.5 text-right">Declared Value</th>
-                <th className="py-1.5 text-right">No. Cases</th>
-                <th className="py-1.5">Unit</th>
-                <th className="py-1.5 text-right">Rate</th>
-                <th className="py-1.5 text-right">Total Rental</th>
-                <th className="py-1.5 pr-2 text-right">% CTS</th>
+              <tr className="border border-gray-400 bg-gray-100 text-center uppercase text-gray-600">
+                <th className="border border-gray-400 px-1 py-1">Transaction Date</th>
+                <th className="border border-gray-400 px-1 py-1">Account</th>
+                <th className="border border-gray-400 px-1 py-1">Branch Name</th>
+                <th className="border border-gray-400 px-1 py-1">Delivery Date</th>
+                <th className="border border-gray-400 px-1 py-1">Declared Value</th>
+                <th className="border border-gray-400 px-1 py-1">No# Cases</th>
+                <th className="border border-gray-400 px-1 py-1">Truck Class.</th>
+                <th className="border border-gray-400 px-1 py-1">Unit</th>
+                <th className="border border-gray-400 px-1 py-1">Rate</th>
+                <th className="border border-gray-400 px-1 py-1">Total Rental</th>
+                <th className="border border-gray-400 px-1 py-1">% CTS</th>
               </tr>
             </thead>
             <tbody>
-              <tr className="border-b border-gray-200">
-                <td className="py-1.5 pl-2">{formatDate(statement.route_date)}</td>
-                <td className="py-1.5">{accountsLabel}</td>
-                <td className="py-1.5 text-right">{formatMoney(totalDeclaredValue)}</td>
-                <td className="py-1.5 text-right">{totalBoxes || "—"}</td>
-                <td className="py-1.5">{statement.plate_number ?? "—"}</td>
-                <td className="py-1.5 text-right">
+              <tr className="text-center">
+                <td className="border border-gray-300 px-1 py-1">{formatMMDDYYYY(forwardedDate)}</td>
+                <td className="border border-gray-300 px-1 py-1 text-left">{accountsLabel}</td>
+                <td className="border border-gray-300 px-1 py-1">{statement.area ?? "—"}</td>
+                <td className="border border-gray-300 px-1 py-1">{formatMMDDYYYY(deliveryDate)}</td>
+                <td className="border border-gray-300 px-1 py-1 text-right">
+                  {formatMoney(totalDeclaredValue)}
+                </td>
+                <td className="border border-gray-300 px-1 py-1">{totalBoxes || "—"}</td>
+                <td className="border border-gray-300 px-1 py-1">{statement.truck_type ?? "—"}</td>
+                <td className="border border-gray-300 px-1 py-1">1</td>
+                <td className="border border-gray-300 px-1 py-1 text-right">
                   {statement.truck_rate != null ? formatMoney(statement.truck_rate) : "—"}
                 </td>
-                <td className="py-1.5 text-right">
+                <td className="border border-gray-300 px-1 py-1 text-right">
                   {statement.truck_rate != null ? formatMoney(statement.truck_rate) : "—"}
                 </td>
-                <td className="py-1.5 pr-2 text-right">{ctsPct != null ? `${ctsPct}%` : "—"}</td>
+                <td className="border border-gray-300 px-1 py-1 text-right">
+                  {ctsFraction != null ? `${(ctsFraction * 100).toFixed(2)}%` : "—"}
+                </td>
+              </tr>
+              <tr className="border-t-2 border-gray-400 text-center font-bold">
+                <td className="border border-gray-300 px-1 py-1" colSpan={4}>
+                  Total
+                </td>
+                <td className="border border-gray-300 px-1 py-1 text-right">
+                  {formatMoney(totalDeclaredValue)}
+                </td>
+                <td className="border border-gray-300 px-1 py-1" />
+                <td className="border border-gray-300 px-1 py-1" />
+                <td className="border border-gray-300 px-1 py-1" />
+                <td className="border border-gray-300 px-1 py-1 text-right">
+                  {statement.truck_rate != null ? formatMoney(statement.truck_rate) : "—"}
+                </td>
+                <td className="border border-gray-300 px-1 py-1 text-right">
+                  {statement.truck_rate != null ? formatMoney(statement.truck_rate) : "—"}
+                </td>
+                <td className="border border-gray-300 px-1 py-1 text-right">
+                  {ctsFraction != null ? `${(ctsFraction * 100).toFixed(2)}%` : "—"}
+                </td>
               </tr>
             </tbody>
           </table>
         </div>
 
-        <div className="mt-8 border-t border-gray-300 pt-4">
-          <p className="text-sm font-bold uppercase tracking-wide text-gray-800">
+        <p className="mt-3 text-sm font-bold">
+          DATE FORWARDED : {formatMMDDYYYY(forwardedDate)}
+        </p>
+
+        <div className="mt-6 border-t border-gray-400 pt-3">
+          <p className="text-center text-sm font-bold uppercase tracking-wide text-gray-800">
             Delivery Report
           </p>
-          <div className="mt-3 grid grid-cols-2 gap-4 sm:grid-cols-4">
-            <div>
-              <p className="text-xs uppercase tracking-wide text-gray-500">Waybill No.</p>
-              <p className="mt-1 font-semibold">{statement.waybill_no ?? "—"}</p>
-            </div>
-            <div>
-              <p className="text-xs uppercase tracking-wide text-gray-500">Plate No.</p>
-              <p className="mt-1 font-semibold">{statement.plate_number ?? "—"}</p>
-            </div>
-            <div>
-              <p className="text-xs uppercase tracking-wide text-gray-500">Driver&apos;s Name</p>
-              <p className="mt-1 font-semibold">{statement.driver_name ?? "—"}</p>
-            </div>
-            <div>
-              <p className="text-xs uppercase tracking-wide text-gray-500">Date</p>
-              <p className="mt-1 font-semibold">{formatDate(statement.route_date)}</p>
-            </div>
+          <div className="mt-3 grid grid-cols-2 gap-x-8 gap-y-1 text-sm sm:grid-cols-4">
+            <p>
+              <span className="font-bold">Waybill No.:</span> {statement.waybill_no ?? "—"}
+            </p>
+            <p>
+              <span className="font-bold">Plate No.:</span> {statement.plate_number ?? "—"}
+            </p>
+            <p>
+              <span className="font-bold">Driver&apos;s Name:</span> {statement.driver_name ?? "—"}
+            </p>
+            <p>
+              <span className="font-bold">Date:</span> {formatLongDateNoSpace(deliveryDate)}
+            </p>
           </div>
+          <p className="mt-1 text-sm">
+            <span className="font-bold">Truck Type:</span> {statement.truck_type ?? "—"}
+          </p>
         </div>
 
-        <div className="mt-4">
-          <table className="w-full border-collapse text-[11px]">
+        <div className="mt-3">
+          <table className="w-full border-collapse text-[10px]">
             <thead>
-              <tr className="border-b border-t border-gray-300 bg-gray-50 text-left uppercase text-gray-500">
-                <th className="py-1.5 pl-2">Inv./DR/CN</th>
-                <th className="py-1.5">Account Name</th>
-                <th className="py-1.5">Branch</th>
-                <th className="py-1.5 text-right">Boxes</th>
-                <th className="py-1.5 pr-2 text-right">Price</th>
+              <tr className="border border-gray-400 bg-gray-100 text-center uppercase text-gray-600">
+                <th className="border border-gray-400 px-1 py-1">Sched / Area</th>
+                <th className="border border-gray-400 px-1 py-1">Inv. / DR / CN</th>
+                <th className="border border-gray-400 px-1 py-1">Account Name</th>
+                <th className="border border-gray-400 px-1 py-1">Branch</th>
+                <th className="border border-gray-400 px-1 py-1">Boxes</th>
+                <th className="border border-gray-400 px-1 py-1">Price</th>
               </tr>
             </thead>
             <tbody>
               {items.map((row, idx) => (
-                <tr key={row.route_plan_invoice_id ?? idx} className="border-b border-gray-200">
-                  <td className="py-1.5 pl-2 font-medium">{row.document_no}</td>
-                  <td className="py-1.5">{row.company_name_raw ?? "—"}</td>
-                  <td className="py-1.5">{row.branch_address ?? "—"}</td>
-                  <td className="py-1.5 text-right">{row.qty_box ?? "—"}</td>
-                  <td className="py-1.5 pr-2 text-right">{formatMoney(row.declared_value)}</td>
+                <tr key={row.route_plan_invoice_id ?? idx} className="text-center">
+                  {idx === 0 && (
+                    <td
+                      className="border border-gray-300 px-1 py-1 align-middle font-medium"
+                      rowSpan={items.length}
+                    >
+                      {statement.area ?? "—"}
+                    </td>
+                  )}
+                  <td className="border border-gray-300 px-1 py-1 font-medium">{row.document_no}</td>
+                  <td className="border border-gray-300 px-1 py-1 text-left">
+                    {row.company_name_raw ?? "—"}
+                  </td>
+                  <td className="border border-gray-300 px-1 py-1 text-left">
+                    {row.branch_address ?? "—"}
+                  </td>
+                  <td className="border border-gray-300 px-1 py-1">{row.qty_box ?? "—"}</td>
+                  <td className="border border-gray-300 px-1 py-1 text-right">
+                    {formatMoney(row.declared_value)}
+                  </td>
                 </tr>
               ))}
               {items.length === 0 && (
                 <tr>
-                  <td colSpan={5} className="py-3 text-center text-gray-400">
+                  <td colSpan={6} className="border border-gray-300 py-3 text-center text-gray-400">
                     No delivery receipts on this truck.
                   </td>
                 </tr>
               )}
             </tbody>
             <tfoot>
-              <tr className="border-t-2 border-gray-300 font-semibold">
-                <td colSpan={3} className="py-2 pl-2 text-right text-gray-500">
+              <tr className="border-t-2 border-gray-400 text-center font-bold">
+                <td className="border border-gray-300 px-1 py-1" colSpan={4}>
                   Total
                 </td>
-                <td className="py-2 text-right">{totalBoxes || "—"}</td>
-                <td className="py-2 pr-2 text-right">{formatMoney(totalDeclaredValue)}</td>
+                <td className="border border-gray-300 px-1 py-1">{totalBoxes || "—"}</td>
+                <td className="border border-gray-300 px-1 py-1 text-right">
+                  {formatMoney(totalDeclaredValue)}
+                </td>
               </tr>
             </tfoot>
           </table>
@@ -242,21 +305,21 @@ export default function PrintTruckingBillingPage() {
 
         <div className="mt-12 grid grid-cols-2 gap-x-8 gap-y-10">
           <div>
-            <div className="border-t border-gray-400 pt-1">
-              <p className="text-sm font-medium">{statement.prepared_by || " "}</p>
-              <p className="text-xs text-gray-500">Prepared By</p>
+            <p className="font-bold">Prepared By:</p>
+            <div className="mt-6 border-t border-gray-400 pt-1">
+              <p className="text-sm font-medium">{statement.prepared_by || " "}</p>
             </div>
           </div>
           <div>
-            <div className="border-t border-gray-400 pt-1">
-              <p className="text-sm font-medium">{statement.approved_by || " "}</p>
-              <p className="text-xs text-gray-500">Approved By</p>
+            <p className="font-bold">Approved By:</p>
+            <div className="mt-6 border-t border-gray-400 pt-1">
+              <p className="text-sm font-medium">{statement.approved_by || " "}</p>
             </div>
           </div>
         </div>
 
         <p className="mt-8 text-center text-[10px] text-gray-400">
-          Generated {new Date().toLocaleString()} · Dynamic88 Solutions
+          Generated {new Date().toLocaleString()} · Mondial88 Trading Corporation
         </p>
       </div>
     </div>

@@ -194,6 +194,10 @@ export interface TruckingBillingStatement {
   series_seq: number;
   series_no: string;
   waybill_no: string | null;
+  /** Vendor-supplied delivery zone/area for the whole truck (e.g. "PARANAQUE"). */
+  area: string | null;
+  /** Vendor-supplied vehicle classification (e.g. "4W", "6W"). */
+  truck_type: string | null;
   status: TruckingBillingStatus;
   billed_at: string | null;
   paid_at: string | null;
@@ -336,6 +340,10 @@ export interface VTruckingBillingStatement {
   item_count: number;
   total_boxes: number;
   total_amount: number;
+  /** Vendor-supplied delivery zone/area for the whole truck (e.g. "PARANAQUE"). */
+  area: string | null;
+  /** Vendor-supplied vehicle classification (e.g. "4W", "6W"). */
+  truck_type: string | null;
 }
 
 export interface VTruckingBillingStatementItem {

@@ -432,6 +432,30 @@ function StatusTab({
     }
   }
 
+  async function handleAreaChange(row: VTruckingBillingStatement, area: string) {
+    try {
+      const supabase = createClient();
+      await supabase
+        .from("trucking_billing_statements")
+        .update({ area: area.trim() || null })
+        .eq("id", row.id);
+    } catch {
+      // Best-effort inline save; next full reload will show the last-saved value.
+    }
+  }
+
+  async function handleTruckTypeChange(row: VTruckingBillingStatement, truckType: string) {
+    try {
+      const supabase = createClient();
+      await supabase
+        .from("trucking_billing_statements")
+        .update({ truck_type: truckType.trim() || null })
+        .eq("id", row.id);
+    } catch {
+      // Best-effort inline save; next full reload will show the last-saved value.
+    }
+  }
+
   async function handleDelete(row: VTruckingBillingStatement) {
     const confirmed = window.confirm(
       `Delete billing statement ${row.series_no} for ${row.plate_number ?? "this truck"}? It will become available again in Generate. This cannot be undone.`
@@ -509,6 +533,8 @@ function StatusTab({
               <tr className="text-left text-xs font-semibold uppercase text-gray-500">
                 <th className="py-2 pr-4">Series #</th>
                 <th className="py-2 pr-4">Waybill #</th>
+                <th className="py-2 pr-4">Area</th>
+                <th className="py-2 pr-4">Truck Type</th>
                 <th className="py-2 pr-4">Route Date</th>
                 <th className="py-2 pr-4">Plate #</th>
                 <th className="py-2 pr-4">Carrier</th>
@@ -529,6 +555,26 @@ function StatusTab({
                       defaultValue={r.waybill_no ?? ""}
                       placeholder="e.g. JMD 26-0674"
                       onBlur={(e) => handleWaybillChange(r, e.target.value)}
+                      disabled={!canManage}
+                    />
+                  </td>
+                  <td className="py-2 pr-4">
+                    <input
+                      type="text"
+                      className="input input-sm"
+                      defaultValue={r.area ?? ""}
+                      placeholder="e.g. PARANAQUE"
+                      onBlur={(e) => handleAreaChange(r, e.target.value)}
+                      disabled={!canManage}
+                    />
+                  </td>
+                  <td className="py-2 pr-4">
+                    <input
+                      type="text"
+                      className="input input-sm"
+                      defaultValue={r.truck_type ?? ""}
+                      placeholder="e.g. 4W"
+                      onBlur={(e) => handleTruckTypeChange(r, e.target.value)}
                       disabled={!canManage}
                     />
                   </td>
