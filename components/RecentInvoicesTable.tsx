@@ -19,6 +19,13 @@ const TABS: { value: InvoiceCategory; label: string }[] = [
   { value: "MERCURY_DRUG", label: "Mercury Drug" },
 ];
 
+type RoutePlanSubTab = "UNASSIGNED" | "ASSIGNED";
+
+const SUB_TABS: { value: RoutePlanSubTab; label: string }[] = [
+  { value: "UNASSIGNED", label: "Not Yet in Route Plan" },
+  { value: "ASSIGNED", label: "Already in Route Plan" },
+];
+
 const ZONE_OPTIONS: { value: ZoneType; label: string }[] = [
   { value: "NCR", label: "NCR" },
   { value: "FAR_NORTH_SOUTH", label: "Far North / South" },
@@ -50,6 +57,13 @@ const PAGE_SIZE = 20;
 export default function RecentInvoicesTable({ refreshKey, readOnly = false }: RecentInvoicesTableProps) {
   const { showToast } = useToast();
   const [activeTab, setActiveTab] = useState<InvoiceCategory>("CONSIGNMENT");
+  // Once an invoice is actively assigned to a route plan truck (a live,
+  // non-superseded route_plan_invoices row), it's no longer something that
+  // needs action here -- it moves to the "Already in Route Plan" sub-tab so
+  // the default view only shows invoices still needing to be routed.
+  const [subTab, setSubTab] = useState<RoutePlanSubTab>("UNASSIGNED");
+  const [assignedIds, setAssignedIds] = useState<string[]>([]);
+  const [assignedLoaded, setAssignedLoaded] = useState(false);
   const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
@@ -70,22 +84,79 @@ export default function RecentInvoicesTable({ refreshKey, readOnly = false }: Re
     return () => clearTimeout(t);
   }, [searchInput]);
 
+  // Which invoices currently have a *live* (non-superseded) route plan
+  // assignment -- this spans all categories, so it's fetched independently
+  // of activeTab/subTab and just re-read whenever the parent bumps
+  // refreshKey (e.g. after a Route Plan save).
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadAssigned() {
+      setAssignedLoaded(false);
+      try {
+        const supabase = createClient();
+        const { data } = await supabase
+          .from("route_plan_invoices")
+          .select("invoice_id")
+          .is("superseded_at", null);
+        if (!cancelled) {
+          setAssignedIds((data ?? []).map((r) => r.invoice_id));
+        }
+      } catch {
+        if (!cancelled) setAssignedIds([]);
+      } finally {
+        if (!cancelled) setAssignedLoaded(true);
+      }
+    }
+
+    loadAssigned();
+    return () => {
+      cancelled = true;
+    };
+  }, [refreshKey]);
+
+  // Apply the sub-tab filter (assigned vs. not-yet-assigned) on top of the
+  // base invoices query. Returns null when the sub-tab is guaranteed to be
+  // empty (e.g. "Already in Route Plan" but nothing is assigned yet) so
+  // callers can skip the request entirely.
+  function applySubTabFilter<T extends ReturnType<typeof buildBaseQuery>>(
+    query: T
+  ): T | null {
+    if (subTab === "ASSIGNED") {
+      if (assignedIds.length === 0) return null;
+      return query.in("id", assignedIds) as T;
+    }
+    if (assignedIds.length === 0) return query;
+    return query.not("id", "in", `(${assignedIds.join(",")})`) as T;
+  }
+
+  function buildBaseQuery() {
+    const supabase = createClient();
+    let query = supabase.from("invoices").select("*").eq("category", activeTab);
+    if (search) {
+      query = query.or(
+        `document_no.ilike.%${search}%,company_name_raw.ilike.%${search}%,branch_address.ilike.%${search}%`
+      );
+    }
+    return query;
+  }
+
   useEffect(() => {
     let cancelled = false;
 
     async function load() {
+      // Wait for the assigned-IDs set to load first so we don't briefly
+      // flash unfiltered results before the sub-tab filter is known.
+      if (!assignedLoaded) return;
+
       setLoading(true);
       setErrorMsg(null);
       try {
-        const supabase = createClient();
-        let query = supabase
-          .from("invoices")
-          .select("*")
-          .eq("category", activeTab);
-        if (search) {
-          query = query.or(
-            `document_no.ilike.%${search}%,company_name_raw.ilike.%${search}%,branch_address.ilike.%${search}%`
-          );
+        const query = applySubTabFilter(buildBaseQuery());
+        if (!query) {
+          setInvoices([]);
+          setHasMore(false);
+          return;
         }
         const { data, error } = await query
           .order("created_at", { ascending: false })
@@ -120,18 +191,13 @@ export default function RecentInvoicesTable({ refreshKey, readOnly = false }: Re
     return () => {
       cancelled = true;
     };
-  }, [activeTab, refreshKey, search]);
+  }, [activeTab, subTab, refreshKey, search, assignedLoaded, assignedIds]);
 
   async function handleLoadMore() {
     setLoadingMore(true);
     try {
-      const supabase = createClient();
-      let query = supabase.from("invoices").select("*").eq("category", activeTab);
-      if (search) {
-        query = query.or(
-          `document_no.ilike.%${search}%,company_name_raw.ilike.%${search}%,branch_address.ilike.%${search}%`
-        );
-      }
+      const query = applySubTabFilter(buildBaseQuery());
+      if (!query) return;
       const { data, error } = await query
         .order("created_at", { ascending: false })
         .range(invoices.length, invoices.length + PAGE_SIZE - 1);
@@ -378,11 +444,30 @@ export default function RecentInvoicesTable({ refreshKey, readOnly = false }: Re
         />
       </div>
 
+      <div className="mt-2 flex gap-2">
+        {SUB_TABS.map((tab) => (
+          <button
+            key={tab.value}
+            type="button"
+            onClick={() => setSubTab(tab.value)}
+            className={`tab-button ${
+              subTab === tab.value ? "tab-button-active" : "tab-button-inactive"
+            }`}
+          >
+            {tab.label}
+          </button>
+        ))}
+      </div>
+
       {loading && <p className="mt-3 text-sm text-gray-400">Loading…</p>}
       {!loading && errorMsg && <p className="mt-3 text-sm text-gray-400">{errorMsg}</p>}
       {!loading && !errorMsg && invoices.length === 0 && (
         <p className="mt-3 text-sm text-gray-400">
-          {search ? `No invoices match "${search}".` : "No invoices encoded yet."}
+          {search
+            ? `No invoices match "${search}".`
+            : subTab === "ASSIGNED"
+              ? "No invoices have been included in a route plan yet."
+              : "No invoices encoded yet."}
         </p>
       )}
       {deleteError && <p className="mt-3 text-sm text-red-600">{deleteError}</p>}
