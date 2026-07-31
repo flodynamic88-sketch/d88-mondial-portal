@@ -80,12 +80,13 @@ export default function TruckCard({
   const canAddConvoy = role === "ADMIN" || role === "JMD_PLANNER" || role === "LOGISTICS_OFFICER";
   // Matches the route_plan_trucks/route_plan_invoices DELETE RLS policies.
   const canManageTruck = canAddConvoy;
-  const canUnassignInvoice = role === "ADMIN" || role === "JMD_PLANNER";
-  // Truck details (Carrier / Plate # / Driver / Helpers) -- Admin and JMD
-  // Planner only. The route_plan_trucks UPDATE RLS policy also allows
-  // Logistics Officer, but this edit surface is intentionally scoped
-  // narrower per request.
-  const canEditTruckDetails = role === "ADMIN" || role === "JMD_PLANNER";
+  const canUnassignInvoice =
+    role === "ADMIN" || role === "JMD_PLANNER" || role === "LOGISTICS_OFFICER";
+  // Truck details (Carrier / Plate # / Driver / Helpers) -- Admin, JMD
+  // Planner, and Logistics Officer (full Route Plan access), matching the
+  // route_plan_trucks UPDATE RLS policy.
+  const canEditTruckDetails =
+    role === "ADMIN" || role === "JMD_PLANNER" || role === "LOGISTICS_OFFICER";
 
   const [rows, setRows] = useState<AssignedInvoiceRow[]>([]);
   const [loadingRows, setLoadingRows] = useState(true);
@@ -745,7 +746,7 @@ export default function TruckCard({
       {expanded && (
         <tr className="bg-gray-50/50">
           <td colSpan={8} className="px-4 pb-4 pt-1">
-            {(role === "ADMIN" || role === "JMD_PLANNER") && (
+            {(role === "ADMIN" || role === "JMD_PLANNER" || role === "LOGISTICS_OFFICER") && (
               <div className="mb-3">
                 <DocumentLookup
                   routePlanTruckId={truck.id}

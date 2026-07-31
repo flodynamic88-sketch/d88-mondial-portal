@@ -20,7 +20,10 @@ interface ExportInvoiceRow extends RoutePlanInvoice {
 
 export default function RoutePlanBoard() {
   const profile = useAuth();
-  const canManagePlans = profile?.role === "ADMIN" || profile?.role === "JMD_PLANNER";
+  const canManagePlans =
+    profile?.role === "ADMIN" ||
+    profile?.role === "JMD_PLANNER" ||
+    profile?.role === "LOGISTICS_OFFICER";
 
   const [routePlans, setRoutePlans] = useState<RoutePlan[]>([]);
   const [loadingPlans, setLoadingPlans] = useState(true);
