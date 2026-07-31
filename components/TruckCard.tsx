@@ -310,12 +310,22 @@ export default function TruckCard({
     if (num !== null && Number.isNaN(num)) return;
     try {
       const supabase = createClient();
-      const { error } = await supabase
+      // .select() so we can tell a real 0-row RLS-blocked "success" (see
+      // handleDeleteTruck above for the same pattern) apart from an actual
+      // save -- otherwise a role without UPDATE rights here would see the
+      // value silently revert with no explanation.
+      const { data, error } = await supabase
         .from("route_plan_invoices")
         .update({ qty_box: num })
-        .eq("id", rowId);
+        .eq("id", rowId)
+        .select("id");
       if (error) {
         setActionError("Failed to update qty per box.");
+      } else if (!data || data.length === 0) {
+        setActionError(
+          "Qty/Box was not saved -- you may not have permission to edit it. Ask an Admin to check your account access."
+        );
+        setRefreshKey((k) => k + 1);
       } else {
         setRefreshKey((k) => k + 1);
       }
@@ -581,6 +591,12 @@ export default function TruckCard({
                         className="input no-spinner w-20 text-center"
                         defaultValue={row.qty_box ?? ""}
                         onBlur={(e) => handleQtyBoxChange(row.id, e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") {
+                            e.preventDefault();
+                            e.currentTarget.blur();
+                          }
+                        }}
                       />
                     </td>
                     <td className="py-2 pr-4">
