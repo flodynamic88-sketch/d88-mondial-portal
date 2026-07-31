@@ -12,6 +12,7 @@ import type {
   RoutePlanInvoice,
   Invoice,
   DeliveryReason,
+  VTruckCts,
 } from "@/types/database";
 
 interface ExportInvoiceRow extends RoutePlanInvoice {
@@ -52,6 +53,7 @@ export default function RoutePlanBoard() {
   const [trucks, setTrucks] = useState<RoutePlanTruck[]>([]);
   const [loadingTrucks, setLoadingTrucks] = useState(false);
   const [trucksError, setTrucksError] = useState<string | null>(null);
+  const [ctsRows, setCtsRows] = useState<VTruckCts[]>([]);
 
   const [deliveryReasons, setDeliveryReasons] = useState<DeliveryReason[]>([]);
 
@@ -152,6 +154,32 @@ export default function RoutePlanBoard() {
   useEffect(() => {
     loadTrucks();
   }, [loadTrucks]);
+
+  // Average CTS for the whole day: pull v_truck_cts for every truck on this
+  // route plan (main + convoy) so we can show one "day average" figure next
+  // to the per-truck CTS column, instead of only per-truck numbers.
+  useEffect(() => {
+    let cancelled = false;
+    async function loadCtsForPlan() {
+      if (trucks.length === 0) {
+        setCtsRows([]);
+        return;
+      }
+      const supabase = createClient();
+      const { data } = await supabase
+        .from("v_truck_cts")
+        .select("*")
+        .in(
+          "truck_id",
+          trucks.map((t) => t.id)
+        );
+      if (!cancelled) setCtsRows((data ?? []) as VTruckCts[]);
+    }
+    loadCtsForPlan();
+    return () => {
+      cancelled = true;
+    };
+  }, [trucks]);
 
   const selectedPlanForSync = routePlans.find((p) => p.id === selectedId) ?? null;
 
@@ -355,6 +383,24 @@ export default function RoutePlanBoard() {
   });
 
   const selectedPlan = routePlans.find((p) => p.id === selectedId) ?? null;
+
+  // Day average CTS: plain average of each truck's cts_pct (not weighted),
+  // across every truck on this route plan that has a computed CTS yet.
+  // cts_pct itself is masked to null for anyone who isn't Admin/Logistics
+  // Officer (see v_truck_cts), so avgCtsPct naturally comes out null for
+  // those roles too -- same masking rule as the per-truck figure.
+  const ctsPctValues = ctsRows
+    .map((r) => r.cts_pct)
+    .filter((v): v is number => v !== null && v !== undefined);
+  const avgCtsPct =
+    ctsPctValues.length > 0
+      ? Math.round((ctsPctValues.reduce((sum, v) => sum + v, 0) / ctsPctValues.length) * 10) / 10
+      : null;
+  const ctsPassValues = ctsRows
+    .map((r) => r.cts_pass)
+    .filter((v): v is boolean => v !== null && v !== undefined);
+  const ctsPassCount = ctsPassValues.filter(Boolean).length;
+  const ctsTotalCount = ctsPassValues.length;
 
   async function handleExportRoutePlan() {
     if (!selectedPlan || trucks.length === 0) return;
@@ -684,6 +730,47 @@ export default function RoutePlanBoard() {
               {!loadingTrucks && !trucksError && mainTrucks.length === 0 && (
                 <div className="card text-sm text-gray-500">
                   No trucks added to this route plan yet.
+                </div>
+              )}
+
+              {!loadingTrucks && !trucksError && mainTrucks.length > 0 && (
+                <div className="card mb-4 flex flex-wrap items-end gap-6">
+                  <div>
+                    <p className="text-xs uppercase tracking-wide text-gray-500">
+                      Average CTS — this day
+                    </p>
+                    {avgCtsPct !== null ? (
+                      <p
+                        className={`text-2xl font-bold ${
+                          avgCtsPct <= 5 ? "text-green-600" : "text-red-600"
+                        }`}
+                      >
+                        {avgCtsPct}%
+                      </p>
+                    ) : (
+                      <p className="text-2xl font-bold text-gray-300">—</p>
+                    )}
+                    {avgCtsPct === null && (
+                      <p className="mt-0.5 text-xs text-gray-400">
+                        {ctsTotalCount === 0
+                          ? "No CTS data yet for this route plan."
+                          : "Cost figures restricted to Admin/Logistics Officer."}
+                      </p>
+                    )}
+                  </div>
+                  {ctsTotalCount > 0 && (
+                    <div>
+                      <p className="text-xs uppercase tracking-wide text-gray-500">
+                        Trucks Passed
+                      </p>
+                      <p className="text-lg font-semibold text-gray-700">
+                        {ctsPassCount} / {ctsTotalCount}
+                        <span className="ml-1 text-sm font-medium text-gray-400">
+                          ({Math.round((ctsPassCount / ctsTotalCount) * 100)}%)
+                        </span>
+                      </p>
+                    </div>
+                  )}
                 </div>
               )}
 
