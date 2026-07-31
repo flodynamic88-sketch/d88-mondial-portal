@@ -25,6 +25,9 @@ export default function RoutePlanBoard() {
     profile?.role === "ADMIN" ||
     profile?.role === "JMD_PLANNER" ||
     profile?.role === "LOGISTICS_OFFICER";
+  // Same cost-visibility gate as TruckCard's canSeeTruckRate -- rate % is a
+  // cost figure and shouldn't leak into the Excel export for other roles.
+  const canSeeRatePct = profile?.role === "ADMIN" || profile?.role === "LOGISTICS_OFFICER";
 
   const [routePlans, setRoutePlans] = useState<RoutePlan[]>([]);
   const [loadingPlans, setLoadingPlans] = useState(true);
@@ -441,7 +444,7 @@ export default function RoutePlanBoard() {
               "Branch Address": row.invoice?.branch_address ?? "",
               "Qty/Box": row.qty_box ?? "",
               Amount: row.invoice?.amount ?? 0,
-              "Rate %": row.service_rate_pct ?? "",
+              "Rate %": canSeeRatePct ? row.service_rate_pct ?? "" : "",
               "Delivered On": row.delivered_at
                 ? new Date(row.delivered_at).toLocaleDateString()
                 : "",

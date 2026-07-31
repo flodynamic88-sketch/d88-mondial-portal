@@ -846,11 +846,7 @@ export default function TruckCard({
                           </span>
                         </div>
                       ) : (
-                        <span className="text-gray-400">
-                          {row.service_rate_pct !== null && row.service_rate_pct !== undefined
-                            ? `${row.service_rate_pct}%`
-                            : "—"}
-                        </span>
+                        <span className="text-gray-400">—</span>
                       )}
                     </td>
                     <td className="py-2 pr-4">
