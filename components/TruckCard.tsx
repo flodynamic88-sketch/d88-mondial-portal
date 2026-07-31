@@ -106,6 +106,7 @@ export default function TruckCard({
     driver_name: truck.driver_name ?? "",
     helper1_name: truck.helper1_name ?? "",
     helper2_name: truck.helper2_name ?? "",
+    truck_rate: truck.truck_rate !== null && truck.truck_rate !== undefined ? String(truck.truck_rate) : "",
   });
   const [customEntry, setCustomEntry] = useState<{
     rowId: string;
@@ -165,6 +166,8 @@ export default function TruckCard({
         driver_name: truck.driver_name ?? "",
         helper1_name: truck.helper1_name ?? "",
         helper2_name: truck.helper2_name ?? "",
+        truck_rate:
+          truck.truck_rate !== null && truck.truck_rate !== undefined ? String(truck.truck_rate) : "",
       });
     }
   }, [
@@ -173,12 +176,34 @@ export default function TruckCard({
     truck.driver_name,
     truck.helper1_name,
     truck.helper2_name,
+    truck.truck_rate,
     editingDetails,
   ]);
 
   async function handleSaveTruckDetails() {
-    setSavingDetails(true);
     setActionError(null);
+
+    // Truck Rate is only editable (and only visible) for ADMIN/LOGISTICS_OFFICER
+    // (canSeeTruckRate), and never applies to convoy trucks (they're covered by
+    // the main truck's rate). Leave it out of the payload entirely otherwise so
+    // we never accidentally send a stale/blank value for a role that can't see it.
+    let rateNumber: number | null | undefined;
+    if (canSeeTruckRate && !isConvoy) {
+      if (detailsDraft.truck_rate.trim() === "") {
+        rateNumber = null;
+      } else {
+        const parsed = Number(detailsDraft.truck_rate);
+        if (Number.isNaN(parsed)) {
+          const msg = "Truck rate must be a valid number.";
+          setActionError(msg);
+          showToast(msg, "error");
+          return;
+        }
+        rateNumber = parsed;
+      }
+    }
+
+    setSavingDetails(true);
     try {
       const supabase = createClient();
       // NOTE: route_plan_trucks intentionally has no SELECT RLS policy --
@@ -197,6 +222,7 @@ export default function TruckCard({
           driver_name: detailsDraft.driver_name.trim() || null,
           helper1_name: detailsDraft.helper1_name.trim() || null,
           helper2_name: detailsDraft.helper2_name.trim() || null,
+          ...(rateNumber !== undefined ? { truck_rate: rateNumber } : {}),
         })
         .eq("id", truck.id);
       if (error) {
@@ -223,6 +249,8 @@ export default function TruckCard({
       driver_name: truck.driver_name ?? "",
       helper1_name: truck.helper1_name ?? "",
       helper2_name: truck.helper2_name ?? "",
+      truck_rate:
+        truck.truck_rate !== null && truck.truck_rate !== undefined ? String(truck.truck_rate) : "",
     });
     setEditingDetails(false);
   }
@@ -596,10 +624,22 @@ export default function TruckCard({
           {isConvoy ? (
             <span className="text-gray-400">Included in main</span>
           ) : canSeeTruckRate ? (
-            (truck.truck_rate ?? 0).toLocaleString(undefined, {
-              minimumFractionDigits: 2,
-              maximumFractionDigits: 2,
-            })
+            editingDetails ? (
+              <input
+                type="number"
+                step="0.01"
+                min="0"
+                className="input no-spinner w-24 text-xs"
+                value={detailsDraft.truck_rate}
+                onChange={(e) => setDetailsDraft((d) => ({ ...d, truck_rate: e.target.value }))}
+                placeholder="0.00"
+              />
+            ) : (
+              (truck.truck_rate ?? 0).toLocaleString(undefined, {
+                minimumFractionDigits: 2,
+                maximumFractionDigits: 2,
+              })
+            )
           ) : (
             "—"
           )}
@@ -662,7 +702,7 @@ export default function TruckCard({
                 type="button"
                 className="whitespace-nowrap text-xs font-medium text-blue-600 hover:text-blue-800"
                 onClick={() => setEditingDetails(true)}
-                title="Edit carrier, plate #, driver, and helpers"
+                title="Edit carrier, plate #, driver, helpers, and (if visible) truck rate"
               >
                 Edit
               </button>
