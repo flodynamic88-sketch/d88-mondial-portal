@@ -85,6 +85,10 @@ export default function AddTruckForm({
   return (
     <form onSubmit={handleSubmit} className="grid grid-cols-1 gap-3 sm:grid-cols-4 sm:items-end">
       <div>
+        <label className="label">Carrier</label>
+        <input className="input" value={carrier} onChange={(e) => setCarrier(e.target.value)} />
+      </div>
+      <div>
         <label className="label">Plate Number</label>
         <input
           className="input"
@@ -92,10 +96,6 @@ export default function AddTruckForm({
           onChange={(e) => setPlateNumber(e.target.value)}
           required
         />
-      </div>
-      <div>
-        <label className="label">Carrier</label>
-        <input className="input" value={carrier} onChange={(e) => setCarrier(e.target.value)} />
       </div>
       {canSetTruckRate && !mainTruckId && (
         <div>

@@ -213,6 +213,27 @@ export default function RecentInvoicesTable({ refreshKey, readOnly = false }: Re
     await saveField(inv.id, { billing_period: dateValue });
   }
 
+  // Plan Date / Posting Date / Transmittal Date: native <input type="date">
+  // fires onChange with an *empty* value while a segment is mid-edit (e.g.
+  // clicking in to change just the day of an already-set date briefly
+  // clears it before the new digits are typed). Previously these inputs were
+  // controlled straight off `invoices` state, so that transient empty value
+  // got echoed back into the input (looked like the date "disappeared") and
+  // then saved for real on blur -- silently wiping a date the user was only
+  // trying to edit, not clear. Making the input uncontrolled (defaultValue +
+  // a key that only changes once the *committed* value changes) keeps
+  // in-progress typing entirely in the DOM; we only read/save the final
+  // value once the field is actually blurred.
+  async function handleDateFieldBlur<K extends keyof Invoice>(
+    inv: Invoice,
+    key: K,
+    value: string
+  ) {
+    const nextValue = (value || null) as Invoice[K];
+    updateLocal(inv.id, { [key]: nextValue } as unknown as Partial<Invoice>);
+    await saveField(inv.id, { [key]: nextValue });
+  }
+
   // Actual Delivery Date can be set here directly for invoices that never go
   // through a Route Plan truck (e.g. hand-delivered / walk-in documents).
   // Mirrors the sync_invoice_delivery_date trigger's semantics (see
@@ -220,13 +241,11 @@ export default function RecentInvoicesTable({ refreshKey, readOnly = false }: Re
   // set the delivery date, and so the invoice becomes eligible for
   // Transmittal generation (which only checks invoices.actual_delivery_date,
   // not whether the invoice was ever assigned to a Route Plan).
-  async function handleDeliveryDateBlur(inv: Invoice) {
-    const current = invoices.find((r) => r.id === inv.id);
-    if (!current) return;
-    const value = current.actual_delivery_date || null;
-    const status = value ? "DELIVERED" : current.status === "DELIVERED" ? "PENDING" : current.status;
-    updateLocal(inv.id, { status });
-    await saveField(inv.id, { actual_delivery_date: value, status });
+  async function handleDeliveryDateBlur(inv: Invoice, value: string) {
+    const nextValue = value || null;
+    const status = nextValue ? "DELIVERED" : inv.status === "DELIVERED" ? "PENDING" : inv.status;
+    updateLocal(inv.id, { actual_delivery_date: nextValue, status });
+    await saveField(inv.id, { actual_delivery_date: nextValue, status });
   }
 
   async function handleCompanyBlur(inv: Invoice) {
@@ -473,9 +492,9 @@ export default function RecentInvoicesTable({ refreshKey, readOnly = false }: Re
                     <input
                       type="date"
                       className="input-sm"
-                      value={inv.posting_date ?? ""}
-                      onChange={(e) => handleTextChange(inv, "posting_date", e.target.value)}
-                      onBlur={() => handleTextBlur(inv, "posting_date")}
+                      defaultValue={inv.posting_date ?? ""}
+                      key={`${inv.id}-posting_date-${inv.posting_date ?? ""}`}
+                      onBlur={(e) => handleDateFieldBlur(inv, "posting_date", e.target.value)}
                       disabled={readOnly}
                     />
                   </td>
@@ -483,9 +502,9 @@ export default function RecentInvoicesTable({ refreshKey, readOnly = false }: Re
                     <input
                       type="date"
                       className="input-sm"
-                      value={inv.plan_date ?? ""}
-                      onChange={(e) => handleTextChange(inv, "plan_date", e.target.value)}
-                      onBlur={() => handleTextBlur(inv, "plan_date")}
+                      defaultValue={inv.plan_date ?? ""}
+                      key={`${inv.id}-plan_date-${inv.plan_date ?? ""}`}
+                      onBlur={(e) => handleDateFieldBlur(inv, "plan_date", e.target.value)}
                       disabled={readOnly}
                     />
                   </td>
@@ -493,11 +512,9 @@ export default function RecentInvoicesTable({ refreshKey, readOnly = false }: Re
                     <input
                       type="date"
                       className="input-sm"
-                      value={inv.actual_delivery_date ?? ""}
-                      onChange={(e) =>
-                        handleTextChange(inv, "actual_delivery_date", e.target.value)
-                      }
-                      onBlur={() => handleDeliveryDateBlur(inv)}
+                      defaultValue={inv.actual_delivery_date ?? ""}
+                      key={`${inv.id}-actual_delivery_date-${inv.actual_delivery_date ?? ""}`}
+                      onBlur={(e) => handleDeliveryDateBlur(inv, e.target.value)}
                       disabled={readOnly}
                     />
                   </td>
@@ -505,11 +522,11 @@ export default function RecentInvoicesTable({ refreshKey, readOnly = false }: Re
                     <input
                       type="date"
                       className="input-sm"
-                      value={inv.transmittal_received_date ?? ""}
-                      onChange={(e) =>
-                        handleTextChange(inv, "transmittal_received_date", e.target.value)
+                      defaultValue={inv.transmittal_received_date ?? ""}
+                      key={`${inv.id}-transmittal_received_date-${inv.transmittal_received_date ?? ""}`}
+                      onBlur={(e) =>
+                        handleDateFieldBlur(inv, "transmittal_received_date", e.target.value)
                       }
-                      onBlur={() => handleTextBlur(inv, "transmittal_received_date")}
                       disabled={readOnly}
                     />
                   </td>

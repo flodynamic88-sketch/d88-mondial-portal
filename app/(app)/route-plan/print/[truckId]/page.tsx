@@ -148,12 +148,12 @@ export default function PrintTruckItineraryPage() {
 
         <div className="mt-5 grid grid-cols-2 gap-4 sm:grid-cols-4">
           <div className="rounded-lg border border-gray-200 bg-gray-50 p-3">
-            <p className="text-xs uppercase tracking-wide text-gray-500">Plate Number</p>
-            <p className="mt-1 font-semibold">{truck.plate_number ?? "—"}</p>
-          </div>
-          <div className="rounded-lg border border-gray-200 bg-gray-50 p-3">
             <p className="text-xs uppercase tracking-wide text-gray-500">Carrier</p>
             <p className="mt-1 font-semibold">{truck.carrier ?? "—"}</p>
+          </div>
+          <div className="rounded-lg border border-gray-200 bg-gray-50 p-3">
+            <p className="text-xs uppercase tracking-wide text-gray-500">Plate Number</p>
+            <p className="mt-1 font-semibold">{truck.plate_number ?? "—"}</p>
           </div>
           <div className="rounded-lg border border-gray-200 bg-gray-50 p-3">
             <p className="text-xs uppercase tracking-wide text-gray-500">Driver</p>

@@ -411,7 +411,8 @@ export default function TruckCard({
   return (
     <>
       <tr className={`border-t border-gray-100 align-top ${isConvoy ? "bg-gray-50/60" : ""}`}>
-        <td className="py-2 pl-4 pr-3">
+        <td className="py-2 pl-4 pr-3 text-xs text-gray-700">{truck.carrier ?? "—"}</td>
+        <td className="py-2 pr-3">
           <button
             type="button"
             onClick={() => onToggleExpand(truck.id)}
@@ -427,7 +428,6 @@ export default function TruckCard({
             <p className="pl-4 text-xs text-gray-500">{truck.plate_number}</p>
           )}
         </td>
-        <td className="py-2 pr-3 text-xs text-gray-700">{truck.carrier ?? "—"}</td>
         <td className="py-2 pr-3 text-xs text-gray-700">{truck.driver_name ?? "—"}</td>
         <td className="py-2 pr-3 text-xs text-gray-700">
           {[truck.helper1_name, truck.helper2_name].filter(Boolean).join(", ") || "—"}

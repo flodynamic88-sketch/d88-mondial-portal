@@ -382,8 +382,8 @@ export default function RoutePlanBoard() {
             const truck = row.route_plan_truck_id ? trucksById[row.route_plan_truck_id] : null;
             return {
               Truck: truck ? truckLabelById[truck.id] ?? "" : "",
-              "Plate Number": truck?.plate_number ?? "",
               Carrier: truck?.carrier ?? "",
+              "Plate Number": truck?.plate_number ?? "",
               Driver: truck?.driver_name ?? "",
               "Helper 1": truck?.helper1_name ?? "",
               "Helper 2": truck?.helper2_name ?? "",
@@ -689,8 +689,8 @@ export default function RoutePlanBoard() {
                   <table className="min-w-full divide-y divide-gray-100 text-sm">
                     <thead>
                       <tr className="text-left text-xs font-semibold uppercase text-gray-500">
-                        <th className="py-2 pl-4 pr-3">Truck</th>
-                        <th className="py-2 pr-3">Carrier</th>
+                        <th className="py-2 pl-4 pr-3">Carrier</th>
+                        <th className="py-2 pr-3">Truck</th>
                         <th className="py-2 pr-3">Driver</th>
                         <th className="py-2 pr-3">Helpers</th>
                         <th className="py-2 pr-3">Rate</th>
