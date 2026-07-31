@@ -662,8 +662,8 @@ export default function TruckCard({
               {cts.cts_pass === null || cts.cts_pass === undefined
                 ? "No data"
                 : cts.cts_pass
-                  ? "Pass"
-                  : "Not Pass"}
+                  ? "Passed"
+                  : "Not Passed"}
             </span>
           ) : (
             <span className="text-xs text-gray-400">—</span>

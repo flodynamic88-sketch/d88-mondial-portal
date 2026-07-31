@@ -172,8 +172,8 @@ export default function DeliveriesPage() {
           Status: row.cts_pass === null || row.cts_pass === undefined
             ? "No data"
             : row.cts_pass
-              ? "Pass"
-              : "Not Pass",
+              ? "Passed"
+              : "Not Passed",
         })),
       },
     ]);
@@ -357,8 +357,8 @@ export default function DeliveriesPage() {
                         {row.cts_pass === null || row.cts_pass === undefined
                           ? "No data"
                           : row.cts_pass
-                            ? "Pass"
-                            : "Not Pass"}
+                            ? "Passed"
+                            : "Not Passed"}
                       </span>
                     </td>
                   </tr>
