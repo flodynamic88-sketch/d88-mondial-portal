@@ -637,6 +637,25 @@ function SummaryTab({
     }
   }
 
+  async function handleDateTransmittedChange(id: string, value: string) {
+    if (!value) return;
+    try {
+      const supabase = createClient();
+      const { error } = await supabase
+        .from("transmittals")
+        .update({ date_transmitted: value })
+        .eq("id", id);
+      if (!error) {
+        showToast("Transmittal date updated.", "success");
+        await load();
+      } else {
+        showToast("Failed to update transmittal date.", "error");
+      }
+    } catch {
+      showToast("Failed to update transmittal date.", "error");
+    }
+  }
+
   async function handleDeleteTransmittal(t: VTransmittal) {
     const confirmed = window.confirm(
       `Delete transmittal ${formatDocRange(t.first_document_no, t.last_document_no)} (${
@@ -742,7 +761,18 @@ function SummaryTab({
                     {formatDocRange(t.first_document_no, t.last_document_no)}
                   </td>
                   <td className="py-2 pr-4 text-gray-500">{t.transmittal_no ?? "—"}</td>
-                  <td className="py-2 pr-4">{new Date(t.date_transmitted).toLocaleDateString()}</td>
+                  <td className="py-2 pr-4">
+                    {canUpdateStatus ? (
+                      <input
+                        type="date"
+                        className="input input-sm"
+                        value={new Date(t.date_transmitted).toISOString().slice(0, 10)}
+                        onChange={(e) => handleDateTransmittedChange(t.id, e.target.value)}
+                      />
+                    ) : (
+                      new Date(t.date_transmitted).toLocaleDateString()
+                    )}
+                  </td>
                   <td className="py-2 pr-4">{formatMoney(t.amount)}</td>
                   <td className="py-2 pr-4">
                     <select
