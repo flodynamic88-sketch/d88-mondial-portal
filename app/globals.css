@@ -139,4 +139,36 @@ body {
     margin: 0 !important;
     max-width: none !important;
   }
+
+  /* The app shell fixes the layout to one viewport (h-screen +
+     overflow-hidden) and scrolls the content pane internally
+     (overflow-y-auto) for normal browsing. When printing, that clips
+     everything past the first screenful and the rest of the document never
+     gets a chance to flow onto additional printed pages. Reset both to
+     "just render everything, let it flow" so printable pages nested inside
+     the (app) route group (Transmittals, Delivery Variance Log, etc.)
+     paginate correctly. */
+  html,
+  body,
+  .app-shell,
+  .app-main {
+    height: auto !important;
+    overflow: visible !important;
+  }
+
+  /* Repeat the table header row on every printed page instead of only the
+     first one. thead/tfoot get "table-header-group"/"table-footer-group"
+     display roles by default, but some browsers only honor the repeat when
+     it's stated explicitly, especially once the shell's overflow rules
+     above stop clipping the table to a single page. */
+  table {
+    page-break-inside: auto;
+  }
+  thead {
+    display: table-header-group;
+  }
+  tr {
+    page-break-inside: avoid;
+    page-break-after: auto;
+  }
 }

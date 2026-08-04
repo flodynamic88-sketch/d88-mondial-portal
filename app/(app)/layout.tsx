@@ -25,9 +25,9 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   return (
     <AuthProvider profile={profile ?? null}>
       <ToastProvider>
-        <div className="flex h-screen w-full overflow-hidden bg-gray-50">
+        <div className="app-shell flex h-screen w-full overflow-hidden bg-gray-50">
           <Sidebar />
-          <main className="flex-1 overflow-y-auto">
+          <main className="app-main flex-1 overflow-y-auto">
             <div className="mx-auto max-w-6xl px-6 py-8 sm:px-8">{children}</div>
           </main>
         </div>

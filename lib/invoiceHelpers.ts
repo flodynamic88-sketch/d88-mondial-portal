@@ -75,7 +75,8 @@ export async function findOrCreateBranchAddress(
  */
 export async function findOrCreateDeliveryReason(
   type: ReasonType,
-  label: string
+  label: string,
+  options?: { chargeableToMondial?: boolean; isD88Error?: boolean }
 ): Promise<string | null> {
   const trimmed = label.trim();
   if (!trimmed) return null;
@@ -95,7 +96,12 @@ export async function findOrCreateDeliveryReason(
 
     const { data: created, error: insertError } = await supabase
       .from("delivery_reasons")
-      .insert({ type, label: trimmed })
+      .insert({
+        type,
+        label: trimmed,
+        chargeable_to_mondial: options?.chargeableToMondial ?? false,
+        is_d88_error: options?.isD88Error ?? false,
+      })
       .select("id")
       .single();
 

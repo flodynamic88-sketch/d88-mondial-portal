@@ -52,6 +52,13 @@ export interface DeliveryReason {
   id: string;
   type: ReasonType;
   label: string;
+  /** Backload only: this reason is Mondial's fault -- automatically produces
+   *  a second billable line (the wasted attempt) in v_billing once the
+   *  invoice is rescheduled for redelivery. See migration 0028. */
+  chargeable_to_mondial: boolean;
+  /** Backload only: this reason is D88's own mistake (not Mondial's, not
+   *  billable twice) -- purely a reporting subcategory. See migration 0029. */
+  is_d88_error: boolean;
 }
 
 export interface Invoice {
@@ -247,6 +254,11 @@ export interface VBilling {
   delivered_at: string | null;
   service_rate_pct: number | null;
   service_fee: number | null;
+  /** true = this line is the automatic "failed attempt" charge for a
+   *  Backload reason flagged chargeable_to_mondial -- a second, separate
+   *  billable line for the same document_no alongside its normal delivered
+   *  line. See migration 0028. */
+  is_mondial_fault_charge: boolean;
 }
 
 export interface VFinalBilling extends VBilling {

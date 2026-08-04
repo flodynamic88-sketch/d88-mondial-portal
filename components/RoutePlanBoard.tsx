@@ -105,22 +105,23 @@ export default function RoutePlanBoard() {
     loadRoutePlans();
   }, [loadRoutePlans]);
 
-  useEffect(() => {
-    async function loadReasons() {
-      try {
-        const supabase = createClient();
-        const { data } = await supabase
-          .from("delivery_reasons")
-          .select("*")
-          .order("type", { ascending: true })
-          .order("label", { ascending: true });
-        setDeliveryReasons(data ?? []);
-      } catch {
-        setDeliveryReasons([]);
-      }
+  const loadReasons = useCallback(async () => {
+    try {
+      const supabase = createClient();
+      const { data } = await supabase
+        .from("delivery_reasons")
+        .select("*")
+        .order("type", { ascending: true })
+        .order("label", { ascending: true });
+      setDeliveryReasons(data ?? []);
+    } catch {
+      setDeliveryReasons([]);
     }
-    loadReasons();
   }, []);
+
+  useEffect(() => {
+    loadReasons();
+  }, [loadReasons]);
 
   const loadTrucks = useCallback(async () => {
     if (!selectedId) {
@@ -787,6 +788,7 @@ export default function RoutePlanBoard() {
                         <th className="py-2 pr-3">Driver</th>
                         <th className="py-2 pr-3">Helpers</th>
                         <th className="py-2 pr-3">Rate</th>
+                        <th className="py-2 pr-3">Total Invoice</th>
                         <th className="py-2 pr-3">CTS</th>
                         <th className="py-2 pr-3">Status</th>
                         <th className="py-2 pl-3 pr-4">Actions</th>
@@ -802,6 +804,7 @@ export default function RoutePlanBoard() {
                           deliveryReasons={deliveryReasons}
                           routePlanId={selectedPlan.id}
                           onRefreshTrucks={loadTrucks}
+                          onRefreshReasons={loadReasons}
                           expandedTruckId={expandedTruckId}
                           onToggleExpand={toggleExpandTruck}
                         />

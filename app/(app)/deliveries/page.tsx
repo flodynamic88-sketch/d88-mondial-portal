@@ -188,7 +188,7 @@ export default function DeliveriesPage() {
         <div>
           <h1 className="page-title">Deliveries Fulfillment</h1>
           <p className="page-subtitle">
-            Track delivered, discrepancy, and backload counts, and cost efficiency per truck.
+            Track discrepancy and backload counts, and CTS per truck.
           </p>
         </div>
         <button type="button" className="btn-secondary" onClick={handleExport}>
@@ -198,13 +198,7 @@ export default function DeliveriesPage() {
 
       {summaryError && <p className="mt-4 text-sm text-gray-400">{summaryError}</p>}
 
-      <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <div className="card">
-          <p className="text-sm font-medium text-gray-500">Delivered</p>
-          <p className="mt-2 text-3xl font-bold text-green-600">
-            {loadingSummary ? "…" : summary?.delivered_count ?? 0}
-          </p>
-        </div>
+      <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2">
         <div className="card">
           <p className="text-sm font-medium text-gray-500">Discrepancy</p>
           <p className="mt-2 text-3xl font-bold text-amber-600">
@@ -215,17 +209,6 @@ export default function DeliveriesPage() {
           <p className="text-sm font-medium text-gray-500">Backload</p>
           <p className="mt-2 text-3xl font-bold text-red-600">
             {loadingSummary ? "…" : summary?.backload_count ?? 0}
-          </p>
-        </div>
-        <div className="card">
-          <p className="text-sm font-medium text-gray-500">Fulfillment Rate</p>
-          <p className="mt-2 text-3xl font-bold text-brand-700">
-            {loadingSummary
-              ? "…"
-              : summary?.fulfillment_rate_pct !== null &&
-                  summary?.fulfillment_rate_pct !== undefined
-                ? `${summary.fulfillment_rate_pct}%`
-                : "—"}
           </p>
         </div>
       </div>

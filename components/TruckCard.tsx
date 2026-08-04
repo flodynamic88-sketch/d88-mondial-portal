@@ -49,6 +49,9 @@ interface TruckCardProps {
   deliveryReasons: DeliveryReason[];
   routePlanId: string;
   onRefreshTrucks: () => void;
+  /** Refetches deliveryReasons after a custom reason is created or its
+   *  Mondial/D88 flag is toggled, so the shared list stays in sync. */
+  onRefreshReasons?: () => void;
   isConvoy?: boolean;
   /** Id of the truck whose details row is currently open, shared across the whole table. */
   expandedTruckId: string | null;
@@ -62,6 +65,7 @@ export default function TruckCard({
   deliveryReasons,
   routePlanId,
   onRefreshTrucks,
+  onRefreshReasons,
   isConvoy = false,
   expandedTruckId,
   onToggleExpand,
@@ -113,6 +117,10 @@ export default function TruckCard({
     rowId: string;
     type: ReasonType;
     text: string;
+    /** Backload only: Mondial's fault -- see findOrCreateDeliveryReason. */
+    chargeableToMondial: boolean;
+    /** Backload only: D88's own mistake -- reporting tag, never billed twice. */
+    isD88Error: boolean;
   } | null>(null);
   const [savingCustom, setSavingCustom] = useState(false);
 
@@ -507,11 +515,23 @@ export default function TruckCard({
 
   function handleReasonSelect(rowId: string, value: string) {
     if (value === CUSTOM_DISCREPANCY) {
-      setCustomEntry({ rowId, type: "DISCREPANCY", text: "" });
+      setCustomEntry({
+        rowId,
+        type: "DISCREPANCY",
+        text: "",
+        chargeableToMondial: false,
+        isD88Error: false,
+      });
       return;
     }
     if (value === CUSTOM_BACKLOAD) {
-      setCustomEntry({ rowId, type: "BACKLOAD", text: "" });
+      setCustomEntry({
+        rowId,
+        type: "BACKLOAD",
+        text: "",
+        chargeableToMondial: false,
+        isD88Error: false,
+      });
       return;
     }
     setCustomEntry(null);
@@ -528,15 +548,42 @@ export default function TruckCard({
     setSavingCustom(true);
     setActionError(null);
     try {
-      const reasonId = await findOrCreateDeliveryReason(customEntry.type, text);
+      const reasonId = await findOrCreateDeliveryReason(customEntry.type, text, {
+        chargeableToMondial: customEntry.chargeableToMondial,
+        isD88Error: customEntry.isD88Error,
+      });
       if (!reasonId) {
         setActionError("Failed to save the custom reason.");
         return;
       }
       await handleReasonChange(customEntry.rowId, reasonId);
       setCustomEntry(null);
+      onRefreshReasons?.();
     } finally {
       setSavingCustom(false);
+    }
+  }
+
+  /** Flip a Backload reason's Charge-to-Mondial / D88-Error tag. The two are
+   *  mutually exclusive (a backload is either nobody's fault, D88's fault,
+   *  or Mondial's fault), and the flag lives on the shared delivery_reasons
+   *  row -- not the invoice row -- so it affects every other invoice already
+   *  using that same reason label going forward too. */
+  async function handleToggleReasonFlag(
+    reasonId: string,
+    field: "chargeable_to_mondial" | "is_d88_error",
+    value: boolean
+  ) {
+    try {
+      const supabase = createClient();
+      const patch: Record<string, boolean> = { [field]: value };
+      if (value) {
+        patch[field === "chargeable_to_mondial" ? "is_d88_error" : "chargeable_to_mondial"] = false;
+      }
+      await supabase.from("delivery_reasons").update(patch).eq("id", reasonId);
+      onRefreshReasons?.();
+    } catch {
+      setActionError("Could not update the reason's Mondial/D88 tag.");
     }
   }
 
@@ -641,6 +688,18 @@ export default function TruckCard({
                 maximumFractionDigits: 2,
               })
             )
+          ) : (
+            "—"
+          )}
+        </td>
+        <td className="py-2 pr-3 text-xs text-gray-700">
+          {isConvoy ? (
+            <span className="text-gray-400">Included in main</span>
+          ) : cts && cts.total_invoice_amount !== null && cts.total_invoice_amount !== undefined ? (
+            cts.total_invoice_amount.toLocaleString(undefined, {
+              minimumFractionDigits: 2,
+              maximumFractionDigits: 2,
+            })
           ) : (
             "—"
           )}
@@ -856,12 +915,52 @@ export default function TruckCard({
                             Delivered {toDateInputValue(row.delivered_at)}
                           </span>
                         )}
-                        {row.reason_id && (
-                          <span className="badge-warning">
-                            {deliveryReasons.find((r) => r.id === row.reason_id)?.label ??
-                              "Issue reported"}
-                          </span>
-                        )}
+                        {row.reason_id &&
+                          (() => {
+                            const reason = deliveryReasons.find((r) => r.id === row.reason_id);
+                            return (
+                              <>
+                                <span className="badge-warning">{reason?.label ?? "Issue reported"}</span>
+                                {reason?.type === "BACKLOAD" && canAddCustomReason && (
+                                  <div className="flex flex-wrap gap-2 text-[10px] text-gray-500">
+                                    <label className="flex items-center gap-1">
+                                      <input
+                                        type="checkbox"
+                                        className="h-3 w-3"
+                                        checked={reason.chargeable_to_mondial}
+                                        onChange={(e) =>
+                                          handleToggleReasonFlag(
+                                            reason.id,
+                                            "chargeable_to_mondial",
+                                            e.target.checked
+                                          )
+                                        }
+                                      />
+                                      Charge to Mondial
+                                    </label>
+                                    <label className="flex items-center gap-1">
+                                      <input
+                                        type="checkbox"
+                                        className="h-3 w-3"
+                                        checked={reason.is_d88_error}
+                                        onChange={(e) =>
+                                          handleToggleReasonFlag(reason.id, "is_d88_error", e.target.checked)
+                                        }
+                                      />
+                                      D88 Error
+                                    </label>
+                                  </div>
+                                )}
+                                {reason?.type === "BACKLOAD" &&
+                                  !canAddCustomReason &&
+                                  (reason.chargeable_to_mondial || reason.is_d88_error) && (
+                                    <span className="text-[10px] text-gray-500">
+                                      {reason.chargeable_to_mondial ? "Charge to Mondial" : "D88 Error"}
+                                    </span>
+                                  )}
+                              </>
+                            );
+                          })()}
                         {row.superseded_at && (
                           <span className="badge-info">Subject for Redelivery</span>
                         )}
@@ -947,36 +1046,74 @@ export default function TruckCard({
                           </button>
                         )}
                         {canUpdateDelivery && customEntry?.rowId === row.id && (
-                          <div className="flex w-full items-center gap-1 sm:w-auto">
-                            <input
-                              type="text"
-                              className="input w-full min-w-[12rem] flex-none sm:w-48"
-                              autoFocus
-                              placeholder={
-                                customEntry.type === "DISCREPANCY"
-                                  ? "New discrepancy reason"
-                                  : "New backload reason"
-                              }
-                              value={customEntry.text}
-                              onChange={(e) =>
-                                setCustomEntry({ ...customEntry, text: e.target.value })
-                              }
-                            />
-                            <button
-                              type="button"
-                              className="btn-primary"
-                              onClick={handleSaveCustomReason}
-                              disabled={savingCustom}
-                            >
-                              {savingCustom ? "Saving…" : "Save"}
-                            </button>
-                            <button
-                              type="button"
-                              className="tab-button tab-button-inactive"
-                              onClick={() => setCustomEntry(null)}
-                            >
-                              Cancel
-                            </button>
+                          <div className="flex w-full flex-col gap-1 sm:w-auto">
+                            <div className="flex w-full items-center gap-1 sm:w-auto">
+                              <input
+                                type="text"
+                                className="input w-full min-w-[12rem] flex-none sm:w-48"
+                                autoFocus
+                                placeholder={
+                                  customEntry.type === "DISCREPANCY"
+                                    ? "New discrepancy reason"
+                                    : "New backload reason"
+                                }
+                                value={customEntry.text}
+                                onChange={(e) =>
+                                  setCustomEntry({ ...customEntry, text: e.target.value })
+                                }
+                              />
+                              <button
+                                type="button"
+                                className="btn-primary"
+                                onClick={handleSaveCustomReason}
+                                disabled={savingCustom}
+                              >
+                                {savingCustom ? "Saving…" : "Save"}
+                              </button>
+                              <button
+                                type="button"
+                                className="tab-button tab-button-inactive"
+                                onClick={() => setCustomEntry(null)}
+                              >
+                                Cancel
+                              </button>
+                            </div>
+                            {customEntry.type === "BACKLOAD" && (
+                              <div className="flex flex-wrap gap-3 text-[11px] text-gray-500">
+                                <label className="flex items-center gap-1">
+                                  <input
+                                    type="checkbox"
+                                    className="h-3 w-3"
+                                    checked={customEntry.chargeableToMondial}
+                                    onChange={(e) =>
+                                      setCustomEntry({
+                                        ...customEntry,
+                                        chargeableToMondial: e.target.checked,
+                                        isD88Error: e.target.checked ? false : customEntry.isD88Error,
+                                      })
+                                    }
+                                  />
+                                  Charge to Mondial — Mondial&apos;s fault, auto-double-bill on redelivery
+                                </label>
+                                <label className="flex items-center gap-1">
+                                  <input
+                                    type="checkbox"
+                                    className="h-3 w-3"
+                                    checked={customEntry.isD88Error}
+                                    onChange={(e) =>
+                                      setCustomEntry({
+                                        ...customEntry,
+                                        isD88Error: e.target.checked,
+                                        chargeableToMondial: e.target.checked
+                                          ? false
+                                          : customEntry.chargeableToMondial,
+                                      })
+                                    }
+                                  />
+                                  D88 Error — our own mistake
+                                </label>
+                              </div>
+                            )}
                           </div>
                         )}
                       </div>
@@ -1027,6 +1164,7 @@ export default function TruckCard({
             deliveryReasons={deliveryReasons}
             routePlanId={routePlanId}
             onRefreshTrucks={onRefreshTrucks}
+            onRefreshReasons={onRefreshReasons}
             isConvoy
             expandedTruckId={expandedTruckId}
             onToggleExpand={onToggleExpand}
