@@ -64,6 +64,10 @@ export interface DeliveryReason {
 export interface Invoice {
   id: string;
   document_no: string;
+  /** Generated column: replace(document_no, '-', '_') -- normalizes the
+   *  inconsistent '_'/'-' separator so ordering is always lowest -> highest
+   *  numerically. Sort key only -- display document_no as-is. See migration 0030. */
+  document_no_sort: string;
   category: InvoiceCategory;
   zone: ZoneType | null;
   is_dc: boolean;
@@ -319,6 +323,7 @@ export interface VTransmittalItem {
   invoice_id: string;
   remarks: string | null;
   document_no: string;
+  document_no_sort: string;
   category: InvoiceCategory;
   actual_delivery_date: string | null;
   billing_period: string | null;

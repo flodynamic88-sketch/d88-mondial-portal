@@ -57,7 +57,7 @@ export default function PrintTransmittalPage() {
             .from("v_transmittal_items")
             .select("*")
             .eq("transmittal_id", id)
-            .order("document_no", { ascending: true }),
+            .order("document_no_sort", { ascending: true }),
           getAppSetting(LOGO_SETTING_KEY),
         ]);
         if (headerErr || !header) {

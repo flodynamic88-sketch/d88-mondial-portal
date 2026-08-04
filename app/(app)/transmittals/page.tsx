@@ -156,7 +156,7 @@ function GenerateTab({
         .eq("category", category)
         .eq("actual_delivery_date", deliveryDate)
         .is("transmittal_id", null)
-        .order("document_no", { ascending: true });
+        .order("document_no_sort", { ascending: true });
       if (error) {
         setErrorMsg(
           "Could not load invoices for this date. Connect a Supabase project to see live data."
@@ -300,7 +300,7 @@ function GenerateTab({
 
       setInvoices((prev) => {
         if (prev.some((i) => i.id === found.id)) return prev;
-        return [...prev, found].sort((a, b) => a.document_no.localeCompare(b.document_no));
+        return [...prev, found].sort((a, b) => a.document_no_sort.localeCompare(b.document_no_sort));
       });
       setChecked((prev) => new Set(prev).add(found.id));
       setDocQuery("");
