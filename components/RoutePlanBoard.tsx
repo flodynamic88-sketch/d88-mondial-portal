@@ -602,6 +602,19 @@ export default function RoutePlanBoard() {
 
                   <div className="flex items-center gap-2">
                     {!editingHeader && (
+                      <a
+                        href={`/route-plan/print/day/${selectedPlan.id}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className={`tab-button tab-button-inactive whitespace-nowrap ${
+                          trucks.length === 0 ? "pointer-events-none opacity-50" : ""
+                        }`}
+                        title="Generate a printable Delivery Route report for this day, downloadable as PNG"
+                      >
+                        Generate
+                      </a>
+                    )}
+                    {!editingHeader && (
                       <button
                         type="button"
                         className="tab-button tab-button-inactive"

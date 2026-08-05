@@ -116,6 +116,8 @@ export interface RoutePlanTruck {
   helper2_name: string | null;
   /** Delivery destination town/city; drives the automatic truck_rate lookup against trucking_rates. */
   destination: string | null;
+  /** Editable contact number shown on the per-day Delivery Route report. Update restricted to ADMIN/JMD_PLANNER/LOGISTICS_OFFICER via RLS. */
+  contact_number: string | null;
   /** Looked up from trucking_rates.area via destination. View-only; masked to ADMIN/LOGISTICS_OFFICER/LOGISTICS_ASSOCIATE. */
   area?: string | null;
 }
