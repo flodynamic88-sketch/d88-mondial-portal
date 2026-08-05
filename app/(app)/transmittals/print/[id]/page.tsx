@@ -119,12 +119,7 @@ export default function PrintTransmittalPage() {
                 D88
               </div>
             )}
-            <div>
-              <p className="text-lg font-bold tracking-tight text-gray-900">
-                Dynamic88 Solutions
-              </p>
-              <p className="text-xs text-gray-500">Mondial Portal — Transmittal Form</p>
-            </div>
+            <p className="text-3xl font-bold tracking-wide text-gray-900">TRANSMITTAL</p>
           </div>
           <div className="text-right">
             <span className="inline-block rounded-full bg-brand-50 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-brand-700">
