@@ -9,6 +9,7 @@ import { useToast } from "@/components/Toast";
 import { exportTruckingBillingExcel } from "@/lib/exportTruckingBillingExcel";
 import type {
   TruckingBillingStatus,
+  TruckingRate,
   VTruckingBillingCandidate,
   VTruckingBillingStatement,
 } from "@/types/database";
@@ -39,13 +40,14 @@ function todayStr() {
   return new Date().toISOString().slice(0, 10);
 }
 
-type TabKey = "GENERATE" | "FOR_BILLING" | "BILLED" | "PAID";
+type TabKey = "GENERATE" | "FOR_BILLING" | "BILLED" | "PAID" | "RATES";
 
 const STATUS_TABS: { value: TabKey; label: string; status?: TruckingBillingStatus }[] = [
   { value: "GENERATE", label: "Generate" },
   { value: "FOR_BILLING", label: "For Billing", status: "FOR_BILLING" },
   { value: "BILLED", label: "Billed", status: "BILLED" },
   { value: "PAID", label: "Paid", status: "PAID" },
+  { value: "RATES", label: "Trucking Rates" },
 ];
 
 export default function TruckingBillingPage() {
@@ -91,6 +93,8 @@ export default function TruckingBillingPage() {
 
         {tab === "GENERATE" ? (
           <GenerateTab canManage={canManage} canSeeRate={canSeeRate} />
+        ) : tab === "RATES" ? (
+          <RatesTab canManageRates={canSeeRate} />
         ) : (
           <StatusTab
             status={STATUS_TABS.find((t) => t.value === tab)!.status!}
@@ -480,18 +484,6 @@ function StatusTab({
     }
   }
 
-  async function handleAreaChange(row: VTruckingBillingStatement, area: string) {
-    try {
-      const supabase = createClient();
-      await supabase
-        .from("trucking_billing_statements")
-        .update({ area: area.trim() || null })
-        .eq("id", row.id);
-    } catch {
-      // Best-effort inline save; next full reload will show the last-saved value.
-    }
-  }
-
   async function handleTruckTypeChange(row: VTruckingBillingStatement, truckType: string) {
     try {
       const supabase = createClient();
@@ -625,15 +617,8 @@ function StatusTab({
                       />
                     )}
                   </td>
-                  <td className="py-2 pr-4">
-                    <input
-                      type="text"
-                      className="input input-sm"
-                      defaultValue={r.area ?? ""}
-                      placeholder="e.g. PARANAQUE"
-                      onBlur={(e) => handleAreaChange(r, e.target.value)}
-                      disabled={!canManage}
-                    />
+                  <td className="py-2 pr-4 text-gray-700">
+                    {r.area ?? "—"}
                   </td>
                   <td className="py-2 pr-4">
                     <select
@@ -671,11 +656,18 @@ function StatusTab({
                   <td className="py-2 pr-4">
                     <div className="flex flex-wrap gap-2">
                       <Link
-                        href={`/trucking-billing/print/${r.id}`}
+                        href={`/trucking-billing/print/${r.id}/billing-statement`}
                         target="_blank"
                         className="tab-button tab-button-inactive"
                       >
-                        Print
+                        Billing Statement
+                      </Link>
+                      <Link
+                        href={`/trucking-billing/print/${r.id}/delivery-report`}
+                        target="_blank"
+                        className="tab-button tab-button-inactive"
+                      >
+                        Delivery Report
                       </Link>
                       {canDelete && (
                         <button
@@ -690,6 +682,387 @@ function StatusTab({
                   </td>
                 </tr>
               ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  );
+}
+
+interface RateDraft {
+  destination: string;
+  area: string;
+  rate: string;
+  convoy_rate: string;
+}
+
+const EMPTY_RATE_DRAFT: RateDraft = { destination: "", area: "", rate: "", convoy_rate: "" };
+
+function RatesTab({ canManageRates }: { canManageRates: boolean }) {
+  const { showToast } = useToast();
+  const [rates, setRates] = useState<TruckingRate[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [search, setSearch] = useState("");
+  const [newRate, setNewRate] = useState<RateDraft>(EMPTY_RATE_DRAFT);
+  const [adding, setAdding] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editDraft, setEditDraft] = useState<RateDraft>(EMPTY_RATE_DRAFT);
+  const [savingId, setSavingId] = useState<string | null>(null);
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    setErrorMsg(null);
+    try {
+      const supabase = createClient();
+      const { data, error } = await supabase
+        .from("v_trucking_rates")
+        .select("*")
+        .order("area", { ascending: true })
+        .order("destination", { ascending: true });
+      if (error) {
+        setErrorMsg("Could not load trucking rates. Connect a Supabase project to see live data.");
+        setRates([]);
+        return;
+      }
+      setRates((data ?? []) as TruckingRate[]);
+    } catch {
+      setErrorMsg("Could not load trucking rates. Connect a Supabase project to see live data.");
+      setRates([]);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    load();
+  }, [load]);
+
+  const filteredRates = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    if (!q) return rates;
+    return rates.filter((r) =>
+      [r.destination, r.area].filter(Boolean).some((v) => (v as string).toLowerCase().includes(q))
+    );
+  }, [rates, search]);
+
+  function parseMoney(value: string): number | null {
+    if (!value.trim()) return null;
+    const n = Number(value);
+    return Number.isNaN(n) ? null : n;
+  }
+
+  async function handleAdd() {
+    if (!newRate.destination.trim() || !newRate.area.trim()) {
+      showToast("Destination and Area are required.", "error");
+      return;
+    }
+    const rate = parseMoney(newRate.rate);
+    const convoyRate = parseMoney(newRate.convoy_rate);
+    if (rate === null || convoyRate === null) {
+      showToast("Rate and Convoy Rate must be valid numbers.", "error");
+      return;
+    }
+    setAdding(true);
+    try {
+      const supabase = createClient();
+      const { error } = await supabase.from("trucking_rates").insert({
+        destination: newRate.destination.trim().toUpperCase(),
+        area: newRate.area.trim().toUpperCase(),
+        rate,
+        convoy_rate: convoyRate,
+      });
+      if (error) {
+        showToast(`Failed to add rate: ${error.message}`, "error");
+        return;
+      }
+      showToast("Destination rate added.", "success");
+      setNewRate(EMPTY_RATE_DRAFT);
+      await load();
+    } catch {
+      showToast("Could not add rate. Make sure a Supabase project is connected.", "error");
+    } finally {
+      setAdding(false);
+    }
+  }
+
+  function startEdit(r: TruckingRate) {
+    setEditingId(r.id);
+    setEditDraft({
+      destination: r.destination,
+      area: r.area,
+      rate: r.rate !== null && r.rate !== undefined ? String(r.rate) : "",
+      convoy_rate:
+        r.convoy_rate !== null && r.convoy_rate !== undefined ? String(r.convoy_rate) : "",
+    });
+  }
+
+  function cancelEdit() {
+    setEditingId(null);
+    setEditDraft(EMPTY_RATE_DRAFT);
+  }
+
+  async function handleSaveEdit(id: string) {
+    if (!editDraft.destination.trim() || !editDraft.area.trim()) {
+      showToast("Destination and Area are required.", "error");
+      return;
+    }
+    const rate = parseMoney(editDraft.rate);
+    const convoyRate = parseMoney(editDraft.convoy_rate);
+    if (rate === null || convoyRate === null) {
+      showToast("Rate and Convoy Rate must be valid numbers.", "error");
+      return;
+    }
+    setSavingId(id);
+    try {
+      const supabase = createClient();
+      const { error } = await supabase
+        .from("trucking_rates")
+        .update({
+          destination: editDraft.destination.trim().toUpperCase(),
+          area: editDraft.area.trim().toUpperCase(),
+          rate,
+          convoy_rate: convoyRate,
+        })
+        .eq("id", id);
+      if (error) {
+        showToast(`Failed to update rate: ${error.message}`, "error");
+        return;
+      }
+      showToast("Destination rate updated.", "success");
+      setEditingId(null);
+      await load();
+    } catch {
+      showToast("Could not update rate. Make sure a Supabase project is connected.", "error");
+    } finally {
+      setSavingId(null);
+    }
+  }
+
+  async function handleDeleteRate(r: TruckingRate) {
+    const confirmed = window.confirm(
+      `Delete the trucking rate for ${r.destination}? Trucks already routed there keep their last computed rate, but new trucks won't auto-fill until this destination is re-added. This cannot be undone.`
+    );
+    if (!confirmed) return;
+    try {
+      const supabase = createClient();
+      const { error } = await supabase.from("trucking_rates").delete().eq("id", r.id);
+      if (error) {
+        showToast(`Failed to delete rate: ${error.message}`, "error");
+        return;
+      }
+      showToast("Destination rate deleted.", "success");
+      await load();
+    } catch {
+      showToast("Could not delete rate.", "error");
+    }
+  }
+
+  return (
+    <div className="card mt-4">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div>
+          <h2 className="text-lg font-semibold text-gray-800">Trucking Rates</h2>
+          <p className="text-xs text-gray-400">
+            Per-destination rate table. Route Plan trucks pick a Destination and their Truck Rate
+            fills in automatically from here — convoy trucks use the Convoy Rate instead of a
+            second charge.
+          </p>
+        </div>
+        <input
+          type="text"
+          className="input max-w-[220px]"
+          placeholder="Search destination, area…"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+        />
+      </div>
+
+      {!canManageRates && (
+        <p className="mt-4 text-xs text-gray-400">
+          View-only access — rate figures and edits are restricted to Admin/Logistics Officer.
+        </p>
+      )}
+
+      {canManageRates && (
+        <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-5 sm:items-end">
+          <div>
+            <label className="label">Destination</label>
+            <input
+              className="input"
+              value={newRate.destination}
+              onChange={(e) => setNewRate((d) => ({ ...d, destination: e.target.value }))}
+              placeholder="e.g. MEYCAUAYAN"
+            />
+          </div>
+          <div>
+            <label className="label">Area</label>
+            <input
+              className="input"
+              value={newRate.area}
+              onChange={(e) => setNewRate((d) => ({ ...d, area: e.target.value }))}
+              placeholder="e.g. BULACAN"
+            />
+          </div>
+          <div>
+            <label className="label">Rate</label>
+            <input
+              type="number"
+              step="0.01"
+              min="0"
+              className="input no-spinner"
+              value={newRate.rate}
+              onChange={(e) => setNewRate((d) => ({ ...d, rate: e.target.value }))}
+            />
+          </div>
+          <div>
+            <label className="label">Convoy Rate</label>
+            <input
+              type="number"
+              step="0.01"
+              min="0"
+              className="input no-spinner"
+              value={newRate.convoy_rate}
+              onChange={(e) => setNewRate((d) => ({ ...d, convoy_rate: e.target.value }))}
+            />
+          </div>
+          <button type="button" className="btn-primary" onClick={handleAdd} disabled={adding}>
+            {adding ? "Adding…" : "Add Destination"}
+          </button>
+        </div>
+      )}
+
+      {loading && <p className="mt-3 text-sm text-gray-400">Loading…</p>}
+      {!loading && errorMsg && <p className="mt-3 text-sm text-gray-400">{errorMsg}</p>}
+      {!loading && !errorMsg && filteredRates.length === 0 && (
+        <p className="mt-3 text-sm text-gray-400">
+          {search ? `No destinations match "${search}".` : "No trucking rates yet."}
+        </p>
+      )}
+      {!loading && !errorMsg && filteredRates.length > 0 && (
+        <div className="mt-3 table-scroll-container">
+          <table className="min-w-full divide-y divide-gray-200 text-sm">
+            <thead>
+              <tr className="text-left text-xs font-semibold uppercase text-gray-500">
+                <th className="py-2 pr-4">Destination</th>
+                <th className="py-2 pr-4">Area</th>
+                {canManageRates && <th className="py-2 pr-4 text-right">Rate</th>}
+                {canManageRates && <th className="py-2 pr-4 text-right">Convoy Rate</th>}
+                {canManageRates && <th className="py-2 pr-4">Actions</th>}
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-100">
+              {filteredRates.map((r) => {
+                const isEditing = editingId === r.id;
+                return (
+                  <tr key={r.id}>
+                    <td className="py-2 pr-4 font-medium text-gray-800">
+                      {isEditing ? (
+                        <input
+                          className="input input-sm"
+                          value={editDraft.destination}
+                          onChange={(e) =>
+                            setEditDraft((d) => ({ ...d, destination: e.target.value }))
+                          }
+                        />
+                      ) : (
+                        r.destination
+                      )}
+                    </td>
+                    <td className="py-2 pr-4">
+                      {isEditing ? (
+                        <input
+                          className="input input-sm"
+                          value={editDraft.area}
+                          onChange={(e) => setEditDraft((d) => ({ ...d, area: e.target.value }))}
+                        />
+                      ) : (
+                        r.area
+                      )}
+                    </td>
+                    {canManageRates && (
+                      <td className="py-2 pr-4 text-right">
+                        {isEditing ? (
+                          <input
+                            type="number"
+                            step="0.01"
+                            min="0"
+                            className="input input-sm no-spinner text-right"
+                            value={editDraft.rate}
+                            onChange={(e) => setEditDraft((d) => ({ ...d, rate: e.target.value }))}
+                          />
+                        ) : (
+                          formatMoney(r.rate)
+                        )}
+                      </td>
+                    )}
+                    {canManageRates && (
+                      <td className="py-2 pr-4 text-right">
+                        {isEditing ? (
+                          <input
+                            type="number"
+                            step="0.01"
+                            min="0"
+                            className="input input-sm no-spinner text-right"
+                            value={editDraft.convoy_rate}
+                            onChange={(e) =>
+                              setEditDraft((d) => ({ ...d, convoy_rate: e.target.value }))
+                            }
+                          />
+                        ) : (
+                          formatMoney(r.convoy_rate)
+                        )}
+                      </td>
+                    )}
+                    {canManageRates && (
+                      <td className="py-2 pr-4">
+                        <div className="flex flex-wrap gap-2">
+                          {isEditing ? (
+                            <>
+                              <button
+                                type="button"
+                                className="text-xs font-medium text-green-600 hover:text-green-800 disabled:opacity-50"
+                                onClick={() => handleSaveEdit(r.id)}
+                                disabled={savingId === r.id}
+                              >
+                                {savingId === r.id ? "…" : "Save"}
+                              </button>
+                              <button
+                                type="button"
+                                className="text-xs font-medium text-gray-500 hover:text-gray-700"
+                                onClick={cancelEdit}
+                                disabled={savingId === r.id}
+                              >
+                                Cancel
+                              </button>
+                            </>
+                          ) : (
+                            <>
+                              <button
+                                type="button"
+                                className="text-xs font-medium text-blue-600 hover:text-blue-800"
+                                onClick={() => startEdit(r)}
+                                disabled={editingId !== null}
+                              >
+                                Edit
+                              </button>
+                              <button
+                                type="button"
+                                className="text-xs font-medium text-red-600 hover:text-red-800"
+                                onClick={() => handleDeleteRate(r)}
+                                disabled={editingId !== null}
+                              >
+                                Delete
+                              </button>
+                            </>
+                          )}
+                        </div>
+                      </td>
+                    )}
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { useAuth } from "@/components/AuthProvider";
 
@@ -10,6 +10,11 @@ interface AddTruckFormProps {
   mainTruckId?: string;
   onCreated: () => void;
   onCancel?: () => void;
+}
+
+interface DestinationOption {
+  destination: string;
+  area: string;
 }
 
 export default function AddTruckForm({
@@ -23,12 +28,29 @@ export default function AddTruckForm({
 
   const [plateNumber, setPlateNumber] = useState("");
   const [carrier, setCarrier] = useState("");
+  const [destination, setDestination] = useState("");
+  const [destinations, setDestinations] = useState<DestinationOption[]>([]);
   const [truckRate, setTruckRate] = useState("");
   const [driverName, setDriverName] = useState("");
   const [helper1Name, setHelper1Name] = useState("");
   const [helper2Name, setHelper2Name] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (mainTruckId) return; // convoy trucks never need their own destination/rate
+    const supabase = createClient();
+    supabase
+      .from("v_trucking_rates")
+      .select("destination, area")
+      .then(({ data }) => {
+        if (data) {
+          setDestinations(
+            [...data].sort((a, b) => a.area.localeCompare(b.area) || a.destination.localeCompare(b.destination))
+          );
+        }
+      });
+  }, [mainTruckId]);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -55,6 +77,7 @@ export default function AddTruckForm({
         route_plan_id: routePlanId,
         plate_number: plateNumber.trim(),
         carrier: carrier.trim() || null,
+        destination: destination.trim() || null,
         truck_rate: rateNumber,
         is_convoy: Boolean(mainTruckId),
         main_truck_id: mainTruckId ?? null,
@@ -70,6 +93,7 @@ export default function AddTruckForm({
 
       setPlateNumber("");
       setCarrier("");
+      setDestination("");
       setTruckRate("");
       setDriverName("");
       setHelper1Name("");
@@ -97,9 +121,29 @@ export default function AddTruckForm({
           required
         />
       </div>
-      {canSetTruckRate && !mainTruckId && (
+      {!mainTruckId && (
         <div>
-          <label className="label">Truck Rate</label>
+          <label className="label">Destination</label>
+          <select
+            className="input"
+            value={destination}
+            onChange={(e) => setDestination(e.target.value)}
+          >
+            <option value="">— Select —</option>
+            {destinations.map((d) => (
+              <option key={d.destination} value={d.destination}>
+                {d.destination} ({d.area})
+              </option>
+            ))}
+          </select>
+          <p className="text-xs text-gray-400 mt-1">
+            Truck rate is set automatically based on destination.
+          </p>
+        </div>
+      )}
+      {canSetTruckRate && !mainTruckId && !destination && (
+        <div>
+          <label className="label">Truck Rate (no destination set)</label>
           <input
             type="number"
             step="0.01"

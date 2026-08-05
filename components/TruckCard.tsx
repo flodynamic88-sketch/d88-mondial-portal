@@ -91,6 +91,12 @@ export default function TruckCard({
   // route_plan_trucks UPDATE RLS policy.
   const canEditTruckDetails =
     role === "ADMIN" || role === "JMD_PLANNER" || role === "LOGISTICS_OFFICER";
+  // Area is derived from the truck's destination and masked server-side (see
+  // v_route_plan_trucks in 0033_trucking_rates.sql) to ADMIN/LOGISTICS_OFFICER/
+  // LOGISTICS_ASSOCIATE -- JMD Planner, Mondial Team, GM, and Invoicing Team
+  // never see it.
+  const canSeeArea =
+    role === "ADMIN" || role === "LOGISTICS_OFFICER" || role === "LOGISTICS_ASSOCIATE";
 
   const [rows, setRows] = useState<AssignedInvoiceRow[]>([]);
   const [loadingRows, setLoadingRows] = useState(true);
@@ -112,7 +118,11 @@ export default function TruckCard({
     helper1_name: truck.helper1_name ?? "",
     helper2_name: truck.helper2_name ?? "",
     truck_rate: truck.truck_rate !== null && truck.truck_rate !== undefined ? String(truck.truck_rate) : "",
+    destination: truck.destination ?? "",
   });
+  const [destinationOptions, setDestinationOptions] = useState<
+    { destination: string; area: string }[]
+  >([]);
   const [customEntry, setCustomEntry] = useState<{
     rowId: string;
     type: ReasonType;
@@ -177,6 +187,7 @@ export default function TruckCard({
         helper2_name: truck.helper2_name ?? "",
         truck_rate:
           truck.truck_rate !== null && truck.truck_rate !== undefined ? String(truck.truck_rate) : "",
+        destination: truck.destination ?? "",
       });
     }
   }, [
@@ -186,8 +197,28 @@ export default function TruckCard({
     truck.helper1_name,
     truck.helper2_name,
     truck.truck_rate,
+    truck.destination,
     editingDetails,
   ]);
+
+  // Destination options for the picker -- convoy trucks never need their own
+  // destination (they're covered by the main truck's), so skip the fetch.
+  useEffect(() => {
+    if (isConvoy) return;
+    const supabase = createClient();
+    supabase
+      .from("v_trucking_rates")
+      .select("destination, area")
+      .then(({ data }) => {
+        if (data) {
+          setDestinationOptions(
+            [...data].sort(
+              (a, b) => a.area.localeCompare(b.area) || a.destination.localeCompare(b.destination)
+            )
+          );
+        }
+      });
+  }, [isConvoy]);
 
   async function handleSaveTruckDetails() {
     setActionError(null);
@@ -232,6 +263,9 @@ export default function TruckCard({
           helper1_name: detailsDraft.helper1_name.trim() || null,
           helper2_name: detailsDraft.helper2_name.trim() || null,
           ...(rateNumber !== undefined ? { truck_rate: rateNumber } : {}),
+          // Convoy trucks never carry their own destination -- the trigger
+          // derives their main truck's rate instead (0033_trucking_rates.sql).
+          ...(isConvoy ? {} : { destination: detailsDraft.destination.trim() || null }),
         })
         .eq("id", truck.id);
       if (error) {
@@ -260,6 +294,7 @@ export default function TruckCard({
       helper2_name: truck.helper2_name ?? "",
       truck_rate:
         truck.truck_rate !== null && truck.truck_rate !== undefined ? String(truck.truck_rate) : "",
+      destination: truck.destination ?? "",
     });
     setEditingDetails(false);
   }
@@ -671,6 +706,31 @@ export default function TruckCard({
         <td className="py-2 pr-3 text-xs text-gray-700">
           {isConvoy ? (
             <span className="text-gray-400">Included in main</span>
+          ) : editingDetails ? (
+            <select
+              className="input w-32 text-xs"
+              value={detailsDraft.destination}
+              onChange={(e) => setDetailsDraft((d) => ({ ...d, destination: e.target.value }))}
+            >
+              <option value="">— Select —</option>
+              {destinationOptions.map((d) => (
+                <option key={d.destination} value={d.destination}>
+                  {d.destination}
+                </option>
+              ))}
+            </select>
+          ) : (
+            <>
+              {truck.destination ?? "—"}
+              {canSeeArea && truck.area && (
+                <p className="text-xs text-gray-400">{truck.area}</p>
+              )}
+            </>
+          )}
+        </td>
+        <td className="py-2 pr-3 text-xs text-gray-700">
+          {isConvoy ? (
+            <span className="text-gray-400">Included in main</span>
           ) : canSeeTruckRate ? (
             editingDetails ? (
               <input
@@ -804,7 +864,7 @@ export default function TruckCard({
 
       {expanded && (
         <tr className="bg-gray-50/50">
-          <td colSpan={8} className="px-4 pb-4 pt-1">
+          <td colSpan={9} className="px-4 pb-4 pt-1">
             {(role === "ADMIN" || role === "JMD_PLANNER" || role === "LOGISTICS_OFFICER") && (
               <div className="mb-3">
                 <DocumentLookup

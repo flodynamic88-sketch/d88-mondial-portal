@@ -104,6 +104,7 @@ export interface RoutePlanTruck {
   route_plan_id: string | null;
   plate_number: string | null;
   carrier: string | null;
+  /** Auto-derived from destination + convoy status once destination is set (see trucking_rates). Masked to null for roles other than ADMIN/LOGISTICS_OFFICER. */
   truck_rate: number | null;
   is_convoy: boolean;
   main_truck_id: string | null;
@@ -112,6 +113,22 @@ export interface RoutePlanTruck {
   driver_name: string | null;
   helper1_name: string | null;
   helper2_name: string | null;
+  /** Delivery destination town/city; drives the automatic truck_rate lookup against trucking_rates. */
+  destination: string | null;
+  /** Looked up from trucking_rates.area via destination. View-only; masked to ADMIN/LOGISTICS_OFFICER/LOGISTICS_ASSOCIATE. */
+  area?: string | null;
+}
+
+export interface TruckingRate {
+  id: string;
+  destination: string;
+  area: string;
+  /** Masked to null for roles other than ADMIN/LOGISTICS_OFFICER. */
+  rate: number | null;
+  /** Masked to null for roles other than ADMIN/LOGISTICS_OFFICER. */
+  convoy_rate: number | null;
+  created_at: string | null;
+  updated_at: string | null;
 }
 
 export interface RoutePlanInvoice {
@@ -367,6 +384,8 @@ export interface VTruckingBillingStatement {
   convoy_waybill_no: string | null;
   /** True when a route_plan_trucks row exists with main_truck_id = this truck's id. */
   has_convoy: boolean;
+  /** Delivery destination town/city of the truck (see route_plan_trucks.destination). */
+  destination: string | null;
 }
 
 export interface VTruckingBillingStatementItem {
@@ -398,6 +417,10 @@ export interface VTruckingBillingCandidate {
   total_amount: number;
   /** True when a route_plan_trucks row exists with main_truck_id = this truck's id. */
   has_convoy: boolean;
+  /** Delivery destination town/city of the truck (see route_plan_trucks.destination). */
+  destination: string | null;
+  /** Looked up from trucking_rates.area via destination. Masked to ADMIN/LOGISTICS_OFFICER/LOGISTICS_ASSOCIATE. */
+  area: string | null;
 }
 
 export interface Database {
@@ -504,6 +527,12 @@ export interface Database {
         Update: Partial<TruckingBillingStatement>;
         Relationships: [];
       };
+      trucking_rates: {
+        Row: TruckingRate;
+        Insert: Partial<TruckingRate> & { destination: string; area: string; rate: number; convoy_rate: number };
+        Update: Partial<TruckingRate>;
+        Relationships: [];
+      };
     };
     Views: {
       v_fulfillment_summary: { Row: VFulfillmentSummary; Relationships: [] };
@@ -518,6 +547,7 @@ export interface Database {
       v_trucking_billing_statements: { Row: VTruckingBillingStatement; Relationships: [] };
       v_trucking_billing_statement_items: { Row: VTruckingBillingStatementItem; Relationships: [] };
       v_trucking_billing_candidates: { Row: VTruckingBillingCandidate; Relationships: [] };
+      v_trucking_rates: { Row: TruckingRate; Relationships: [] };
     };
     Functions: Record<string, never>;
   };

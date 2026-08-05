@@ -787,6 +787,7 @@ export default function RoutePlanBoard() {
                         <th className="py-2 pr-3">Truck</th>
                         <th className="py-2 pr-3">Driver</th>
                         <th className="py-2 pr-3">Helpers</th>
+                        <th className="py-2 pr-3">Destination</th>
                         <th className="py-2 pr-3">Rate</th>
                         <th className="py-2 pr-3">Total Invoice</th>
                         <th className="py-2 pr-3">CTS</th>
