@@ -229,8 +229,14 @@ export default function TruckCard({
     // (canSeeTruckRate), and never applies to convoy trucks (they're covered by
     // the main truck's rate). Leave it out of the payload entirely otherwise so
     // we never accidentally send a stale/blank value for a role that can't see it.
+    // Once a destination is set (or being set in this same save), truck_rate is
+    // always derived server-side from trucking_rates -- see
+    // enforce_truck_rate_edit() in 0033_trucking_rates.sql -- so skip sending
+    // our manual draft in that case too; it would just get overwritten, and
+    // the input is hidden in that state anyway (see the Truck Rate cell below).
+    const savingDestination = canSeeTruckRate && !isConvoy ? detailsDraft.destination.trim() : "";
     let rateNumber: number | null | undefined;
-    if (canSeeTruckRate && !isConvoy) {
+    if (canSeeTruckRate && !isConvoy && !savingDestination) {
       if (detailsDraft.truck_rate.trim() === "") {
         rateNumber = null;
       } else {
@@ -741,7 +747,7 @@ export default function TruckCard({
           {isConvoy ? (
             <span className="text-gray-400">Included in main</span>
           ) : canSeeTruckRate ? (
-            editingDetails ? (
+            editingDetails && !detailsDraft.destination.trim() ? (
               <input
                 type="number"
                 step="0.01"
@@ -752,10 +758,25 @@ export default function TruckCard({
                 placeholder="0.00"
               />
             ) : (
-              (truck.truck_rate ?? 0).toLocaleString(undefined, {
-                minimumFractionDigits: 2,
-                maximumFractionDigits: 2,
-              })
+              <div className="flex flex-col">
+                <span>
+                  {(truck.truck_rate ?? 0).toLocaleString(undefined, {
+                    minimumFractionDigits: 2,
+                    maximumFractionDigits: 2,
+                  })}
+                </span>
+                {/* Once a destination is set, truck_rate is always derived
+                    server-side from trucking_rates (convoy_rate instead of
+                    rate whenever this truck has convoy trucks attached) --
+                    see enforce_truck_rate_edit() in 0033_trucking_rates.sql.
+                    Manual entry only applies to legacy rows with no
+                    destination, so we hide the input here to match
+                    AddTruckForm's behavior and avoid implying the typed
+                    value would stick. */}
+                {editingDetails && (
+                  <span className="text-[10px] text-gray-400">Auto (destination)</span>
+                )}
+              </div>
             )
           ) : (
             "—"
