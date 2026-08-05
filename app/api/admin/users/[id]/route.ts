@@ -1,6 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { createClient, createServiceRoleClient } from "@/lib/supabase/server";
-import { usernameToEmail } from "@/lib/authUsername";
+import { usernameToEmail, isValidUsername, USERNAME_FORMAT_HINT } from "@/lib/authUsername";
 import { ALL_ROLES } from "@/lib/roles";
 import type { UserRole } from "@/types/database";
 
@@ -67,6 +67,9 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
     newUsername = body.username.trim().toLowerCase();
     if (!newUsername) {
       return NextResponse.json({ error: "Username cannot be empty." }, { status: 400 });
+    }
+    if (!isValidUsername(newUsername)) {
+      return NextResponse.json({ error: USERNAME_FORMAT_HINT }, { status: 400 });
     }
     // Username drives the internal login email, so keep Supabase Auth in
     // sync -- otherwise the account would still log in with the old name.

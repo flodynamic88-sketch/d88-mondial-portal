@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import RequireRole from "@/components/RequireRole";
 import { ALL_ROLES, ROLE_LABELS } from "@/lib/roles";
+import { isValidUsername, USERNAME_FORMAT_HINT } from "@/lib/authUsername";
 import type { UserProfile, UserRole } from "@/types/database";
 
 function UserManagementInner() {
@@ -72,6 +73,10 @@ function UserManagementInner() {
 
     if (!username.trim()) {
       setCreateError("Username is required.");
+      return;
+    }
+    if (!isValidUsername(username)) {
+      setCreateError(USERNAME_FORMAT_HINT);
       return;
     }
     if (password.length < 6) {
@@ -166,6 +171,10 @@ function UserManagementInner() {
       setRowError("Username cannot be empty.");
       return;
     }
+    if (!isValidUsername(editUsername)) {
+      setRowError(USERNAME_FORMAT_HINT);
+      return;
+    }
     setBusyId(id);
     setRowError(null);
     try {
@@ -238,6 +247,7 @@ function UserManagementInner() {
               placeholder="e.g. jdelacruz"
               required
             />
+            <p className="mt-1 text-xs text-gray-400">No spaces — letters, numbers, dots, underscores, hyphens only.</p>
           </div>
           <div>
             <label className="label">Full Name</label>

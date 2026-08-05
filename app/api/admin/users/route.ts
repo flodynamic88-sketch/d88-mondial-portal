@@ -1,6 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { createClient, createServiceRoleClient } from "@/lib/supabase/server";
-import { usernameToEmail } from "@/lib/authUsername";
+import { usernameToEmail, isValidUsername, USERNAME_FORMAT_HINT } from "@/lib/authUsername";
 import { ALL_ROLES } from "@/lib/roles";
 import type { UserRole } from "@/types/database";
 
@@ -71,6 +71,9 @@ export async function POST(request: NextRequest) {
 
   if (!username) {
     return NextResponse.json({ error: "Username is required." }, { status: 400 });
+  }
+  if (!isValidUsername(username)) {
+    return NextResponse.json({ error: USERNAME_FORMAT_HINT }, { status: 400 });
   }
   if (!password || password.length < 6) {
     return NextResponse.json(
