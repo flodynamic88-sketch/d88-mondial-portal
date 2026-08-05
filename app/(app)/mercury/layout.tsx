@@ -44,9 +44,14 @@ export default async function MercuryLayout({ children }: { children: React.Reac
     // Mondial ADMIN, so "admin" is the only role Mercury ever needs to
     // provide here.
     <RoleProvider role="admin">
-      <div className="flex w-full items-start gap-6">
-        <MercurySidebar />
-        <div className="min-w-0 flex-1">{children}</div>
+      {/* Break out of the parent (app) layout's max-w-6xl container so
+          Mercury's wide tables/reports get the full viewport width instead
+          of being squeezed into Mondial's narrower default content column. */}
+      <div className="mx-[calc(50%-50vw)] w-screen px-4 sm:px-6 lg:px-8">
+        <div className="mx-auto flex w-full max-w-[1800px] items-start gap-6">
+          <MercurySidebar />
+          <div className="min-w-0 flex-1">{children}</div>
+        </div>
       </div>
     </RoleProvider>
   );
