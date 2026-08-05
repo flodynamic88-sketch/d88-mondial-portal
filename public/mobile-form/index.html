@@ -1,0 +1,561 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
+<title>Store Visit / Field Inventory Form</title>
+<style>
+  :root {
+    --brand: #5ea5a0;
+    --brand-dark: #3f7d79;
+    --bg: #f4f6f6;
+    --card: #ffffff;
+    --border: #dfe6e5;
+    --text: #1f2937;
+    --muted: #6b7280;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    padding-bottom: 40px;
+  }
+  header {
+    background: linear-gradient(135deg, var(--brand-dark), var(--brand));
+    color: #fff;
+    padding: 18px 16px 22px;
+  }
+  header h1 { margin: 0; font-size: 18px; font-weight: 700; }
+  header p { margin: 4px 0 0; font-size: 12.5px; color: rgba(255,255,255,0.85); }
+  main { max-width: 640px; margin: -12px auto 0; padding: 0 12px; }
+  .card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 16px;
+    margin-bottom: 14px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+  }
+  .card h2 {
+    font-size: 13px;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--brand-dark);
+    margin: 0 0 12px;
+    font-weight: 700;
+  }
+  label {
+    display: block;
+    font-size: 12.5px;
+    font-weight: 600;
+    color: #374151;
+    margin-bottom: 4px;
+  }
+  .field { margin-bottom: 12px; }
+  .field:last-child { margin-bottom: 0; }
+  input[type="text"], input[type="date"], input[type="time"], input[type="number"], select, textarea {
+    width: 100%;
+    padding: 10px 11px;
+    font-size: 15px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: #fff;
+    color: var(--text);
+    -webkit-appearance: none;
+  }
+  input:focus, select:focus, textarea:focus {
+    outline: none;
+    border-color: var(--brand);
+    box-shadow: 0 0 0 3px rgba(94,165,160,0.18);
+  }
+  .hint { font-size: 11.5px; color: var(--muted); margin-top: 3px; }
+  .row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .search-box { position: sticky; top: 0; background: var(--card); padding-bottom: 8px; z-index: 5; }
+  .sku-list { max-height: 60vh; overflow-y: auto; border: 1px solid var(--border); border-radius: 8px; }
+  .sku-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    padding: 10px 12px;
+    border-bottom: 1px solid var(--border);
+  }
+  .sku-row:last-child { border-bottom: none; }
+  .sku-row.has-qty { background: #f0f8f7; }
+  .sku-info { flex: 1; min-width: 0; }
+  .sku-client { font-size: 10.5px; font-weight: 700; color: var(--brand-dark); text-transform: uppercase; letter-spacing: 0.03em; }
+  .sku-vendor { font-weight: 500; text-transform: none; letter-spacing: normal; color: #6b7280; }
+  .sku-desc { font-size: 13.5px; color: var(--text); line-height: 1.3; }
+  .sku-code { font-size: 11px; color: var(--muted); }
+  .sku-qty { width: 76px; flex-shrink: 0; }
+  .sku-qty input { text-align: center; padding: 8px 4px; }
+  .count-pill {
+    display: inline-block;
+    background: var(--brand);
+    color: #fff;
+    font-size: 11.5px;
+    font-weight: 700;
+    border-radius: 999px;
+    padding: 2px 9px;
+    margin-left: 6px;
+  }
+  .btn {
+    display: block;
+    width: 100%;
+    padding: 14px;
+    font-size: 15.5px;
+    font-weight: 700;
+    border-radius: 10px;
+    border: none;
+    cursor: pointer;
+    text-align: center;
+  }
+  .btn-primary { background: var(--brand-dark); color: #fff; }
+  .btn-primary:active { background: #33645f; }
+  .btn-primary:disabled { background: #9db8b6; cursor: not-allowed; }
+  .btn-secondary { background: #fff; color: var(--brand-dark); border: 1.5px solid var(--brand-dark); margin-top: 10px; }
+  .error-box {
+    background: #fef2f2;
+    border: 1px solid #fecaca;
+    color: #b91c1c;
+    padding: 10px 12px;
+    border-radius: 8px;
+    font-size: 13px;
+    margin-bottom: 14px;
+  }
+  .loading-box, .empty-box {
+    text-align: center;
+    color: var(--muted);
+    font-size: 13.5px;
+    padding: 30px 10px;
+  }
+  .required::after { content: " *"; color: #dc2626; }
+  /* --- Receipt / confirmation screen --- */
+  #receiptScreen { display: none; }
+  .receipt-header { text-align: center; padding: 6px 0 14px; }
+  .receipt-header .check {
+    width: 52px; height: 52px; border-radius: 50%;
+    background: var(--brand); color: #fff; font-size: 28px;
+    display: flex; align-items: center; justify-content: center;
+    margin: 0 auto 10px;
+  }
+  .receipt-header h2 { margin: 0; font-size: 17px; color: var(--text); }
+  .receipt-header p { margin: 4px 0 0; font-size: 12.5px; color: var(--muted); }
+  .receipt-table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+  .receipt-table th, .receipt-table td { text-align: left; padding: 6px 4px; border-bottom: 1px solid #eef1f0; }
+  .receipt-table th { color: var(--muted); font-weight: 600; font-size: 10.5px; text-transform: uppercase; }
+  .receipt-table td.qty, .receipt-table th.qty { text-align: right; }
+  .kv { display: grid; grid-template-columns: 1fr 1fr; gap: 8px 12px; font-size: 13px; margin-bottom: 4px; }
+  .kv div span.k { display: block; font-size: 10.5px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.03em; }
+  .kv div span.v { font-weight: 600; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>D88 FLO — Store Visit / Field Inventory</h1>
+  <p>Sales Coordinator on-site branch check — fill out during your store visit</p>
+</header>
+
+<main>
+
+  <!-- ================= FORM SCREEN ================= -->
+  <div id="formScreen">
+
+    <div id="loadingBox" class="loading-box">Loading branch and item list…</div>
+    <div id="loadError" class="error-box" style="display:none;"></div>
+
+    <form id="visitForm" style="display:none;">
+
+      <div class="card">
+        <h2>Visit Details</h2>
+        <div class="field">
+          <label class="required" for="coordName">Sales Coordinator Name</label>
+          <input type="text" id="coordName" placeholder="Full name" required autocomplete="name" />
+        </div>
+        <div class="row2">
+          <div class="field">
+            <label class="required" for="visitDate">Date Visit</label>
+            <input type="date" id="visitDate" required />
+          </div>
+          <div class="field">
+            <label for="timeIn">Time In</label>
+            <input type="time" id="timeIn" />
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <h2>Branch</h2>
+        <div class="field">
+          <label for="branchSelect">Select Branch (optional)</label>
+          <select id="branchSelect">
+            <option value="">— Not in list / type manually below —</option>
+          </select>
+          <div class="hint">If your branch is on the list, selecting it auto-fills the fields below (you may still correct them). If it's not on the list, leave this blank and just type the Branch Code/Name/Address yourself.</div>
+        </div>
+        <div class="field">
+          <label>Branch Code</label>
+          <input type="text" id="branchCode" placeholder="Branch code" />
+        </div>
+        <div class="field">
+          <label>Branch Name</label>
+          <input type="text" id="branchName" placeholder="Branch name" />
+        </div>
+        <div class="field">
+          <label>Address</label>
+          <input type="text" id="branchAddress" placeholder="Store address" />
+        </div>
+        <div class="row2">
+          <div class="field">
+            <label>Store Hours</label>
+            <input type="text" id="storeHours" placeholder="e.g. 8AM–9PM" />
+          </div>
+          <div class="field">
+            <label>Contact #</label>
+            <input type="text" id="contactNo" placeholder="Contact number" />
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <h2>Items On-Shelf / On-Hand <span id="qtyCount" class="count-pill">0 counted</span></h2>
+        <div class="field search-box">
+          <input type="text" id="skuSearch" placeholder="Search client, item code, or description…" />
+        </div>
+        <div id="skuList" class="sku-list"></div>
+        <div class="hint" style="margin-top:8px;">Enter the Qty you observed for each SKU. Leave blank / 0 for items not seen — only items with a Qty entered will be submitted.</div>
+      </div>
+
+      <div class="card">
+        <h2>Notes (optional)</h2>
+        <textarea id="notes" rows="3" placeholder="Any remarks about this visit"></textarea>
+      </div>
+
+      <div id="submitError" class="error-box" style="display:none;"></div>
+
+      <button type="submit" id="submitBtn" class="btn btn-primary">Submit Store Visit</button>
+    </form>
+  </div>
+
+  <!-- ================= RECEIPT SCREEN ================= -->
+  <div id="receiptScreen">
+    <div class="card">
+      <div class="receipt-header">
+        <div class="check">✓</div>
+        <h2>Store Visit Submitted</h2>
+        <p>Screenshot this page as your proof of submission.</p>
+      </div>
+      <div class="kv">
+        <div><span class="k">Sales Coordinator</span><span class="v" id="rCoord"></span></div>
+        <div><span class="k">Date Visit</span><span class="v" id="rDate"></span></div>
+        <div><span class="k">Time In</span><span class="v" id="rTime"></span></div>
+        <div><span class="k">Branch Code</span><span class="v" id="rBranchCode"></span></div>
+        <div style="grid-column: 1 / -1;"><span class="k">Branch Name</span><span class="v" id="rBranchName"></span></div>
+        <div style="grid-column: 1 / -1;"><span class="k">Address</span><span class="v" id="rAddress"></span></div>
+        <div><span class="k">Store Hours</span><span class="v" id="rHours"></span></div>
+        <div><span class="k">Contact #</span><span class="v" id="rContact"></span></div>
+        <div style="grid-column: 1 / -1;"><span class="k">Submitted At</span><span class="v" id="rSubmittedAt"></span></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Items Counted (<span id="rLineCount"></span>)</h2>
+      <table class="receipt-table">
+        <thead>
+          <tr><th>Client</th><th>Item</th><th class="qty">Qty</th></tr>
+        </thead>
+        <tbody id="rLines"></tbody>
+      </table>
+    </div>
+
+    <button type="button" id="newVisitBtn" class="btn btn-primary">Start New Visit</button>
+  </div>
+
+</main>
+
+<script>
+// =====================================================================
+// D88 Mondial Portal (Mercury / ex-Flo) — Store Visit standalone mobile form
+// Served as a static file from Mondial's Next.js /public folder at
+// /mobile-form/index.html. No login required: reads via
+// flo.get_store_visit_form_data() and submits via flo.submit_store_visit(),
+// both SECURITY DEFINER RPCs in the `flo` schema, granted to the `anon`
+// role, exposed via Supabase Data API, and targeted here with the
+// Accept-Profile / Content-Profile: flo headers below — so this page can
+// never see or touch anything beyond the minimal safe fields those
+// functions expose.
+// =====================================================================
+
+// --- REQUIRED: fill these in before deploying ------------------------
+// SUPABASE_URL is your project's URL (safe to be public).
+// SUPABASE_ANON_KEY is the "anon public" key from
+// Supabase Dashboard → Project Settings → API (also the same value used
+// as NEXT_PUBLIC_SUPABASE_ANON_KEY in the portal's Vercel project). This
+// key is meant to be public / embedded in client-side code — it has no
+// power beyond what Row Level Security and these two RPC grants allow.
+const SUPABASE_URL = "https://tmjumbrpxgqxrqiotyvq.supabase.co";
+const SUPABASE_ANON_KEY = "sb_publishable_efZpJ3L3N41KOOkpJH9vZg_ZFaq6y4b";
+// -----------------------------------------------------------------------
+
+let formData = { branches: [], items: [] };
+let lastReceipt = null;
+
+const el = (id) => document.getElementById(id);
+
+function todayISO() {
+  const d = new Date();
+  const tz = new Date(d.getTime() - d.getTimezoneOffset() * 60000);
+  return tz.toISOString().slice(0, 10);
+}
+
+async function rpc(fnName, body) {
+  const res = await fetch(`${SUPABASE_URL}/rest/v1/rpc/${fnName}`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      apikey: SUPABASE_ANON_KEY,
+      Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
+      "Accept-Profile": "flo",
+      "Content-Profile": "flo",
+    },
+    body: JSON.stringify(body || {}),
+  });
+  if (!res.ok) {
+    let msg = `Request failed (${res.status})`;
+    try {
+      const j = await res.json();
+      msg = j.message || j.error_description || j.error || msg;
+    } catch (e) {}
+    throw new Error(msg);
+  }
+  return res.json();
+}
+
+function renderBranches() {
+  const sel = el("branchSelect");
+  formData.branches.forEach((b) => {
+    const opt = document.createElement("option");
+    opt.value = b.id;
+    opt.textContent = `${b.branch_code ? b.branch_code + " — " : ""}${b.branch_name}`;
+    sel.appendChild(opt);
+  });
+}
+
+function renderSkuList(filterText) {
+  const list = el("skuList");
+  list.innerHTML = "";
+  const q = (filterText || "").trim().toLowerCase();
+
+  const items = formData.items.filter((i) => {
+    if (!q) return true;
+    return (
+      (i.client_name || "").toLowerCase().includes(q) ||
+      (i.vendor_code || "").toLowerCase().includes(q) ||
+      (i.item_code || "").toLowerCase().includes(q) ||
+      (i.item_description || "").toLowerCase().includes(q)
+    );
+  });
+
+  if (items.length === 0) {
+    list.innerHTML = `<div class="empty-box">No matching items.</div>`;
+    return;
+  }
+
+  items.forEach((i) => {
+    const row = document.createElement("div");
+    row.className = "sku-row";
+    row.dataset.itemId = i.id;
+
+    const existingQty = qtyMap.get(i.id) || "";
+    if (existingQty) row.classList.add("has-qty");
+
+    row.innerHTML = `
+      <div class="sku-info">
+        <div class="sku-client">${i.client_name || ""}${i.vendor_code ? ` <span class="sku-vendor">(Vendor Code: ${i.vendor_code})</span>` : ""}</div>
+        <div class="sku-desc">${i.item_description || ""}</div>
+        <div class="sku-code">${i.item_code || ""}</div>
+      </div>
+      <div class="sku-qty">
+        <input type="number" inputmode="decimal" min="0" step="any" placeholder="0" value="${existingQty}" data-item-id="${i.id}" />
+      </div>
+    `;
+    list.appendChild(row);
+  });
+
+  list.querySelectorAll("input[data-item-id]").forEach((input) => {
+    input.addEventListener("input", (e) => {
+      const id = e.target.dataset.itemId;
+      const val = e.target.value;
+      // 2026-07-31: keep an explicitly-entered "0" (checked, zero stock)
+      // distinct from a blank/untouched field (never checked) -- only an
+      // empty string or a non-numeric/negative value clears the count.
+      const parsed = val === "" ? NaN : parseFloat(val);
+      if (val !== "" && !isNaN(parsed) && parsed >= 0) {
+        qtyMap.set(id, val);
+        e.target.closest(".sku-row").classList.add("has-qty");
+      } else {
+        qtyMap.delete(id);
+        e.target.closest(".sku-row").classList.remove("has-qty");
+      }
+      updateCount();
+    });
+  });
+}
+
+const qtyMap = new Map(); // item_id -> qty string, persists across search filtering
+
+function updateCount() {
+  el("qtyCount").textContent = `${qtyMap.size} counted`;
+}
+
+async function init() {
+  el("visitDate").value = todayISO();
+
+  try {
+    formData = await rpc("get_store_visit_form_data", {});
+    renderBranches();
+    renderSkuList("");
+    el("loadingBox").style.display = "none";
+    el("visitForm").style.display = "block";
+  } catch (err) {
+    el("loadingBox").style.display = "none";
+    el("loadError").style.display = "block";
+    el("loadError").textContent =
+      "Failed to load the form (" + err.message + "). Please check your internet connection and reload the page.";
+  }
+}
+
+el("branchSelect").addEventListener("change", (e) => {
+  const b = formData.branches.find((x) => x.id === e.target.value);
+  if (b) {
+    el("branchCode").value = b.branch_code || "";
+    el("branchName").value = b.branch_name || "";
+    el("branchAddress").value = b.address || "";
+    el("storeHours").value = b.store_hours || "";
+    el("contactNo").value = b.contact_no || "";
+  } else {
+    el("branchCode").value = "";
+    el("branchName").value = "";
+    el("branchAddress").value = "";
+    el("storeHours").value = "";
+    el("contactNo").value = "";
+  }
+});
+
+el("skuSearch").addEventListener("input", (e) => {
+  renderSkuList(e.target.value);
+});
+
+el("visitForm").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  el("submitError").style.display = "none";
+
+  const lines = [];
+  formData.items.forEach((i) => {
+    const qty = qtyMap.get(i.id);
+    // 2026-07-31: qtyMap only ever holds explicitly-entered, valid
+    // (>= 0) values now -- so submit whatever is present, including "0",
+    // instead of re-filtering with a "> 0" check that used to silently
+    // drop zero-qty lines.
+    if (qty !== undefined && qty !== "" && !isNaN(parseFloat(qty))) {
+      lines.push({
+        client_id: i.client_id,
+        client_code: i.client_code,
+        client_name: i.client_name,
+        item_id: i.id,
+        item_code: i.item_code,
+        item_description: i.item_description,
+        qty: parseFloat(qty),
+      });
+    }
+  });
+
+  if (lines.length === 0) {
+    el("submitError").style.display = "block";
+    el("submitError").textContent = "Please enter a Qty for at least one item.";
+    window.scrollTo({ top: el("qtyCount").getBoundingClientRect().top, behavior: "smooth" });
+    return;
+  }
+
+  const branchSel = el("branchSelect");
+  const header = {
+    sales_coordinator_name: el("coordName").value.trim(),
+    visit_date: el("visitDate").value,
+    time_in: el("timeIn").value || null,
+    branch_id: branchSel.value || null,
+    branch_code: el("branchCode").value.trim() || null,
+    branch_name: el("branchName").value.trim() || null,
+    address: el("branchAddress").value.trim() || null,
+    store_hours: el("storeHours").value.trim() || null,
+    contact_no: el("contactNo").value.trim() || null,
+    submitted_via: "mobile_form",
+    notes: el("notes").value.trim() || null,
+  };
+
+  const btn = el("submitBtn");
+  btn.disabled = true;
+  btn.textContent = "Submitting…";
+
+  try {
+    const result = await rpc("submit_store_visit", { header, lines });
+    lastReceipt = result;
+    showReceipt(result);
+  } catch (err) {
+    el("submitError").style.display = "block";
+    el("submitError").textContent = "Failed to submit (" + err.message + "). Please try again.";
+  } finally {
+    btn.disabled = false;
+    btn.textContent = "Submit Store Visit";
+  }
+});
+
+function showReceipt(r) {
+  el("rCoord").textContent = r.sales_coordinator_name || "—";
+  el("rDate").textContent = r.visit_date || "—";
+  el("rTime").textContent = r.time_in || "—";
+  el("rBranchCode").textContent = r.branch_code || "—";
+  el("rBranchName").textContent = r.branch_name || "—";
+  el("rAddress").textContent = r.address || "—";
+  el("rHours").textContent = r.store_hours || "—";
+  el("rContact").textContent = r.contact_no || "—";
+  el("rSubmittedAt").textContent = r.submitted_at ? new Date(r.submitted_at).toLocaleString() : "—";
+
+  const lines = r.lines || [];
+  el("rLineCount").textContent = `${lines.length} item${lines.length === 1 ? "" : "s"}`;
+  const tbody = el("rLines");
+  tbody.innerHTML = "";
+  lines.forEach((l) => {
+    const tr = document.createElement("tr");
+    tr.innerHTML = `<td>${l.client_name || ""}</td><td>${l.item_code || ""} — ${l.item_description || ""}</td><td class="qty">${l.qty}</td>`;
+    tbody.appendChild(tr);
+  });
+
+  el("formScreen").style.display = "none";
+  el("receiptScreen").style.display = "block";
+  window.scrollTo({ top: 0 });
+}
+
+el("newVisitBtn").addEventListener("click", () => {
+  qtyMap.clear();
+  el("visitForm").reset();
+  el("visitDate").value = todayISO();
+  el("branchCode").value = "";
+  el("branchName").value = "";
+  el("branchAddress").value = "";
+  el("storeHours").value = "";
+  el("contactNo").value = "";
+  renderSkuList("");
+  updateCount();
+  el("receiptScreen").style.display = "none";
+  el("formScreen").style.display = "block";
+  window.scrollTo({ top: 0 });
+});
+
+init();
+</script>
+
+</body>
+</html>
