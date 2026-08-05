@@ -145,6 +145,23 @@ export default function DeliveriesPage() {
   const discrepancies = issues.filter((row) => row.reason?.type === "DISCREPANCY");
   const backloads = issues.filter((row) => row.reason?.type === "BACKLOAD");
 
+  // Fulfillment % is defined as the complement of Discrepancy % + Backload %
+  // (out of all assigned invoices), not v_fulfillment_summary.fulfillment_rate_pct
+  // directly -- that view's version only counts rows with delivered_at already
+  // set, which leaves still-in-transit invoices out of all three buckets and
+  // so the three don't sum to 100%. Computing Fulfillment as 100 minus the
+  // other two guarantees Fulfillment + Discrepancy + Backload always = 100%.
+  const totalAssigned = summary?.total_assigned ?? 0;
+  const discrepancyPct = totalAssigned
+    ? Math.round(((summary?.discrepancy_count ?? 0) / totalAssigned) * 10000) / 100
+    : 0;
+  const backloadPct = totalAssigned
+    ? Math.round(((summary?.backload_count ?? 0) / totalAssigned) * 10000) / 100
+    : 0;
+  const fulfillmentPct = totalAssigned
+    ? Math.round((100 - discrepancyPct - backloadPct) * 100) / 100
+    : 0;
+
   function issueRows(rows: IssueRow[]) {
     return rows.map((row) => ({
       "Document No.": row.invoice?.document_no ?? "",
@@ -198,17 +215,29 @@ export default function DeliveriesPage() {
 
       {summaryError && <p className="mt-4 text-sm text-gray-400">{summaryError}</p>}
 
-      <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2">
+      <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-3">
+        <div className="card">
+          <p className="text-sm font-medium text-gray-500">Delivery Fulfillment</p>
+          <p className="mt-2 text-3xl font-bold text-green-600">
+            {loadingSummary ? "…" : `${fulfillmentPct}%`}
+          </p>
+        </div>
         <div className="card">
           <p className="text-sm font-medium text-gray-500">Discrepancy</p>
           <p className="mt-2 text-3xl font-bold text-amber-600">
             {loadingSummary ? "…" : summary?.discrepancy_count ?? 0}
+          </p>
+          <p className="mt-1 text-xs text-gray-400">
+            {loadingSummary ? "" : `${discrepancyPct}% of assigned`}
           </p>
         </div>
         <div className="card">
           <p className="text-sm font-medium text-gray-500">Backload</p>
           <p className="mt-2 text-3xl font-bold text-red-600">
             {loadingSummary ? "…" : summary?.backload_count ?? 0}
+          </p>
+          <p className="mt-1 text-xs text-gray-400">
+            {loadingSummary ? "" : `${backloadPct}% of assigned`}
           </p>
         </div>
       </div>
