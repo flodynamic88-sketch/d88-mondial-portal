@@ -8,6 +8,7 @@ export const ROLE_LABELS: Record<UserRole, string> = {
   LOGISTICS_ASSOCIATE: "Logistics Associate",
   GENERAL_MANAGER: "General Manager",
   INVOICING_TEAM: "Invoicing Team",
+  JMD_ADMIN: "JMD Admin",
 };
 
 export const ALL_ROLES: UserRole[] = [
@@ -18,4 +19,5 @@ export const ALL_ROLES: UserRole[] = [
   "LOGISTICS_ASSOCIATE",
   "GENERAL_MANAGER",
   "INVOICING_TEAM",
+  "JMD_ADMIN",
 ];

@@ -1,0 +1,23 @@
+-- ============================================================================
+-- JMD Admin: new role, view-only on Route Plan
+-- ============================================================================
+-- JMD_ADMIN's entire access is a read-only view of the Route Plan board --
+-- no other page, and no create/edit/delete rights on Route Plan itself.
+--
+-- No RLS policy changes are needed for this:
+--   - route_plans / route_plan_trucks / route_plan_invoices SELECT policies
+--     are already `using (true)` for any authenticated user (0003), so
+--     JMD_ADMIN gets read access automatically.
+--   - None of the INSERT/UPDATE/DELETE policies on those tables list
+--     JMD_ADMIN, so it is excluded from every write path by omission.
+--   - v_truck_cts (0003) already returns cts_pct/truck_rate as null for any
+--     role other than ADMIN/LOGISTICS_OFFICER, exposing only the cts_pass
+--     boolean -- so JMD_ADMIN automatically sees Pass/Not Pass only, never
+--     the raw CTS percentage or truck rate, same as JMD_PLANNER/GENERAL_MANAGER.
+--
+-- This migration only needs to add the enum value itself. Frontend nav
+-- (Sidebar.tsx) and the /route-plan RequireRole guard are updated separately
+-- to expose *only* the Route Plan page to this role.
+-- ============================================================================
+
+alter type user_role add value if not exists 'JMD_ADMIN';

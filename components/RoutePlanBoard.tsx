@@ -473,47 +473,51 @@ export default function RoutePlanBoard() {
 
       <div className="mt-6 grid grid-cols-1 gap-6 lg:grid-cols-4">
         <div className="card lg:col-span-1">
-          <h2 className="text-sm font-semibold text-gray-700">Create Route Plan</h2>
-          <form onSubmit={handleCreateRoutePlan} className="mt-3 space-y-3">
-            <div>
-              <label className="label">Route Date</label>
-              <input
-                type="date"
-                className="input"
-                value={routeDateInput}
-                onChange={(e) => setRouteDateInput(e.target.value)}
-                required
-              />
-            </div>
-            <div>
-              <label className="label">Label (optional)</label>
-              <input
-                type="text"
-                className="input"
-                placeholder="e.g. NCR Morning Run"
-                value={labelInput}
-                onChange={(e) => setLabelInput(e.target.value)}
-              />
-            </div>
-            <div>
-              <label className="label">Prepared By (optional)</label>
-              <select
-                className="input"
-                value={preparedByInput}
-                onChange={(e) => setPreparedByInput(e.target.value)}
-              >
-                <option value="">Select preparer</option>
-                <option value="Johannes Paulous Ventura">Johannes Paulous Ventura</option>
-                <option value="Junnel Rosel">Junnel Rosel</option>
-              </select>
-            </div>
-            {createError && <p className="text-sm text-red-600">{createError}</p>}
-            <button type="submit" className="btn-primary w-full" disabled={creating}>
-              {creating ? "Creating…" : "Create Route Plan"}
-            </button>
-          </form>
+          {canManagePlans && (
+            <>
+              <h2 className="text-sm font-semibold text-gray-700">Create Route Plan</h2>
+              <form onSubmit={handleCreateRoutePlan} className="mt-3 space-y-3">
+                <div>
+                  <label className="label">Route Date</label>
+                  <input
+                    type="date"
+                    className="input"
+                    value={routeDateInput}
+                    onChange={(e) => setRouteDateInput(e.target.value)}
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="label">Label (optional)</label>
+                  <input
+                    type="text"
+                    className="input"
+                    placeholder="e.g. NCR Morning Run"
+                    value={labelInput}
+                    onChange={(e) => setLabelInput(e.target.value)}
+                  />
+                </div>
+                <div>
+                  <label className="label">Prepared By (optional)</label>
+                  <select
+                    className="input"
+                    value={preparedByInput}
+                    onChange={(e) => setPreparedByInput(e.target.value)}
+                  >
+                    <option value="">Select preparer</option>
+                    <option value="Johannes Paulous Ventura">Johannes Paulous Ventura</option>
+                    <option value="Junnel Rosel">Junnel Rosel</option>
+                  </select>
+                </div>
+                {createError && <p className="text-sm text-red-600">{createError}</p>}
+                <button type="submit" className="btn-primary w-full" disabled={creating}>
+                  {creating ? "Creating…" : "Create Route Plan"}
+                </button>
+              </form>
+            </>
+          )}
 
-          <div className="mt-6">
+          <div className={canManagePlans ? "mt-6" : ""}>
             <h2 className="text-sm font-semibold text-gray-700">Existing Route Plans</h2>
             <div className="mt-2 max-h-96 space-y-1 overflow-y-auto">
               {loadingPlans && <p className="text-sm text-gray-400">Loading…</p>}
@@ -628,15 +632,15 @@ export default function RoutePlanBoard() {
                         </button>
                       </>
                     ) : (
-                      <>
-                        <button
-                          type="button"
-                          className="tab-button tab-button-inactive"
-                          onClick={() => setEditingHeader(true)}
-                        >
-                          Edit
-                        </button>
-                        {canManagePlans && (
+                      canManagePlans && (
+                        <>
+                          <button
+                            type="button"
+                            className="tab-button tab-button-inactive"
+                            onClick={() => setEditingHeader(true)}
+                          >
+                            Edit
+                          </button>
                           <button
                             type="button"
                             className="tab-button border border-red-200 bg-white text-red-600 hover:bg-red-50"
@@ -645,8 +649,8 @@ export default function RoutePlanBoard() {
                           >
                             {deletingPlan ? "Deleting…" : "Delete Route Plan"}
                           </button>
-                        )}
-                      </>
+                        </>
+                      )
                     )}
                     {selectedPlan.approved_at ? (
                       <span className="rounded-full bg-green-50 px-3 py-1 text-xs font-medium text-green-700">
@@ -673,7 +677,7 @@ export default function RoutePlanBoard() {
                 <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
                   <div>
                     <label className="label">Checked By</label>
-                    {profile?.role === "LOGISTICS_OFFICER" ? (
+                    {!canManagePlans || profile?.role === "LOGISTICS_OFFICER" ? (
                       <p className="input flex items-center bg-gray-50 text-gray-700">
                         {checkedByInput || "—"}
                       </p>
@@ -698,7 +702,7 @@ export default function RoutePlanBoard() {
 
                 {signoffError && <p className="mt-2 text-sm text-red-600">{signoffError}</p>}
 
-                {!selectedPlan.approved_at && (
+                {canManagePlans && !selectedPlan.approved_at && (
                   <div className="mt-3 flex flex-wrap gap-2">
                     <button
                       type="button"
@@ -721,10 +725,12 @@ export default function RoutePlanBoard() {
                   </div>
                 )}
 
-                <div className="mt-4">
-                  <p className="label mb-2">Add Truck</p>
-                  <AddTruckForm routePlanId={selectedPlan.id} onCreated={loadTrucks} />
-                </div>
+                {canManagePlans && (
+                  <div className="mt-4">
+                    <p className="label mb-2">Add Truck</p>
+                    <AddTruckForm routePlanId={selectedPlan.id} onCreated={loadTrucks} />
+                  </div>
+                )}
               </div>
 
               {loadingTrucks && <p className="text-sm text-gray-400">Loading trucks…</p>}

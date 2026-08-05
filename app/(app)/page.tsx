@@ -303,7 +303,7 @@ export default async function DashboardPage() {
       .select("*")
       .eq("id", user.id)
       .maybeSingle<UserProfile>();
-    if (profile?.role === "JMD_PLANNER") {
+    if (profile?.role === "JMD_PLANNER" || profile?.role === "JMD_ADMIN") {
       redirect("/route-plan");
     }
   }

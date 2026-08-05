@@ -36,7 +36,16 @@ const NAV_ITEMS: NavItem[] = [
   {
     href: "/route-plan",
     label: "Route Plan",
-    roles: ["ADMIN", "LOGISTICS_OFFICER", "JMD_PLANNER", "LOGISTICS_ASSOCIATE", "GENERAL_MANAGER"],
+    // JMD_ADMIN's entire access is a view-only Route Plan -- it is
+    // deliberately not added to any other nav item below.
+    roles: [
+      "ADMIN",
+      "LOGISTICS_OFFICER",
+      "JMD_PLANNER",
+      "LOGISTICS_ASSOCIATE",
+      "GENERAL_MANAGER",
+      "JMD_ADMIN",
+    ],
   },
   {
     href: "/deliveries",

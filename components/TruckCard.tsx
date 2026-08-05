@@ -97,6 +97,15 @@ export default function TruckCard({
   // never see it.
   const canSeeArea =
     role === "ADMIN" || role === "LOGISTICS_OFFICER" || role === "LOGISTICS_ASSOCIATE";
+  // Matches the route_plan_invoices UPDATE RLS policy (0003 + 0020) -- the
+  // only roles that can actually save a Qty/Box edit. View-only roles like
+  // GENERAL_MANAGER, MONDIAL_TEAM, INVOICING_TEAM, and JMD_ADMIN previously
+  // saw a live-looking input here with no server-side effect on save.
+  const canEditQtyBox =
+    role === "ADMIN" ||
+    role === "JMD_PLANNER" ||
+    role === "LOGISTICS_OFFICER" ||
+    role === "LOGISTICS_ASSOCIATE";
 
   const [rows, setRows] = useState<AssignedInvoiceRow[]>([]);
   const [loadingRows, setLoadingRows] = useState(true);
@@ -963,20 +972,24 @@ export default function TruckCard({
                       <p className="text-xs text-gray-400">{row.invoice?.branch_address ?? "—"}</p>
                     </td>
                     <td className="py-2 pr-4">
-                      <input
-                        type="number"
-                        step="1"
-                        min="0"
-                        className="input no-spinner w-20 text-center"
-                        defaultValue={row.qty_box ?? ""}
-                        onBlur={(e) => handleQtyBoxChange(row.id, e.target.value)}
-                        onKeyDown={(e) => {
-                          if (e.key === "Enter") {
-                            e.preventDefault();
-                            e.currentTarget.blur();
-                          }
-                        }}
-                      />
+                      {canEditQtyBox ? (
+                        <input
+                          type="number"
+                          step="1"
+                          min="0"
+                          className="input no-spinner w-20 text-center"
+                          defaultValue={row.qty_box ?? ""}
+                          onBlur={(e) => handleQtyBoxChange(row.id, e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter") {
+                              e.preventDefault();
+                              e.currentTarget.blur();
+                            }
+                          }}
+                        />
+                      ) : (
+                        <span className="text-center text-gray-700">{row.qty_box ?? "—"}</span>
+                      )}
                     </td>
                     <td className="py-2 pr-4">
                       {(row.invoice?.amount ?? 0).toLocaleString(undefined, {
