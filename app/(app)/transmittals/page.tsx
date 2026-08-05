@@ -239,6 +239,25 @@ function GenerateTab({
     }
   }
 
+  async function handleDateTransmittedChange(id: string, value: string) {
+    if (!value) return;
+    try {
+      const supabase = createClient();
+      const { error } = await supabase
+        .from("transmittals")
+        .update({ date_transmitted: value })
+        .eq("id", id);
+      if (!error) {
+        showToast("Transmittal date updated.", "success");
+        await loadRecent();
+      } else {
+        showToast("Failed to update transmittal date.", "error");
+      }
+    } catch {
+      showToast("Failed to update transmittal date.", "error");
+    }
+  }
+
   function toggleRow(id: string) {
     setChecked((prev) => {
       const next = new Set(prev);
@@ -530,7 +549,16 @@ function GenerateTab({
                     <td className="py-2 pr-4 text-gray-500">{t.transmittal_no ?? "—"}</td>
                     <td className="py-2 pr-4">{new Date(t.delivery_date).toLocaleDateString()}</td>
                     <td className="py-2 pr-4">
-                      {new Date(t.date_transmitted).toLocaleDateString()}
+                      {canGenerate ? (
+                        <input
+                          type="date"
+                          className="input input-sm"
+                          value={new Date(t.date_transmitted).toISOString().slice(0, 10)}
+                          onChange={(e) => handleDateTransmittedChange(t.id, e.target.value)}
+                        />
+                      ) : (
+                        new Date(t.date_transmitted).toLocaleDateString()
+                      )}
                     </td>
                     <td className="py-2 pr-4">{t.item_count}</td>
                     <td className="py-2 pr-4">{formatMoney(t.amount)}</td>
