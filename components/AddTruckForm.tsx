@@ -38,7 +38,12 @@ export default function AddTruckForm({
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (mainTruckId) return; // convoy trucks never need their own destination/rate
+    // Convoy trucks never need their own destination/rate, and only
+    // Admin/Logistics Officer are allowed to set a destination at all (see
+    // enforce_truck_rate_edit() in 0034_destination_officer_admin_only.sql)
+    // -- skip the fetch for everyone else so a JMD Planner never sees a
+    // field they can't use.
+    if (mainTruckId || !canSetTruckRate) return;
     const supabase = createClient();
     supabase
       .from("v_trucking_rates")
@@ -50,7 +55,7 @@ export default function AddTruckForm({
           );
         }
       });
-  }, [mainTruckId]);
+  }, [mainTruckId, canSetTruckRate]);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -77,7 +82,11 @@ export default function AddTruckForm({
         route_plan_id: routePlanId,
         plate_number: plateNumber.trim(),
         carrier: carrier.trim() || null,
-        destination: destination.trim() || null,
+        // Destination can only be set by Admin/Logistics Officer -- see
+        // enforce_truck_rate_edit() in 0034_destination_officer_admin_only.sql.
+        // Other roles never render the picker below, so `destination` stays
+        // "" and this resolves to null, which the trigger always allows.
+        destination: canSetTruckRate ? destination.trim() || null : null,
         truck_rate: rateNumber,
         is_convoy: Boolean(mainTruckId),
         main_truck_id: mainTruckId ?? null,
@@ -121,7 +130,13 @@ export default function AddTruckForm({
           required
         />
       </div>
-      {!mainTruckId && (
+      {/* Destination is Admin/Logistics Officer only (see
+          enforce_truck_rate_edit() in 0034_destination_officer_admin_only.sql)
+          -- hidden entirely for other roles (e.g. JMD Planner) so it's never
+          a required or even visible field blocking truck/route creation.
+          It can always be added later by an Officer/Admin via the Truck
+          Details edit row. */}
+      {!mainTruckId && canSetTruckRate && (
         <div>
           <label className="label">Destination</label>
           <select
@@ -137,7 +152,8 @@ export default function AddTruckForm({
             ))}
           </select>
           <p className="text-xs text-gray-400 mt-1">
-            Truck rate is set automatically based on destination.
+            Truck rate is set automatically based on destination. Can also be
+            set later if not known yet.
           </p>
         </div>
       )}

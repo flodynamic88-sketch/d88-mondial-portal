@@ -202,9 +202,11 @@ export default function TruckCard({
   ]);
 
   // Destination options for the picker -- convoy trucks never need their own
-  // destination (they're covered by the main truck's), so skip the fetch.
+  // destination (they're covered by the main truck's), and only Admin/
+  // Logistics Officer are allowed to set one (0034_destination_officer_admin_only.sql),
+  // so skip the fetch for everyone else.
   useEffect(() => {
-    if (isConvoy) return;
+    if (isConvoy || !canSeeTruckRate) return;
     const supabase = createClient();
     supabase
       .from("v_trucking_rates")
@@ -218,7 +220,7 @@ export default function TruckCard({
           );
         }
       });
-  }, [isConvoy]);
+  }, [isConvoy, canSeeTruckRate]);
 
   async function handleSaveTruckDetails() {
     setActionError(null);
@@ -265,7 +267,14 @@ export default function TruckCard({
           ...(rateNumber !== undefined ? { truck_rate: rateNumber } : {}),
           // Convoy trucks never carry their own destination -- the trigger
           // derives their main truck's rate instead (0033_trucking_rates.sql).
-          ...(isConvoy ? {} : { destination: detailsDraft.destination.trim() || null }),
+          // Destination is Admin/Logistics Officer only
+          // (0034_destination_officer_admin_only.sql) -- for other roles the
+          // select never renders so the draft always matches the existing
+          // value; omit it from the payload entirely so we never resend a
+          // stale value for a role that can't see/edit it.
+          ...(isConvoy || !canSeeTruckRate
+            ? {}
+            : { destination: detailsDraft.destination.trim() || null }),
         })
         .eq("id", truck.id);
       if (error) {
@@ -706,7 +715,7 @@ export default function TruckCard({
         <td className="py-2 pr-3 text-xs text-gray-700">
           {isConvoy ? (
             <span className="text-gray-400">Included in main</span>
-          ) : editingDetails ? (
+          ) : editingDetails && canSeeTruckRate ? (
             <select
               className="input w-32 text-xs"
               value={detailsDraft.destination}
