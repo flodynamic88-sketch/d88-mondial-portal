@@ -4,11 +4,21 @@ const config: Config = {
   content: [
     "./app/**/*.{js,ts,jsx,tsx,mdx}",
     "./components/**/*.{js,ts,jsx,tsx,mdx}",
+    "./lib/**/*.{js,ts,jsx,tsx,mdx}",
   ],
   theme: {
     extend: {
       colors: {
         brand: {
+          // DEFAULT/dark/light aliases exist for parity with ported Mercury
+          // (ex-Flo Portal) components, which were authored against a
+          // simpler { DEFAULT, dark, light } brand palette. Mapped onto the
+          // same blue scale Mondial already uses elsewhere so Mercury pages
+          // look consistent with the rest of the app without needing every
+          // ported component's class names rewritten.
+          DEFAULT: "#1d4ed8",
+          dark: "#1e40af",
+          light: "#eff6ff",
           50: "#eff6ff",
           100: "#dbeafe",
           200: "#bfdbfe",

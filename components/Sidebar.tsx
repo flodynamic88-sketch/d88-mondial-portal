@@ -95,7 +95,17 @@ export default function Sidebar() {
     getAppSetting(LOGO_SETTING_KEY).then(setLogoUrl);
   }, []);
 
-  const visibleItems = NAV_ITEMS.filter((item) => !item.roles || (profile && item.roles.includes(profile.role)));
+  // "Mercury" (the ported Flo Portal admin section) is appended here --
+  // never injected as a static NAV_ITEMS entry -- so it is completely
+  // absent from the DOM for every role except ADMIN, not merely hidden.
+  // Direct-URL access is separately blocked server-side by
+  // app/(app)/mercury/layout.tsx.
+  const items: NavItem[] =
+    profile?.role === "ADMIN"
+      ? [...NAV_ITEMS, { href: "/mercury", label: "Mercury", roles: ["ADMIN"] }]
+      : NAV_ITEMS;
+
+  const visibleItems = items.filter((item) => !item.roles || (profile && item.roles.includes(profile.role)));
 
   const initials = profile?.username
     ? profile.username.slice(0, 2).toUpperCase()
@@ -109,28 +119,26 @@ export default function Sidebar() {
   }
 
   return (
-    <aside className="no-print flex h-screen w-64 flex-shrink-0 flex-col border-r border-gray-800 bg-black">
-      <div className="border-b border-gray-800 px-5 py-5">
-        <div className="flex items-center gap-2.5">
-          {logoUrl ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img
-              src={logoUrl}
-              alt="Dynamic88 logo"
-              className="h-9 w-9 flex-shrink-0 rounded-lg bg-white object-contain p-1"
-            />
-          ) : (
-            <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-brand-500 to-brand-700 text-sm font-bold text-white shadow-sm">
-              M
-            </div>
-          )}
-          <div className="min-w-0">
-            <p className="truncate text-sm font-bold leading-tight text-white">Mondial Portal</p>
-            <p className="truncate text-xs text-gray-400">Dynamic88 Solutions</p>
+    <header className="no-print flex h-14 w-full flex-shrink-0 items-center gap-4 border-b border-gray-800 bg-black px-4 sm:px-6">
+      <Link href="/" className="flex flex-shrink-0 items-center gap-2.5">
+        {logoUrl ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={logoUrl}
+            alt="Dynamic88 logo"
+            className="h-8 w-8 flex-shrink-0 rounded-lg bg-white object-contain p-1"
+          />
+        ) : (
+          <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-brand-500 to-brand-700 text-sm font-bold text-white shadow-sm">
+            M
           </div>
+        )}
+        <div className="hidden min-w-0 sm:block">
+          <p className="truncate text-sm font-bold leading-tight text-white">Mondial Portal</p>
         </div>
-      </div>
-      <nav className="flex-1 space-y-0.5 overflow-y-auto px-3 py-4">
+      </Link>
+
+      <nav className="flex min-w-0 flex-1 items-center gap-1 overflow-x-auto py-2">
         {visibleItems.map((item) => {
           const isActive =
             item.href === "/" ? pathname === "/" : pathname?.startsWith(item.href);
@@ -138,7 +146,7 @@ export default function Sidebar() {
             <Link
               key={item.href}
               href={item.href}
-              className={`block rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
+              className={`flex-shrink-0 whitespace-nowrap rounded-lg px-3 py-1.5 text-sm font-medium transition-colors ${
                 isActive
                   ? "bg-brand-600 text-white"
                   : "text-gray-300 hover:bg-gray-800 hover:text-white"
@@ -149,37 +157,35 @@ export default function Sidebar() {
           );
         })}
       </nav>
-      <div className="border-t border-gray-800 px-5 py-4">
+
+      <div className="flex flex-shrink-0 items-center gap-3">
         {profile && (
-          <div className="mb-3 flex items-center gap-2.5">
+          <div className="hidden items-center gap-2 md:flex">
             {profile.avatar_url ? (
               // eslint-disable-next-line @next/next/no-img-element
               <img
                 src={profile.avatar_url}
                 alt=""
-                className="h-8 w-8 flex-shrink-0 rounded-full object-cover"
+                className="h-7 w-7 flex-shrink-0 rounded-full object-cover"
               />
             ) : (
-              <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-brand-600 text-xs font-semibold text-white">
+              <div className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-full bg-brand-600 text-xs font-semibold text-white">
                 {initials}
               </div>
             )}
-            <div className="min-w-0">
-              <p className="truncate text-sm font-medium text-white">{profile.username}</p>
-              <p className="truncate text-xs text-gray-400">{ROLE_LABELS[profile.role]}</p>
+            <div className="min-w-0 leading-tight">
+              <p className="truncate text-xs font-medium text-white">{profile.username}</p>
+              <p className="truncate text-[11px] text-gray-400">{ROLE_LABELS[profile.role]}</p>
             </div>
           </div>
         )}
         <button
           onClick={handleSignOut}
-          className="w-full rounded-lg border border-gray-700 px-3 py-1.5 text-xs font-medium text-gray-300 transition-colors hover:border-gray-600 hover:bg-gray-800 hover:text-white"
+          className="flex-shrink-0 rounded-lg border border-gray-700 px-3 py-1.5 text-xs font-medium text-gray-300 transition-colors hover:border-gray-600 hover:bg-gray-800 hover:text-white"
         >
           Sign Out
         </button>
-        <p className="mt-3 text-xs text-gray-500">
-          &copy; {new Date().getFullYear()} Dynamic88 Solutions
-        </p>
       </div>
-    </aside>
+    </header>
   );
 }
