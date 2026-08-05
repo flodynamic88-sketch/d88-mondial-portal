@@ -121,7 +121,7 @@ export default function TruckCard({
     destination: truck.destination ?? "",
   });
   const [destinationOptions, setDestinationOptions] = useState<
-    { destination: string; area: string }[]
+    { destination: string; area: string; rate: number | null; convoy_rate: number | null }[]
   >([]);
   const [customEntry, setCustomEntry] = useState<{
     rowId: string;
@@ -204,13 +204,17 @@ export default function TruckCard({
   // Destination options for the picker -- convoy trucks never need their own
   // destination (they're covered by the main truck's), and only Admin/
   // Logistics Officer are allowed to set one (0034_destination_officer_admin_only.sql),
-  // so skip the fetch for everyone else.
+  // so skip the fetch for everyone else. Also pull rate/convoy_rate (masked
+  // to the same ADMIN/LOGISTICS_OFFICER roles in v_trucking_rates, so this is
+  // safe) so the edit row can preview the rate the trigger will derive for
+  // whichever destination is currently selected in the draft, instead of
+  // showing the truck's last-saved rate while a new destination is pending.
   useEffect(() => {
     if (isConvoy || !canSeeTruckRate) return;
     const supabase = createClient();
     supabase
       .from("v_trucking_rates")
-      .select("destination, area")
+      .select("destination, area, rate, convoy_rate")
       .then(({ data }) => {
         if (data) {
           setDestinationOptions(
@@ -641,6 +645,21 @@ export default function TruckCard({
   const backloadReasons = deliveryReasons.filter((r) => r.type === "BACKLOAD");
   const expanded = expandedTruckId === truck.id;
 
+  // Live preview of the auto-derived rate for whatever destination is
+  // currently selected in the edit draft (which may not be saved yet) --
+  // mirrors enforce_truck_rate_edit()'s own lookup (convoy_rate once this
+  // truck has any convoy trucks attached, plain rate otherwise) so the row
+  // doesn't show the truck's last-*saved* rate while a different, unsaved
+  // destination is selected in the dropdown.
+  const draftDestinationOption = detailsDraft.destination.trim()
+    ? destinationOptions.find((d) => d.destination === detailsDraft.destination.trim())
+    : undefined;
+  const hasConvoyTrucks = convoys.length > 0;
+  const previewTruckRate = draftDestinationOption
+    ? (hasConvoyTrucks ? draftDestinationOption.convoy_rate : draftDestinationOption.rate) ??
+      truck.truck_rate
+    : truck.truck_rate;
+
   return (
     <>
       <tr className={`border-t border-gray-100 align-top ${isConvoy ? "bg-gray-50/60" : ""}`}>
@@ -760,10 +779,16 @@ export default function TruckCard({
             ) : (
               <div className="flex flex-col">
                 <span>
-                  {(truck.truck_rate ?? 0).toLocaleString(undefined, {
-                    minimumFractionDigits: 2,
-                    maximumFractionDigits: 2,
-                  })}
+                  {/* While editing, preview the rate the trigger will derive
+                      for whichever destination is currently selected in the
+                      draft (previewTruckRate) rather than the truck's
+                      last-saved rate (truck.truck_rate) -- otherwise picking
+                      a new destination shows the OLD destination's rate
+                      until Save is clicked, which reads as a mismatch. */}
+                  {((editingDetails ? previewTruckRate : truck.truck_rate) ?? 0).toLocaleString(
+                    undefined,
+                    { minimumFractionDigits: 2, maximumFractionDigits: 2 }
+                  )}
                 </span>
                 {/* Once a destination is set, truck_rate is always derived
                     server-side from trucking_rates (convoy_rate instead of
