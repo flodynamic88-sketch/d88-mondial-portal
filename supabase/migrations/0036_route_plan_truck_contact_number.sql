@@ -15,6 +15,9 @@ grant select (
 -- Every authenticated role may edit the contact number from the report page.
 grant update (contact_number) on route_plan_trucks to authenticated;
 
+-- Note: CREATE OR REPLACE VIEW cannot reorder or rename existing output
+-- columns -- new columns must be appended at the end, so contact_number
+-- goes after area (not next to destination) despite the logical grouping.
 create or replace view v_route_plan_trucks
 with (security_invoker = false) as
 select
@@ -31,8 +34,8 @@ select
   t.helper1_name,
   t.helper2_name,
   t.destination,
-  t.contact_number,
-  case when public.current_user_role() in ('ADMIN','LOGISTICS_OFFICER','LOGISTICS_ASSOCIATE') then tr.area else null end as area
+  case when public.current_user_role() in ('ADMIN','LOGISTICS_OFFICER','LOGISTICS_ASSOCIATE') then tr.area else null end as area,
+  t.contact_number
 from route_plan_trucks t
 left join trucking_rates tr on tr.destination = t.destination;
 
