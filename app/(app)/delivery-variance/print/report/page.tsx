@@ -25,6 +25,15 @@ function ReportContent() {
   const searchParams = useSearchParams();
   const from = searchParams.get("from") ?? "";
   const to = searchParams.get("to") ?? "";
+  const idsParam = searchParams.get("ids") ?? "";
+  const selectedIds = useMemo(
+    () =>
+      idsParam
+        .split(",")
+        .map((s) => s.trim())
+        .filter(Boolean),
+    [idsParam]
+  );
 
   const [logs, setLogs] = useState<VDeliveryVarianceLog[]>([]);
   const [logoUrl, setLogoUrl] = useState<string | null>(null);
@@ -41,8 +50,12 @@ function ReportContent() {
           .from("v_delivery_variance_logs")
           .select("*")
           .order("log_date", { ascending: true });
-        if (from) query = query.gte("log_date", from);
-        if (to) query = query.lte("log_date", to);
+        if (selectedIds.length > 0) {
+          query = query.in("id", selectedIds);
+        } else {
+          if (from) query = query.gte("log_date", from);
+          if (to) query = query.lte("log_date", to);
+        }
 
         const [{ data, error }, logo] = await Promise.all([
           query,
@@ -61,7 +74,7 @@ function ReportContent() {
         setLoading(false);
       }
     })();
-  }, [from, to]);
+  }, [from, to, selectedIds]);
 
   const reasonBreakdown = useMemo(() => {
     const map = new Map<string, { label: string; type: string; count: number }>();
@@ -114,10 +127,15 @@ function ReportContent() {
             <p className="text-lg font-bold tracking-wide text-gray-900">VARIANCE DELIVERY LOG</p>
           </div>
           <div className="text-right">
-            <p className="text-xs uppercase tracking-wide text-gray-500">Period Covered</p>
+            <p className="text-xs uppercase tracking-wide text-gray-500">
+              {selectedIds.length > 0 ? "Selected Invoices" : "Period Covered"}
+            </p>
             <p className="font-semibold">
-              {from ? new Date(from).toLocaleDateString() : "…"} –{" "}
-              {to ? new Date(to).toLocaleDateString() : "…"}
+              {selectedIds.length > 0
+                ? `${selectedIds.length} invoice(s), hand-picked`
+                : `${from ? new Date(from).toLocaleDateString() : "…"} – ${
+                    to ? new Date(to).toLocaleDateString() : "…"
+                  }`}
             </p>
           </div>
         </div>
@@ -200,7 +218,9 @@ function ReportContent() {
               {logs.length === 0 && (
                 <tr>
                   <td colSpan={7} className="py-3 text-center text-gray-400">
-                    No delivery variance logs in this date range.
+                    {selectedIds.length > 0
+                      ? "No delivery variance logs found for the selected invoices."
+                      : "No delivery variance logs in this date range."}
                   </td>
                 </tr>
               )}

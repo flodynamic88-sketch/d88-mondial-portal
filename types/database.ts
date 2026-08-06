@@ -175,6 +175,10 @@ export interface DeliveryVarianceLog {
   received_by_1: string | null;
   received_by_2: string | null;
   remarks: string | null;
+  /** Optional lump-sum total for BACKLOAD logs when the receipt isn't
+   *  itemized -- when set, this overrides the sum of delivery_variance_log_items
+   *  as the log's total (see v_delivery_variance_logs.total_amount). */
+  backload_total_amount: number | null;
   created_by: string | null;
   created_at: string | null;
   updated_at: string | null;
@@ -328,6 +332,10 @@ export interface VDeliveryVarianceLog {
    *  Plan board (RoutePlanBoard.tsx), reproduced server-side via window
    *  functions in v_delivery_variance_logs. Null for manually-created logs. */
   truck_label: string | null;
+  /** Optional lump-sum total for BACKLOAD logs when the receipt isn't
+   *  itemized. When set, total_amount above reflects this value instead of
+   *  the sum of items. */
+  backload_total_amount: number | null;
 }
 
 export interface VDeliveryVarianceReasonSummary {

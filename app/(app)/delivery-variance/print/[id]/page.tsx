@@ -62,7 +62,8 @@ export default function PrintDeliveryVarianceLogPage() {
     })();
   }, [id]);
 
-  const totalAmount = items.reduce((sum, item) => sum + (item.amount ?? 0), 0);
+  const itemsSum = items.reduce((sum, item) => sum + (item.amount ?? 0), 0);
+  const totalAmount = log?.backload_total_amount ?? itemsSum;
 
   if (loading) {
     return <p className="p-8 text-sm text-gray-400">Loading…</p>;
@@ -152,7 +153,17 @@ export default function PrintDeliveryVarianceLogPage() {
                 <td className="py-2 pr-2">{item.remarks ?? "—"}</td>
               </tr>
             ))}
-            {items.length === 0 && (
+            {items.length === 0 && log.backload_total_amount != null && (
+              <tr>
+                <td colSpan={4} className="py-2 pl-2 text-gray-700">
+                  Backload receipt total (not itemized)
+                </td>
+                <td colSpan={3} className="py-2 font-medium">
+                  {formatMoney(log.backload_total_amount)}
+                </td>
+              </tr>
+            )}
+            {items.length === 0 && log.backload_total_amount == null && (
               <tr>
                 <td colSpan={7} className="py-3 text-center text-gray-400">
                   No items recorded.

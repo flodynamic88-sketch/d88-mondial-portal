@@ -76,7 +76,13 @@ export default function DeliveryVarianceLogPage() {
   const [editReceivedBy1, setEditReceivedBy1] = useState("");
   const [editReceivedBy2, setEditReceivedBy2] = useState("");
   const [editRemarks, setEditRemarks] = useState("");
+  const [editBackloadTotal, setEditBackloadTotal] = useState("");
   const [savingHeader, setSavingHeader] = useState(false);
+
+  /** Logs the user has explicitly picked for the printable bulk report --
+   *  when non-empty, the "Print Report" link includes only these instead of
+   *  everything in the date range. */
+  const [selectedForPrint, setSelectedForPrint] = useState<Set<string>>(new Set());
 
   const [newItem, setNewItem] = useState(emptyNewItem);
   const [savingItem, setSavingItem] = useState(false);
@@ -161,6 +167,38 @@ export default function DeliveryVarianceLogPage() {
 
   const topReason = reasonSummary[0];
 
+  function toggleSelectForPrint(id: string) {
+    setSelectedForPrint((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+
+  const allVisibleSelected =
+    filteredLogs.length > 0 && filteredLogs.every((l) => selectedForPrint.has(l.id));
+
+  function toggleSelectAllVisible() {
+    setSelectedForPrint((prev) => {
+      const next = new Set(prev);
+      if (allVisibleSelected) {
+        filteredLogs.forEach((l) => next.delete(l.id));
+      } else {
+        filteredLogs.forEach((l) => next.add(l.id));
+      }
+      return next;
+    });
+  }
+
+  const printReportHref =
+    selectedForPrint.size > 0
+      ? `/delivery-variance/print/report?ids=${Array.from(selectedForPrint).join(",")}`
+      : `/delivery-variance/print/report?from=${dateFrom}&to=${dateTo}`;
+
+  const editReasonType = deliveryReasons.find((r) => r.id === editReasonId)?.type ?? null;
+  const isBackloadEdit = editReasonType === "BACKLOAD";
+
   async function loadItems(logId: string) {
     setItemsLoading(true);
     try {
@@ -185,6 +223,9 @@ export default function DeliveryVarianceLogPage() {
     setEditReceivedBy1(log.received_by_1 ?? "");
     setEditReceivedBy2(log.received_by_2 ?? "");
     setEditRemarks(log.remarks ?? "");
+    setEditBackloadTotal(
+      log.backload_total_amount != null ? String(log.backload_total_amount) : ""
+    );
     setNewItem(emptyNewItem);
     setActionError(null);
     loadItems(log.id);
@@ -213,6 +254,10 @@ export default function DeliveryVarianceLogPage() {
           received_by_1: editReceivedBy1.trim() || null,
           received_by_2: editReceivedBy2.trim() || null,
           remarks: editRemarks.trim() || null,
+          backload_total_amount:
+            isBackloadEdit && editBackloadTotal.trim() !== ""
+              ? Number(editBackloadTotal)
+              : null,
         })
         .eq("id", selectedId);
       if (error) {
@@ -572,15 +617,30 @@ export default function DeliveryVarianceLogPage() {
                   Export to Excel
                 </button>
               )}
+              {selectedForPrint.size > 0 && (
+                <button
+                  type="button"
+                  className="tab-button tab-button-inactive"
+                  onClick={() => setSelectedForPrint(new Set())}
+                >
+                  Clear selection ({selectedForPrint.size})
+                </button>
+              )}
               <Link
-                href={`/delivery-variance/print/report?from=${dateFrom}&to=${dateTo}`}
+                href={printReportHref}
                 target="_blank"
                 className="tab-button tab-button-inactive"
               >
-                Print Report
+                {selectedForPrint.size > 0
+                  ? `Print Report (${selectedForPrint.size} selected)`
+                  : "Print Report"}
               </Link>
             </div>
           </div>
+          <p className="mt-2 text-xs text-gray-400">
+            Tick the checkbox on any row(s) below to include only those in the printed report.
+            Leave unticked to print everything in the date range above.
+          </p>
 
           {showCreate && (
             <div className="mt-4 rounded-md border border-dashed border-gray-300 p-3">
@@ -672,6 +732,14 @@ export default function DeliveryVarianceLogPage() {
               <table className="min-w-full divide-y divide-gray-200 text-sm">
                 <thead>
                   <tr className="text-left text-xs font-semibold uppercase text-gray-500">
+                    <th className="py-2 pr-4">
+                      <input
+                        type="checkbox"
+                        checked={allVisibleSelected}
+                        onChange={toggleSelectAllVisible}
+                        title="Select all visible for Print Report"
+                      />
+                    </th>
                     <th className="py-2 pr-4">Series #</th>
                     <th className="py-2 pr-4">Document No.</th>
                     <th className="py-2 pr-4">Retail Chain</th>
@@ -687,6 +755,14 @@ export default function DeliveryVarianceLogPage() {
                 <tbody className="divide-y divide-gray-100">
                   {filteredLogs.map((log) => (
                     <tr key={log.id} className={selectedId === log.id ? "bg-brand-50" : undefined}>
+                      <td className="py-2 pr-4">
+                        <input
+                          type="checkbox"
+                          checked={selectedForPrint.has(log.id)}
+                          onChange={() => toggleSelectForPrint(log.id)}
+                          title="Include in Print Report"
+                        />
+                      </td>
                       <td className="py-2 pr-4 font-medium text-gray-800">{log.series_no}</td>
                       <td className="py-2 pr-4">{log.document_no ?? "—"}</td>
                       <td className="py-2 pr-4">{log.retail_chain ?? "—"}</td>
@@ -829,6 +905,26 @@ export default function DeliveryVarianceLogPage() {
                   </optgroup>
                 </select>
               </div>
+              {isBackloadEdit && (
+                <div>
+                  <label className="label" htmlFor="editBackloadTotal">
+                    Total Amount (Backload Receipt)
+                  </label>
+                  <input
+                    id="editBackloadTotal"
+                    type="number"
+                    step="0.01"
+                    className="input"
+                    placeholder="Lump sum, if not itemizing"
+                    value={editBackloadTotal}
+                    onChange={(e) => setEditBackloadTotal(e.target.value)}
+                    disabled={!canEdit}
+                  />
+                  <p className="mt-1 text-xs text-gray-400">
+                    Optional -- enter the receipt&apos;s total here instead of itemizing below.
+                  </p>
+                </div>
+              )}
               <div>
                 <label className="label" htmlFor="editPreparedBy">
                   Prepared By
@@ -909,6 +1005,12 @@ export default function DeliveryVarianceLogPage() {
 
             <div className="mt-6">
               <h3 className="text-sm font-semibold text-gray-700">Items</h3>
+              {isBackloadEdit && editBackloadTotal.trim() !== "" && (
+                <p className="mt-1 text-xs text-amber-600">
+                  A Total Amount is set above -- it will be used as this log&apos;s total instead
+                  of the items below. Clear it if you&apos;d rather itemize.
+                </p>
+              )}
               {itemsLoading && <p className="mt-2 text-sm text-gray-400">Loading…</p>}
               {!itemsLoading && (
                 <div className="mt-2 overflow-x-auto">
