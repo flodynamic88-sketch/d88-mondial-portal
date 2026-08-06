@@ -118,6 +118,8 @@ export interface RoutePlanTruck {
   destination: string | null;
   /** Editable contact number shown on the per-day Delivery Route report. Update restricted to ADMIN/JMD_PLANNER/LOGISTICS_OFFICER via RLS. */
   contact_number: string | null;
+  /** When true, truck_rate is a manually-negotiated one-off amount and the destination-based rate card lookup is skipped. ADMIN/LOGISTICS_OFFICER only. */
+  is_negotiated_rate: boolean;
   /** Looked up from trucking_rates.area via destination. View-only; masked to ADMIN/LOGISTICS_OFFICER/LOGISTICS_ASSOCIATE. */
   area?: string | null;
 }
@@ -413,6 +415,8 @@ export interface VTruckingBillingStatement {
   has_convoy: boolean;
   /** Delivery destination town/city of the truck (see route_plan_trucks.destination). */
   destination: string | null;
+  /** True when truck_rate is a manually-negotiated one-off amount (destination rate card lookup was skipped). */
+  is_negotiated_rate: boolean;
 }
 
 export interface VTruckingBillingStatementItem {
@@ -448,6 +452,8 @@ export interface VTruckingBillingCandidate {
   destination: string | null;
   /** Looked up from trucking_rates.area via destination. Masked to ADMIN/LOGISTICS_OFFICER/LOGISTICS_ASSOCIATE. */
   area: string | null;
+  /** True when truck_rate is a manually-negotiated one-off amount (destination rate card lookup was skipped). */
+  is_negotiated_rate: boolean;
 }
 
 export interface Database {

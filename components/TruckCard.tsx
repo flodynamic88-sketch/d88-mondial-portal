@@ -147,6 +147,7 @@ export default function TruckCard({
     helper2_name: truck.helper2_name ?? "",
     truck_rate: truck.truck_rate !== null && truck.truck_rate !== undefined ? String(truck.truck_rate) : "",
     destination: truck.destination ?? "",
+    is_negotiated_rate: truck.is_negotiated_rate ?? false,
   });
   const [destinationOptions, setDestinationOptions] = useState<
     { destination: string; area: string; rate: number | null; convoy_rate: number | null }[]
@@ -247,6 +248,7 @@ export default function TruckCard({
         truck_rate:
           truck.truck_rate !== null && truck.truck_rate !== undefined ? String(truck.truck_rate) : "",
         destination: truck.destination ?? "",
+        is_negotiated_rate: truck.is_negotiated_rate ?? false,
       });
     }
   }, [
@@ -257,6 +259,7 @@ export default function TruckCard({
     truck.helper2_name,
     truck.truck_rate,
     truck.destination,
+    truck.is_negotiated_rate,
     editingDetails,
   ]);
 
@@ -298,8 +301,14 @@ export default function TruckCard({
     // our manual draft in that case too; it would just get overwritten, and
     // the input is hidden in that state anyway (see the Truck Rate cell below).
     const savingDestination = canSeeTruckRate && !isConvoy ? detailsDraft.destination.trim() : "";
+    // Negotiated rate: Admin/Logistics Officer only (same gate as truck_rate
+    // itself), and never applies to convoy trucks -- see
+    // enforce_truck_rate_edit() in 0040_negotiated_truck_rate.sql. When set,
+    // it unlocks the manual truck_rate below even though a destination is
+    // also set, since the trigger skips the rate-card lookup in that case.
+    const negotiated = canSeeTruckRate && !isConvoy ? detailsDraft.is_negotiated_rate : false;
     let rateNumber: number | null | undefined;
-    if (canSeeTruckRate && !isConvoy && !savingDestination) {
+    if (canSeeTruckRate && !isConvoy && (!savingDestination || negotiated)) {
       if (detailsDraft.truck_rate.trim() === "") {
         rateNumber = null;
       } else {
@@ -344,6 +353,7 @@ export default function TruckCard({
           ...(isConvoy || !canSeeTruckRate
             ? {}
             : { destination: detailsDraft.destination.trim() || null }),
+          ...(isConvoy || !canSeeTruckRate ? {} : { is_negotiated_rate: negotiated }),
         })
         .eq("id", truck.id);
       if (error) {
@@ -373,6 +383,7 @@ export default function TruckCard({
       truck_rate:
         truck.truck_rate !== null && truck.truck_rate !== undefined ? String(truck.truck_rate) : "",
       destination: truck.destination ?? "",
+      is_negotiated_rate: truck.is_negotiated_rate ?? false,
     });
     setEditingDetails(false);
   }
@@ -721,10 +732,16 @@ export default function TruckCard({
     ? destinationOptions.find((d) => d.destination === detailsDraft.destination.trim())
     : undefined;
   const hasConvoyTrucks = convoys.length > 0;
-  const previewTruckRate = draftDestinationOption
-    ? (hasConvoyTrucks ? draftDestinationOption.convoy_rate : draftDestinationOption.rate) ??
-      truck.truck_rate
-    : truck.truck_rate;
+  // A negotiated rate skips the rate-card lookup entirely -- see
+  // enforce_truck_rate_edit() in 0040_negotiated_truck_rate.sql -- so the
+  // preview should mirror the typed-in value, not the destination's card
+  // rate, whenever the checkbox is checked.
+  const previewTruckRate = detailsDraft.is_negotiated_rate
+    ? (detailsDraft.truck_rate.trim() !== "" ? Number(detailsDraft.truck_rate) : null) ?? truck.truck_rate
+    : draftDestinationOption
+      ? (hasConvoyTrucks ? draftDestinationOption.convoy_rate : draftDestinationOption.rate) ??
+        truck.truck_rate
+      : truck.truck_rate;
 
   return (
     <>
@@ -826,23 +843,38 @@ export default function TruckCard({
           {isConvoy ? (
             <span className="text-gray-400">Included in main</span>
           ) : editingDetails && canSeeTruckRate ? (
-            <select
-              className="input w-32 text-xs"
-              value={detailsDraft.destination}
-              onChange={(e) => setDetailsDraft((d) => ({ ...d, destination: e.target.value }))}
-            >
-              <option value="">— Select —</option>
-              {destinationOptions.map((d) => (
-                <option key={d.destination} value={d.destination}>
-                  {d.destination}
-                </option>
-              ))}
-            </select>
+            <div className="flex flex-col gap-1">
+              <select
+                className="input w-32 text-xs"
+                value={detailsDraft.destination}
+                onChange={(e) => setDetailsDraft((d) => ({ ...d, destination: e.target.value }))}
+              >
+                <option value="">— Select —</option>
+                {destinationOptions.map((d) => (
+                  <option key={d.destination} value={d.destination}>
+                    {d.destination}
+                  </option>
+                ))}
+              </select>
+              <label className="flex items-center gap-1 text-[10px] text-gray-500">
+                <input
+                  type="checkbox"
+                  checked={detailsDraft.is_negotiated_rate}
+                  onChange={(e) =>
+                    setDetailsDraft((d) => ({ ...d, is_negotiated_rate: e.target.checked }))
+                  }
+                />
+                Negotiated rate
+              </label>
+            </div>
           ) : (
             <>
               {truck.destination ?? "—"}
               {canSeeArea && truck.area && (
                 <p className="text-xs text-gray-400">{truck.area}</p>
+              )}
+              {canSeeTruckRate && truck.is_negotiated_rate && (
+                <p className="text-[10px] font-medium text-amber-600">Negotiated rate</p>
               )}
             </>
           )}
@@ -851,7 +883,7 @@ export default function TruckCard({
           {isConvoy ? (
             <span className="text-gray-400">Included in main</span>
           ) : canSeeTruckRate ? (
-            editingDetails && !detailsDraft.destination.trim() ? (
+            editingDetails && (!detailsDraft.destination.trim() || detailsDraft.is_negotiated_rate) ? (
               <input
                 type="number"
                 step="0.01"
@@ -884,7 +916,9 @@ export default function TruckCard({
                     AddTruckForm's behavior and avoid implying the typed
                     value would stick. */}
                 {editingDetails && (
-                  <span className="text-[10px] text-gray-400">Auto (destination)</span>
+                  <span className="text-[10px] text-gray-400">
+                    {detailsDraft.is_negotiated_rate ? "Negotiated" : "Auto (destination)"}
+                  </span>
                 )}
               </div>
             )

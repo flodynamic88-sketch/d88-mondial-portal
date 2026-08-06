@@ -31,6 +31,7 @@ export default function AddTruckForm({
   const [destination, setDestination] = useState("");
   const [destinations, setDestinations] = useState<DestinationOption[]>([]);
   const [truckRate, setTruckRate] = useState("");
+  const [isNegotiatedRate, setIsNegotiatedRate] = useState(false);
   const [driverName, setDriverName] = useState("");
   const [helper1Name, setHelper1Name] = useState("");
   const [helper2Name, setHelper2Name] = useState("");
@@ -88,6 +89,10 @@ export default function AddTruckForm({
         // "" and this resolves to null, which the trigger always allows.
         destination: canSetTruckRate ? destination.trim() || null : null,
         truck_rate: rateNumber,
+        // Negotiated rate: skips the destination-based rate card lookup so
+        // the manually-typed truck_rate above is used as-is -- see
+        // enforce_truck_rate_edit() in 0040_negotiated_truck_rate.sql.
+        is_negotiated_rate: canSetTruckRate ? isNegotiatedRate : false,
         is_convoy: Boolean(mainTruckId),
         main_truck_id: mainTruckId ?? null,
         driver_name: driverName.trim() || null,
@@ -104,6 +109,7 @@ export default function AddTruckForm({
       setCarrier("");
       setDestination("");
       setTruckRate("");
+      setIsNegotiatedRate(false);
       setDriverName("");
       setHelper1Name("");
       setHelper2Name("");
@@ -155,11 +161,21 @@ export default function AddTruckForm({
             Truck rate is set automatically based on destination. Can also be
             set later if not known yet.
           </p>
+          <label className="mt-2 flex items-center gap-2 text-xs text-gray-600">
+            <input
+              type="checkbox"
+              checked={isNegotiatedRate}
+              onChange={(e) => setIsNegotiatedRate(e.target.checked)}
+            />
+            Negotiated rate (override the rate card)
+          </label>
         </div>
       )}
-      {canSetTruckRate && !mainTruckId && !destination && (
+      {canSetTruckRate && !mainTruckId && (!destination || isNegotiatedRate) && (
         <div>
-          <label className="label">Truck Rate (no destination set)</label>
+          <label className="label">
+            {isNegotiatedRate ? "Truck Rate (negotiated)" : "Truck Rate (no destination set)"}
+          </label>
           <input
             type="number"
             step="0.01"
