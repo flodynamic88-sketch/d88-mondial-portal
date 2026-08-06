@@ -114,6 +114,13 @@ export default function TruckCard({
     role === "LOGISTICS_ASSOCIATE";
 
   const [rows, setRows] = useState<AssignedInvoiceRow[]>([]);
+  // True when at least one of this truck's active (non-superseded) invoices
+  // was previously superseded on a DIFFERENT truck with a Discrepancy/
+  // Backload reason -- i.e. this truck is the redelivery leg of a backload
+  // reported on an earlier route plan day. Flags the truck label blue so
+  // it's traceable at a glance, distinct from the red "has its own
+  // discrepancy/backload today" flag below.
+  const [hasRedeliveredBackload, setHasRedeliveredBackload] = useState(false);
   const [loadingRows, setLoadingRows] = useState(true);
   const [rowsError, setRowsError] = useState<string | null>(null);
   const [cts, setCts] = useState<VTruckCts | null>(null);
@@ -163,8 +170,31 @@ export default function TruckCard({
       if (error) {
         setRowsError("Could not load assigned invoices.");
         setRows([]);
+        setHasRedeliveredBackload(false);
       } else {
-        setRows((data ?? []) as unknown as AssignedInvoiceRow[]);
+        const assignedRows = (data ?? []) as unknown as AssignedInvoiceRow[];
+        setRows(assignedRows);
+
+        // Check whether any of this truck's *active* invoices were
+        // previously superseded on a different truck with a Discrepancy/
+        // Backload reason -- i.e. this is where that backload got
+        // redelivered. superseded rows on THIS truck are excluded since
+        // they're this truck's own history, not an active redelivery.
+        const activeInvoiceIds = assignedRows
+          .filter((r) => !r.superseded_at && r.invoice_id)
+          .map((r) => r.invoice_id as string);
+        if (activeInvoiceIds.length > 0) {
+          const { data: priorBackloads } = await supabase
+            .from("route_plan_invoices")
+            .select("invoice_id")
+            .in("invoice_id", activeInvoiceIds)
+            .neq("route_plan_truck_id", truck.id)
+            .not("superseded_at", "is", null)
+            .not("reason_id", "is", null);
+          setHasRedeliveredBackload((priorBackloads ?? []).length > 0);
+        } else {
+          setHasRedeliveredBackload(false);
+        }
       }
 
       const { data: ctsData } = await supabase
@@ -181,6 +211,7 @@ export default function TruckCard({
         "Could not load assigned invoices. Connect a Supabase project to see live data."
       );
       setRows([]);
+      setHasRedeliveredBackload(false);
     } finally {
       setLoadingRows(false);
     }
@@ -711,18 +742,23 @@ export default function TruckCard({
             className={
               hasDiscrepancyOrBackload
                 ? "text-sm font-semibold text-red-600"
-                : isConvoy
-                  ? "text-sm text-gray-700"
-                  : "text-sm font-semibold text-gray-800"
+                : hasRedeliveredBackload
+                  ? "text-sm font-semibold text-blue-600"
+                  : isConvoy
+                    ? "text-sm text-gray-700"
+                    : "text-sm font-semibold text-gray-800"
             }
             title={
               hasDiscrepancyOrBackload
                 ? "This truck has a reported discrepancy/backload"
-                : undefined
+                : hasRedeliveredBackload
+                  ? "This truck is redelivering a previously reported discrepancy/backload"
+                  : undefined
             }
           >
             {truckLabel}
             {hasDiscrepancyOrBackload && " ⚠"}
+            {!hasDiscrepancyOrBackload && hasRedeliveredBackload && " ↻"}
           </span>
           {editingDetails ? (
             <input
