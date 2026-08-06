@@ -77,6 +77,9 @@ function BillingTable({ category }: { category: InvoiceCategory }) {
           "Rate %": row.service_rate_pct ?? "",
           "Service Fee": row.service_fee ?? 0,
           Delivered: row.delivered_at ? new Date(row.delivered_at).toLocaleDateString() : "",
+          Remarks: row.is_mondial_fault_charge
+            ? `Charged to Mondial — backload: ${row.reason_label ?? "reason not set"}`
+            : "",
         })),
       },
     ]);
@@ -117,6 +120,7 @@ function BillingTable({ category }: { category: InvoiceCategory }) {
                 <th className="py-2 pr-4">Rate %</th>
                 <th className="py-2 pr-4">Service Fee</th>
                 <th className="py-2 pr-4">Delivered</th>
+                <th className="py-2 pr-4">Remarks</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
@@ -131,6 +135,15 @@ function BillingTable({ category }: { category: InvoiceCategory }) {
                   <td className="py-2 pr-4">
                     {row.delivered_at ? new Date(row.delivered_at).toLocaleDateString() : "—"}
                   </td>
+                  <td className="py-2 pr-4">
+                    {row.is_mondial_fault_charge ? (
+                      <span className="badge-warning">
+                        Charged to Mondial — backload: {row.reason_label ?? "reason not set"}
+                      </span>
+                    ) : (
+                      <span className="text-gray-400">—</span>
+                    )}
+                  </td>
                 </tr>
               ))}
             </tbody>
@@ -142,6 +155,7 @@ function BillingTable({ category }: { category: InvoiceCategory }) {
                 <td className="py-2 pr-4">{formatMoney(totalAmount)}</td>
                 <td className="py-2 pr-4"></td>
                 <td className="py-2 pr-4">{formatMoney(totalFee)}</td>
+                <td className="py-2 pr-4"></td>
                 <td className="py-2 pr-4"></td>
               </tr>
             </tfoot>

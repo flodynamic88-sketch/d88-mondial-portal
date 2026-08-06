@@ -283,6 +283,11 @@ export interface VBilling {
    *  billable line for the same document_no alongside its normal delivered
    *  line. See migration 0028. */
   is_mondial_fault_charge: boolean;
+  /** The Backload reason's own label (e.g. "Wrong Contact Info Given") when
+   *  is_mondial_fault_charge is true -- explains why this document_no is
+   *  billed a second time. Always null on the normal branch. See migration
+   *  0039. */
+  reason_label: string | null;
 }
 
 export interface VFinalBilling extends VBilling {

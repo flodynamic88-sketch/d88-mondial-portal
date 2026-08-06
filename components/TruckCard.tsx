@@ -121,6 +121,12 @@ export default function TruckCard({
   // it's traceable at a glance, distinct from the red "has its own
   // discrepancy/backload today" flag below.
   const [hasRedeliveredBackload, setHasRedeliveredBackload] = useState(false);
+  // Which of this truck's active invoice_ids specifically matched a prior
+  // backload on another truck (a subset check of hasRedeliveredBackload) --
+  // lets us color just that invoice's Document No. cell blue instead of
+  // flagging the whole truck, e.g. when a convoy truck carries a mix of
+  // fresh and redelivered invoices.
+  const [redeliveredInvoiceIds, setRedeliveredInvoiceIds] = useState<Set<string>>(new Set());
   const [loadingRows, setLoadingRows] = useState(true);
   const [rowsError, setRowsError] = useState<string | null>(null);
   const [cts, setCts] = useState<VTruckCts | null>(null);
@@ -171,6 +177,7 @@ export default function TruckCard({
         setRowsError("Could not load assigned invoices.");
         setRows([]);
         setHasRedeliveredBackload(false);
+        setRedeliveredInvoiceIds(new Set());
       } else {
         const assignedRows = (data ?? []) as unknown as AssignedInvoiceRow[];
         setRows(assignedRows);
@@ -191,8 +198,13 @@ export default function TruckCard({
             .neq("route_plan_truck_id", truck.id)
             .not("superseded_at", "is", null)
             .not("reason_id", "is", null);
-          setHasRedeliveredBackload((priorBackloads ?? []).length > 0);
+          const matchedIds = new Set(
+            (priorBackloads ?? []).map((r) => r.invoice_id as string)
+          );
+          setRedeliveredInvoiceIds(matchedIds);
+          setHasRedeliveredBackload(matchedIds.size > 0);
         } else {
+          setRedeliveredInvoiceIds(new Set());
           setHasRedeliveredBackload(false);
         }
       }
@@ -212,6 +224,7 @@ export default function TruckCard({
       );
       setRows([]);
       setHasRedeliveredBackload(false);
+      setRedeliveredInvoiceIds(new Set());
     } finally {
       setLoadingRows(false);
     }
@@ -1025,10 +1038,31 @@ export default function TruckCard({
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
-                {rows.map((row) => (
+                {rows.map((row) => {
+                  const isRedeliveredInvoice =
+                    !row.reason_id &&
+                    !!row.invoice_id &&
+                    redeliveredInvoiceIds.has(row.invoice_id);
+                  return (
                   <tr key={row.id}>
-                    <td className="py-2 pr-4 font-medium text-gray-800">
+                    <td
+                      className={
+                        row.reason_id
+                          ? "py-2 pr-4 font-medium text-red-600"
+                          : isRedeliveredInvoice
+                            ? "py-2 pr-4 font-medium text-blue-600"
+                            : "py-2 pr-4 font-medium text-gray-800"
+                      }
+                      title={
+                        row.reason_id
+                          ? "This invoice has a reported discrepancy/backload"
+                          : isRedeliveredInvoice
+                            ? "This invoice is the redelivery of a previously reported backload"
+                            : undefined
+                      }
+                    >
                       {row.invoice?.document_no ?? "—"}
+                      {isRedeliveredInvoice && " ↻"}
                     </td>
                     <td className="py-2 pr-4">
                       <p>{row.invoice?.company_name_raw ?? "—"}</p>
@@ -1311,7 +1345,8 @@ export default function TruckCard({
                       )}
                     </td>
                   </tr>
-                ))}
+                  );
+                })}
               </tbody>
             </table>
           </div>

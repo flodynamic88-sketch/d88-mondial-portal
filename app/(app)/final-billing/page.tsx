@@ -32,8 +32,16 @@ function formatMonth(value: string | null) {
 }
 
 // Every row that reaches v_final_billing has already been confirmed by the
-// Mondial Team, so the Remarks column is always the same fixed note.
+// Mondial Team, so the Remarks column is normally this fixed note -- except
+// for the automatic "Charge to Mondial" backload line (see migration 0028 +
+// 0039), where it explains why this document_no is billed a second time.
 const CONFIRMED_REMARKS = "Validated from Invoicing";
+function remarksFor(row: VFinalBilling): string {
+  if (row.is_mondial_fault_charge) {
+    return `Charged to Mondial — backload: ${row.reason_label ?? "reason not set"}`;
+  }
+  return CONFIRMED_REMARKS;
+}
 
 interface ReportColumn {
   header: string;
@@ -51,7 +59,7 @@ const CONSIGNMENT_COLUMNS: ReportColumn[] = [
   { header: "Branch/Store Address", render: (r) => r.branch_address ?? "—" },
   { header: "Amount", render: (r) => formatMoney(r.amount) },
   { header: "Transmittal Forward Date", render: (r) => formatDate(r.transmittal_received_date) },
-  { header: "Remarks", render: () => CONFIRMED_REMARKS },
+  { header: "Remarks", render: remarksFor },
 ];
 
 const OUTRIGHT_COLUMNS: ReportColumn[] = [
@@ -64,7 +72,7 @@ const OUTRIGHT_COLUMNS: ReportColumn[] = [
   { header: "Branch/Store Address", render: (r) => r.branch_address ?? "—" },
   { header: "Amount", render: (r) => formatMoney(r.amount) },
   { header: "Transmittal Forward Date", render: (r) => formatDate(r.transmittal_received_date) },
-  { header: "Remarks", render: () => CONFIRMED_REMARKS },
+  { header: "Remarks", render: remarksFor },
 ];
 
 const MERCURY_COLUMNS: ReportColumn[] = [
@@ -78,7 +86,7 @@ const MERCURY_COLUMNS: ReportColumn[] = [
   { header: "Branch/Store Address", render: (r) => r.branch_address ?? "—" },
   { header: "Amount", render: (r) => formatMoney(r.amount) },
   { header: "Transmittal Forward Date", render: (r) => formatDate(r.transmittal_received_date) },
-  { header: "Remarks", render: () => CONFIRMED_REMARKS },
+  { header: "Remarks", render: remarksFor },
 ];
 
 const CATEGORY_CONFIG: { value: InvoiceCategory; label: string; columns: ReportColumn[] }[] = [
