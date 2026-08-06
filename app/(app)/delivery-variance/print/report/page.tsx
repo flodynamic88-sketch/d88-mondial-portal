@@ -102,16 +102,16 @@ function ReportContent() {
 
       <div className="printable-area mx-auto max-w-4xl rounded-xl border border-gray-200 bg-white p-8 text-sm text-gray-800">
         <div className="flex items-center justify-between border-b-2 border-brand-600 pb-4">
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-3">
             {logoUrl ? (
               // eslint-disable-next-line @next/next/no-img-element
-              <img src={logoUrl} alt="Dynamic88 logo" className="h-16 w-auto" />
+              <img src={logoUrl} alt="Dynamic88 logo" className="h-14 w-auto" />
             ) : (
-              <div className="flex h-16 w-16 items-center justify-center rounded-lg bg-brand-600 text-xl font-bold text-white">
+              <div className="flex h-14 w-14 items-center justify-center rounded-lg bg-brand-600 text-lg font-bold text-white">
                 D88
               </div>
             )}
-            <p className="text-3xl font-bold tracking-wide text-gray-900">VARIANCE DELIVERY LOG</p>
+            <p className="text-lg font-bold tracking-wide text-gray-900">VARIANCE DELIVERY LOG</p>
           </div>
           <div className="text-right">
             <p className="text-xs uppercase tracking-wide text-gray-500">Period Covered</p>
