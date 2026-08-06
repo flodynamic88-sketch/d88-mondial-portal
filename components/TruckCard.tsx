@@ -48,6 +48,11 @@ interface TruckCardProps {
   convoys: RoutePlanTruck[];
   deliveryReasons: DeliveryReason[];
   routePlanId: string;
+  /** The route plan's own route_date -- the actual day this truck is
+   *  attempting delivery. Threaded through to ensureVarianceLog() so a
+   *  Discrepancy/Backload reason set on an assigned invoice logs against
+   *  that date, not whenever the reason happens to be typed in. */
+  routeDate: string;
   onRefreshTrucks: () => void;
   /** Refetches deliveryReasons after a custom reason is created or its
    *  Mondial/D88 flag is toggled, so the shared list stays in sync. */
@@ -64,6 +69,7 @@ export default function TruckCard({
   convoys,
   deliveryReasons,
   routePlanId,
+  routeDate,
   onRefreshTrucks,
   onRefreshReasons,
   isConvoy = false,
@@ -567,7 +573,7 @@ export default function TruckCard({
       // from the Delivery Variance Log page.
       if (reasonId) {
         const invoiceId = rows.find((r) => r.id === rowId)?.invoice_id ?? null;
-        await ensureVarianceLog(rowId, invoiceId, reasonId);
+        await ensureVarianceLog(rowId, invoiceId, reasonId, routeDate);
       }
 
       setRefreshKey((k) => k + 1);
@@ -654,6 +660,13 @@ export default function TruckCard({
   const backloadReasons = deliveryReasons.filter((r) => r.type === "BACKLOAD");
   const expanded = expandedTruckId === truck.id;
 
+  // Trace-back flag: row.reason_id is only ever set via the Discrepancy/
+  // Backload <select> above, so any assigned invoice with a reason_id means
+  // this truck encountered one that day -- flag the truck label itself so
+  // it's traceable at a glance directly from the Route Plan board, without
+  // having to open the Delivery Variance Log page.
+  const hasDiscrepancyOrBackload = rows.some((r) => r.reason_id);
+
   // Live preview of the auto-derived rate for whatever destination is
   // currently selected in the edit draft (which may not be saved yet) --
   // mirrors enforce_truck_rate_edit()'s own lookup (convoy_rate once this
@@ -694,8 +707,22 @@ export default function TruckCard({
           >
             {expanded ? "▾" : "▸"}
           </button>
-          <span className={isConvoy ? "text-sm text-gray-700" : "text-sm font-semibold text-gray-800"}>
+          <span
+            className={
+              hasDiscrepancyOrBackload
+                ? "text-sm font-semibold text-red-600"
+                : isConvoy
+                  ? "text-sm text-gray-700"
+                  : "text-sm font-semibold text-gray-800"
+            }
+            title={
+              hasDiscrepancyOrBackload
+                ? "This truck has a reported discrepancy/backload"
+                : undefined
+            }
+          >
             {truckLabel}
+            {hasDiscrepancyOrBackload && " ⚠"}
           </span>
           {editingDetails ? (
             <input
@@ -1291,6 +1318,7 @@ export default function TruckCard({
             convoys={[]}
             deliveryReasons={deliveryReasons}
             routePlanId={routePlanId}
+            routeDate={routeDate}
             onRefreshTrucks={onRefreshTrucks}
             onRefreshReasons={onRefreshReasons}
             isConvoy

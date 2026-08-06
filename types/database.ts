@@ -312,6 +312,17 @@ export interface VDeliveryVarianceLog {
   updated_at: string | null;
   item_count: number;
   total_amount: number;
+  /** Route plan this variance traces back to, via route_plan_invoice_id ->
+   *  route_plan_trucks -> route_plans. Null for manually-created logs with
+   *  no route plan link (see handleCreateLog in delivery-variance/page.tsx). */
+  route_plan_id: string | null;
+  /** The route plan's route_date -- the actual day the discrepancy/backload
+   *  occurred (matches log_date for auto-linked rows going forward). */
+  route_date: string | null;
+  /** e.g. "Truck 2" or "Truck 2 · Convoy 1" -- same numbering as the Route
+   *  Plan board (RoutePlanBoard.tsx), reproduced server-side via window
+   *  functions in v_delivery_variance_logs. Null for manually-created logs. */
+  truck_label: string | null;
 }
 
 export interface VDeliveryVarianceReasonSummary {

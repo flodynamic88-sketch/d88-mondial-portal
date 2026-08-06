@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import TruckCard from "@/components/TruckCard";
 import AddTruckForm from "@/components/AddTruckForm";
@@ -28,6 +29,12 @@ export default function RoutePlanBoard() {
   // Same cost-visibility gate as TruckCard's canSeeTruckRate -- rate % is a
   // cost figure and shouldn't leak into the Excel export for other roles.
   const canSeeRatePct = profile?.role === "ADMIN" || profile?.role === "LOGISTICS_OFFICER";
+
+  // Lets the Delivery Variance Log's trace-back link
+  // (/route-plan?planId=...) jump straight to the right route plan instead
+  // of just landing on whichever plan loads first.
+  const searchParams = useSearchParams();
+  const planIdParam = searchParams.get("planId");
 
   const [routePlans, setRoutePlans] = useState<RoutePlan[]>([]);
   const [loadingPlans, setLoadingPlans] = useState(true);
@@ -91,7 +98,8 @@ export default function RoutePlanBoard() {
       if (selectAfter) {
         setSelectedId(selectAfter);
       } else {
-        setSelectedId((prev) => prev ?? (plans.length > 0 ? plans[0].id : null));
+        const fromLink = planIdParam && plans.some((p) => p.id === planIdParam) ? planIdParam : null;
+        setSelectedId((prev) => prev ?? fromLink ?? (plans.length > 0 ? plans[0].id : null));
       }
     } catch {
       setPlansError("Could not load route plans. Connect a Supabase project to see live data.");
@@ -99,7 +107,7 @@ export default function RoutePlanBoard() {
     } finally {
       setLoadingPlans(false);
     }
-  }, []);
+  }, [planIdParam]);
 
   useEffect(() => {
     loadRoutePlans();
@@ -823,6 +831,7 @@ export default function RoutePlanBoard() {
                           convoys={convoysByMain[truck.id] ?? []}
                           deliveryReasons={deliveryReasons}
                           routePlanId={selectedPlan.id}
+                          routeDate={selectedPlan.route_date}
                           onRefreshTrucks={loadTrucks}
                           onRefreshReasons={loadReasons}
                           expandedTruckId={expandedTruckId}

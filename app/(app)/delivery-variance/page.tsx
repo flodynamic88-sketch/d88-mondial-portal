@@ -425,6 +425,7 @@ export default function DeliveryVarianceLogPage() {
           "Document No.": l.document_no ?? "",
           "Retail Chain": l.retail_chain ?? "",
           "Store/Branch Address": l.branch_address ?? "",
+          Truck: l.truck_label ?? "",
           "Reason Type": l.reason_type ?? "",
           Reason: l.reason_label ?? "",
           "Log Date": l.log_date ? new Date(l.log_date).toLocaleDateString() : "",
@@ -675,6 +676,7 @@ export default function DeliveryVarianceLogPage() {
                     <th className="py-2 pr-4">Document No.</th>
                     <th className="py-2 pr-4">Retail Chain</th>
                     <th className="py-2 pr-4">Store/Branch Address</th>
+                    <th className="py-2 pr-4">Truck</th>
                     <th className="py-2 pr-4">Reason</th>
                     <th className="py-2 pr-4">Log Date</th>
                     <th className="py-2 pr-4">Items</th>
@@ -689,6 +691,19 @@ export default function DeliveryVarianceLogPage() {
                       <td className="py-2 pr-4">{log.document_no ?? "—"}</td>
                       <td className="py-2 pr-4">{log.retail_chain ?? "—"}</td>
                       <td className="py-2 pr-4">{log.branch_address ?? "—"}</td>
+                      <td className="py-2 pr-4">
+                        {log.route_plan_id ? (
+                          <Link
+                            href={`/route-plan?planId=${log.route_plan_id}`}
+                            className="text-brand-600 underline hover:text-brand-700"
+                            title={log.route_date ? `Route plan for ${log.route_date}` : undefined}
+                          >
+                            {log.truck_label ?? "Route Plan"}
+                          </Link>
+                        ) : (
+                          <span className="text-gray-400">—</span>
+                        )}
+                      </td>
                       <td className="py-2 pr-4">
                         {log.reason_label ? (
                           <span

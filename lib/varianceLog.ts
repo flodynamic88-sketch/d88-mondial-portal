@@ -11,7 +11,13 @@ import { createClient } from "@/lib/supabase/client";
 export async function ensureVarianceLog(
   routePlanInvoiceId: string,
   invoiceId: string | null,
-  reasonId: string
+  reasonId: string,
+  /** The route plan's own route_date -- the actual day the discrepancy/
+   *  backload occurred. Always re-sent on every call (even for an existing
+   *  row) so log_date self-heals to the correct date instead of drifting to
+   *  whatever day the reason happened to be typed in (e.g. a later
+   *  redelivery). */
+  logDate?: string | null
 ): Promise<void> {
   const supabase = createClient();
 
@@ -21,6 +27,7 @@ export async function ensureVarianceLog(
         route_plan_invoice_id: routePlanInvoiceId,
         invoice_id: invoiceId,
         reason_id: reasonId,
+        ...(logDate ? { log_date: logDate } : {}),
       },
       { onConflict: "route_plan_invoice_id" }
     );

@@ -1,3 +1,4 @@
+import { Suspense } from "react";
 import RoutePlanBoard from "@/components/RoutePlanBoard";
 import RequireRole from "@/components/RequireRole";
 
@@ -13,7 +14,12 @@ export default function RoutePlanPage() {
         "JMD_ADMIN",
       ]}
     >
-      <RoutePlanBoard />
+      {/* RoutePlanBoard reads ?planId= (via useSearchParams) to support the
+          Delivery Variance Log's trace-back link -- Next.js requires a
+          Suspense boundary around any component using that hook. */}
+      <Suspense fallback={<div className="p-8 text-sm text-gray-400">Loading…</div>}>
+        <RoutePlanBoard />
+      </Suspense>
     </RequireRole>
   );
 }
