@@ -108,7 +108,7 @@ export default function PrintDeliveryVarianceLogPage() {
             <p className="font-medium">{log.document_no ?? "—"}</p>
           </div>
           <div>
-            <p className="text-xs uppercase tracking-wide text-gray-500">Log Date</p>
+            <p className="text-xs uppercase tracking-wide text-gray-500">Backload/Discrepancy Date</p>
             <p className="font-medium">
               {log.log_date ? new Date(log.log_date).toLocaleDateString() : "—"}
             </p>

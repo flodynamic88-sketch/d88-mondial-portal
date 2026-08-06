@@ -428,7 +428,7 @@ export default function DeliveryVarianceLogPage() {
           Truck: l.truck_label ?? "",
           "Reason Type": l.reason_type ?? "",
           Reason: l.reason_label ?? "",
-          "Log Date": l.log_date ? new Date(l.log_date).toLocaleDateString() : "",
+          "Backload/Discrepancy Date": l.log_date ? new Date(l.log_date).toLocaleDateString() : "",
           Items: l.item_count,
           "Total Amount": l.total_amount,
           "Prepared By": l.prepared_by ?? "",
@@ -678,7 +678,7 @@ export default function DeliveryVarianceLogPage() {
                     <th className="py-2 pr-4">Store/Branch Address</th>
                     <th className="py-2 pr-4">Truck</th>
                     <th className="py-2 pr-4">Reason</th>
-                    <th className="py-2 pr-4">Log Date</th>
+                    <th className="py-2 pr-4">Backload/Discrepancy Date</th>
                     <th className="py-2 pr-4">Items</th>
                     <th className="py-2 pr-4">Total</th>
                     <th className="py-2 pr-4">Actions</th>
@@ -786,7 +786,7 @@ export default function DeliveryVarianceLogPage() {
             <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
               <div>
                 <label className="label" htmlFor="editLogDate">
-                  Log Date
+                  Backload/Discrepancy Date
                 </label>
                 <input
                   id="editLogDate"

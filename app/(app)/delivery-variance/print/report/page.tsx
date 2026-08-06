@@ -181,7 +181,7 @@ function ReportContent() {
                 <th className="py-1.5">Document No.</th>
                 <th className="py-1.5">Retail Chain</th>
                 <th className="py-1.5">Reason</th>
-                <th className="py-1.5">Log Date</th>
+                <th className="py-1.5">Backload/Discrepancy Date</th>
                 <th className="py-1.5">Items</th>
                 <th className="py-1.5 pr-2">Total</th>
               </tr>
