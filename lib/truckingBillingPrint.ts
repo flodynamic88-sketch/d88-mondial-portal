@@ -82,7 +82,32 @@ export function useTruckingBillingPrintData(id: string) {
     })();
   }, [id]);
 
-  const totalBoxes = useMemo(() => items.reduce((sum, r) => sum + (r.qty_box ?? 0), 0), [items]);
+  // total_boxes on the view is already override-aware (coalesce(total_boxes_override,
+  // computed sum)) -- prefer it once the statement has loaded; fall back to summing
+  // the line items only for the brief moment before the statement row arrives.
+  const computedTotalBoxes = useMemo(
+    () => items.reduce((sum, r) => sum + (r.qty_box ?? 0), 0),
+    [items]
+  );
+  const totalBoxes = statement ? statement.total_boxes : computedTotalBoxes;
+
+  /** Best-effort save of the manual Boxes-total override; updates local state so the print preview reflects it immediately. */
+  async function updateTotalBoxesOverride(value: number | null) {
+    if (!statement) return;
+    const supabase = createClient();
+    const { error } = await supabase
+      .from("trucking_billing_statements")
+      .update({ total_boxes_override: value })
+      .eq("id", statement.id);
+    if (!error) {
+      setStatement({
+        ...statement,
+        total_boxes_override: value,
+        total_boxes: value ?? computedTotalBoxes,
+      });
+    }
+    return error;
+  }
   const totalDeclaredValue = useMemo(
     () => items.reduce((sum, r) => sum + (r.declared_value ?? 0), 0),
     [items]
@@ -125,5 +150,6 @@ export function useTruckingBillingPrintData(id: string) {
     accountsLabel,
     deliveryDate,
     forwardedDate,
+    updateTotalBoxesOverride,
   };
 }

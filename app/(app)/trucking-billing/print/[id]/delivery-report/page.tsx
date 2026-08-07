@@ -14,8 +14,16 @@ export default function PrintDeliveryReportPage() {
   const params = useParams();
   const id = typeof params?.id === "string" ? params.id : "";
 
-  const { statement, items, loading, errorMsg, totalBoxes, totalDeclaredValue, deliveryDate } =
-    useTruckingBillingPrintData(id);
+  const {
+    statement,
+    items,
+    loading,
+    errorMsg,
+    totalBoxes,
+    totalDeclaredValue,
+    deliveryDate,
+    updateTotalBoxesOverride,
+  } = useTruckingBillingPrintData(id);
 
   if (loading) {
     return <p className="p-8 text-sm text-gray-400">Loading…</p>;
@@ -26,7 +34,19 @@ export default function PrintDeliveryReportPage() {
 
   return (
     <div>
-      <div className="no-print mb-4 flex justify-end">
+      <div className="no-print mb-4 flex items-center justify-end gap-4">
+        <label className="flex items-center gap-2 text-sm text-gray-600">
+          Boxes total (editable):
+          <input
+            type="number"
+            className="input w-24"
+            defaultValue={statement.total_boxes_override ?? totalBoxes}
+            onBlur={(e) => {
+              const raw = e.target.value.trim();
+              updateTotalBoxesOverride(raw === "" ? null : Number(raw));
+            }}
+          />
+        </label>
         <button type="button" className="btn-primary" onClick={() => window.print()}>
           Print / Save as PDF
         </button>
@@ -95,7 +115,14 @@ export default function PrintDeliveryReportPage() {
                   <td className="border border-gray-300 px-1 py-1 text-left">
                     {row.branch_address ?? "—"}
                   </td>
-                  <td className="border border-gray-300 px-1 py-1">{row.qty_box ?? "—"}</td>
+                  {idx === 0 && (
+                    <td
+                      className="border border-gray-300 px-1 py-1 align-middle font-bold"
+                      rowSpan={items.length}
+                    >
+                      {totalBoxes || "—"}
+                    </td>
+                  )}
                   <td className="border border-gray-300 px-1 py-1 text-right">
                     {formatMoney(row.declared_value)}
                   </td>
@@ -111,10 +138,9 @@ export default function PrintDeliveryReportPage() {
             </tbody>
             <tfoot>
               <tr className="border-t-2 border-gray-400 text-center font-bold">
-                <td className="border border-gray-300 px-1 py-1" colSpan={4}>
+                <td className="border border-gray-300 px-1 py-1" colSpan={5}>
                   Total
                 </td>
-                <td className="border border-gray-300 px-1 py-1">{totalBoxes || "—"}</td>
                 <td className="border border-gray-300 px-1 py-1 text-right">
                   {formatMoney(totalDeclaredValue)}
                 </td>

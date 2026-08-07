@@ -420,6 +420,8 @@ export interface VTruckingBillingStatement {
   destination: string | null;
   /** True when truck_rate is a manually-negotiated one-off amount (destination rate card lookup was skipped). */
   is_negotiated_rate: boolean;
+  /** Manual override for the Delivery Report's merged Boxes total. Null = total_boxes is the live-computed sum. */
+  total_boxes_override: number | null;
 }
 
 export interface VTruckingBillingStatementItem {
