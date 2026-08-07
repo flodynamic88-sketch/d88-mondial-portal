@@ -3,6 +3,7 @@
 import { useState } from "react";
 import InvoiceForm from "@/components/InvoiceForm";
 import BulkEncodeGrid from "@/components/BulkEncodeGrid";
+import ImportInvoicesExcel from "@/components/ImportInvoicesExcel";
 import RecentInvoicesTable from "@/components/RecentInvoicesTable";
 import RequireRole from "@/components/RequireRole";
 import { useAuth } from "@/components/AuthProvider";
@@ -73,6 +74,15 @@ export default function EncodeInvoicesPage() {
               >
                 Single Entry
               </button>
+              {/* Consignment-only for now -- the Excel format this reads
+                  (No./Posting Date/Transfer-to Name/Transfer-to Address/Total
+                  Amount) is JMD's Consignment delivery export layout. */}
+              {activeTab === "CONSIGNMENT" && (
+                <ImportInvoicesExcel
+                  category={activeTab}
+                  onImported={() => setRefreshKey((k) => k + 1)}
+                />
+              )}
             </div>
           </div>
 
