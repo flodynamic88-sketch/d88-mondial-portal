@@ -90,6 +90,7 @@ export default function PrintDeliveryReportPage() {
             <thead>
               <tr className="border border-gray-400 bg-gray-100 text-center uppercase text-gray-600">
                 <th className="border border-gray-400 px-1 py-1">Sched / Area</th>
+                <th className="border border-gray-400 px-1 py-1">Drop</th>
                 <th className="border border-gray-400 px-1 py-1">Inv. / DR / CN</th>
                 <th className="border border-gray-400 px-1 py-1">Account Name</th>
                 <th className="border border-gray-400 px-1 py-1">Branch</th>
@@ -108,6 +109,7 @@ export default function PrintDeliveryReportPage() {
                       {statement.area ?? "—"}
                     </td>
                   )}
+                  <td className="border border-gray-300 px-1 py-1 font-medium">{row.drop_no ?? "—"}</td>
                   <td className="border border-gray-300 px-1 py-1 font-medium">{row.document_no}</td>
                   <td className="border border-gray-300 px-1 py-1 text-left">
                     {row.company_name_raw ?? "—"}
@@ -130,7 +132,7 @@ export default function PrintDeliveryReportPage() {
               ))}
               {items.length === 0 && (
                 <tr>
-                  <td colSpan={6} className="border border-gray-300 py-3 text-center text-gray-400">
+                  <td colSpan={7} className="border border-gray-300 py-3 text-center text-gray-400">
                     No delivery receipts on this truck.
                   </td>
                 </tr>
@@ -138,7 +140,7 @@ export default function PrintDeliveryReportPage() {
             </tbody>
             <tfoot>
               <tr className="border-t-2 border-gray-400 text-center font-bold">
-                <td className="border border-gray-300 px-1 py-1" colSpan={5}>
+                <td className="border border-gray-300 px-1 py-1" colSpan={6}>
                   Total
                 </td>
                 <td className="border border-gray-300 px-1 py-1 text-right">

@@ -177,6 +177,7 @@ export default function TruckCard({
         .from("route_plan_invoices")
         .select("*, invoice:invoices(*)")
         .eq("route_plan_truck_id", truck.id)
+        .order("drop_no", { ascending: true, nullsFirst: false })
         .order("created_at", { ascending: true });
 
       if (error) {
@@ -578,6 +579,34 @@ export default function TruckCard({
       }
     } catch {
       setActionError("Could not update qty per box. Make sure a Supabase project is connected.");
+    }
+  }
+
+  async function handleDropNoChange(rowId: string, value: string) {
+    const trimmed = value.trim();
+    const num = trimmed === "" ? null : Number(trimmed);
+    if (num !== null && Number.isNaN(num)) return;
+    try {
+      const supabase = createClient();
+      // Same RLS policy as qty_box (route_plan_invoices UPDATE), so the same
+      // 0-row-vs-error distinction applies -- see handleQtyBoxChange above.
+      const { data, error } = await supabase
+        .from("route_plan_invoices")
+        .update({ drop_no: num })
+        .eq("id", rowId)
+        .select("id");
+      if (error) {
+        setActionError("Failed to update drop no.");
+      } else if (!data || data.length === 0) {
+        setActionError(
+          "Drop No. was not saved -- you may not have permission to edit it. Ask an Admin to check your account access."
+        );
+        setRefreshKey((k) => k + 1);
+      } else {
+        setRefreshKey((k) => k + 1);
+      }
+    } catch {
+      setActionError("Could not update drop no. Make sure a Supabase project is connected.");
     }
   }
 
@@ -1067,6 +1096,7 @@ export default function TruckCard({
             <table className="min-w-full divide-y divide-gray-200 text-sm">
               <thead>
                 <tr className="text-left text-xs font-semibold uppercase text-gray-500">
+                  <th className="py-2 pr-4">Drop No.</th>
                   <th className="py-2 pr-4">Document No.</th>
                   <th className="py-2 pr-4">Company / Branch</th>
                   <th className="py-2 pr-4">Qty/Box</th>
@@ -1084,6 +1114,26 @@ export default function TruckCard({
                     redeliveredInvoiceIds.has(row.invoice_id);
                   return (
                   <tr key={row.id}>
+                    <td className="py-2 pr-4">
+                      {canEditQtyBox ? (
+                        <input
+                          type="number"
+                          step="1"
+                          min="1"
+                          className="input no-spinner w-16 text-center"
+                          defaultValue={row.drop_no ?? ""}
+                          onBlur={(e) => handleDropNoChange(row.id, e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter") {
+                              e.preventDefault();
+                              e.currentTarget.blur();
+                            }
+                          }}
+                        />
+                      ) : (
+                        <span className="text-center text-gray-700">{row.drop_no ?? "—"}</span>
+                      )}
+                    </td>
                     <td
                       className={
                         row.reason_id

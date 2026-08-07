@@ -153,6 +153,8 @@ export interface RoutePlanInvoice {
   superseded_at: string | null;
   /** Number of boxes for this invoice as loaded onto the truck. */
   qty_box: number | null;
+  /** Manual drop/stop sequence number (1st drop, 2nd drop, ...) for this invoice on this truck. Null = no manual sequence set. */
+  drop_no: number | null;
 }
 
 export interface MondialConfirmation {
@@ -436,6 +438,8 @@ export interface VTruckingBillingStatementItem {
   qty_box: number | null;
   actual_delivery_date: string | null;
   posting_date: string | null;
+  /** Manual drop/stop sequence number this item's order now follows (nulls sort last). */
+  drop_no: number | null;
 }
 
 export interface VTruckingBillingCandidate {
