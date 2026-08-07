@@ -64,6 +64,11 @@ export default function DeliveryVarianceLogPage() {
   const [dateTo, setDateTo] = useState(todayStr());
   const [search, setSearch] = useState("");
 
+  /** "Active" is the default landing sub-tab (printed = false); ticking a
+   *  row's Printed checkbox moves it to the "Printed" sub-tab so the working
+   *  list doesn't pile up with logs that are already filed. */
+  const [subTab, setSubTab] = useState<"ACTIVE" | "PRINTED">("ACTIVE");
+
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [items, setItems] = useState<DeliveryVarianceLogItem[]>([]);
   const [itemsLoading, setItemsLoading] = useState(false);
@@ -165,6 +170,10 @@ export default function DeliveryVarianceLogPage() {
     return { total: filteredLogs.length, discrepancy, backload, totalAmount };
   }, [filteredLogs]);
 
+  const activeLogs = useMemo(() => filteredLogs.filter((l) => !l.printed), [filteredLogs]);
+  const printedLogs = useMemo(() => filteredLogs.filter((l) => l.printed), [filteredLogs]);
+  const visibleLogs = subTab === "PRINTED" ? printedLogs : activeLogs;
+
   const topReason = reasonSummary[0];
 
   function toggleSelectForPrint(id: string) {
@@ -177,18 +186,35 @@ export default function DeliveryVarianceLogPage() {
   }
 
   const allVisibleSelected =
-    filteredLogs.length > 0 && filteredLogs.every((l) => selectedForPrint.has(l.id));
+    visibleLogs.length > 0 && visibleLogs.every((l) => selectedForPrint.has(l.id));
 
   function toggleSelectAllVisible() {
     setSelectedForPrint((prev) => {
       const next = new Set(prev);
       if (allVisibleSelected) {
-        filteredLogs.forEach((l) => next.delete(l.id));
+        visibleLogs.forEach((l) => next.delete(l.id));
       } else {
-        filteredLogs.forEach((l) => next.add(l.id));
+        visibleLogs.forEach((l) => next.add(l.id));
       }
       return next;
     });
+  }
+
+  async function handleTogglePrinted(log: VDeliveryVarianceLog) {
+    try {
+      const supabase = createClient();
+      const { error } = await supabase
+        .from("delivery_variance_logs")
+        .update({ printed: !log.printed })
+        .eq("id", log.id);
+      if (error) {
+        setActionError(`Failed to update printed status: ${error.message}`);
+        return;
+      }
+      await load();
+    } catch {
+      setActionError("Could not update printed status. Make sure a Supabase project is connected.");
+    }
   }
 
   const printReportHref =
@@ -465,7 +491,7 @@ export default function DeliveryVarianceLogPage() {
     exportToExcel(`delivery-variance-log-${dateFrom}_to_${dateTo}`, [
       {
         name: "Delivery Variance Log",
-        rows: filteredLogs.map((l) => ({
+        rows: visibleLogs.map((l) => ({
           "Series #": l.series_no,
           "Document No.": l.document_no ?? "",
           "Retail Chain": l.retail_chain ?? "",
@@ -717,17 +743,41 @@ export default function DeliveryVarianceLogPage() {
             </div>
           )}
 
-          <h2 className="mt-6 text-lg font-semibold text-gray-800">Logs</h2>
+          <div className="mt-6 flex items-center justify-between gap-2">
+            <h2 className="text-lg font-semibold text-gray-800">Logs</h2>
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={() => setSubTab("ACTIVE")}
+                className={`tab-button ${
+                  subTab === "ACTIVE" ? "tab-button-active" : "tab-button-inactive"
+                }`}
+              >
+                Active ({activeLogs.length})
+              </button>
+              <button
+                type="button"
+                onClick={() => setSubTab("PRINTED")}
+                className={`tab-button ${
+                  subTab === "PRINTED" ? "tab-button-active" : "tab-button-inactive"
+                }`}
+              >
+                Printed ({printedLogs.length})
+              </button>
+            </div>
+          </div>
           {loading && <p className="mt-3 text-sm text-gray-400">Loading…</p>}
           {!loading && errorMsg && <p className="mt-3 text-sm text-gray-400">{errorMsg}</p>}
-          {!loading && !errorMsg && filteredLogs.length === 0 && (
+          {!loading && !errorMsg && visibleLogs.length === 0 && (
             <p className="mt-3 text-sm text-gray-400">
               {search
-                ? `No delivery variance logs match "${search}" in this date range.`
-                : "No delivery variance logs in this date range."}
+                ? `No ${subTab === "PRINTED" ? "printed" : "active"} delivery variance logs match "${search}" in this date range.`
+                : subTab === "PRINTED"
+                  ? "No logs have been marked printed in this date range yet."
+                  : "No active delivery variance logs in this date range."}
             </p>
           )}
-          {!loading && !errorMsg && filteredLogs.length > 0 && (
+          {!loading && !errorMsg && visibleLogs.length > 0 && (
             <div className="mt-3 table-scroll-container">
               <table className="min-w-full divide-y divide-gray-200 text-sm">
                 <thead>
@@ -749,11 +799,12 @@ export default function DeliveryVarianceLogPage() {
                     <th className="py-2 pr-4">Backload/Discrepancy Date</th>
                     <th className="py-2 pr-4">Items</th>
                     <th className="py-2 pr-4">Total</th>
+                    <th className="py-2 pr-4">Printed</th>
                     <th className="py-2 pr-4">Actions</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100">
-                  {filteredLogs.map((log) => (
+                  {visibleLogs.map((log) => (
                     <tr key={log.id} className={selectedId === log.id ? "bg-brand-50" : undefined}>
                       <td className="py-2 pr-4">
                         <input
@@ -798,6 +849,18 @@ export default function DeliveryVarianceLogPage() {
                       </td>
                       <td className="py-2 pr-4">{log.item_count}</td>
                       <td className="py-2 pr-4">{formatMoney(log.total_amount)}</td>
+                      <td className="py-2 pr-4">
+                        <input
+                          type="checkbox"
+                          checked={log.printed}
+                          onChange={() => handleTogglePrinted(log)}
+                          title={
+                            log.printed
+                              ? "Printed -- untick to move back to Active"
+                              : "Tick once printed -- moves this row to the Printed tab"
+                          }
+                        />
+                      </td>
                       <td className="py-2 pr-4">
                         <div className="flex flex-wrap gap-2">
                           <button

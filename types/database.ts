@@ -338,6 +338,9 @@ export interface VDeliveryVarianceLog {
    *  itemized. When set, total_amount above reflects this value instead of
    *  the sum of items. */
   backload_total_amount: number | null;
+  /** Set via a checkbox in the UI once the printed form has been filed --
+   *  moves the row from the "Active" sub-tab to the "Printed" sub-tab. */
+  printed: boolean;
 }
 
 export interface VDeliveryVarianceReasonSummary {
