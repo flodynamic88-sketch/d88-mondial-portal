@@ -88,7 +88,20 @@ export async function exportTruckingBillingExcel(statementIds: string[]) {
     supabase.from("v_trucking_billing_statement_items").select("*").in("statement_id", statementIds),
   ]);
 
-  const statements = (statementsData ?? []) as VTruckingBillingStatement[];
+  // Sheets should come out in order: by delivery date first, then by truck
+  // number within that date -- same "Truck 1, 2, 3" order Route Plan derives
+  // from route_plan_trucks.created_at (see RoutePlanBoard.tsx truckLabelById).
+  // Supabase's .in(...) does not preserve the passed-in id order, so without
+  // this the sheets came out in whatever order Postgres happened to return
+  // them.
+  const statements = ((statementsData ?? []) as VTruckingBillingStatement[]).sort((a, b) => {
+    const dateA = a.route_date ?? "";
+    const dateB = b.route_date ?? "";
+    if (dateA !== dateB) return dateA.localeCompare(dateB);
+    const createdA = a.truck_created_at ?? "";
+    const createdB = b.truck_created_at ?? "";
+    return createdA.localeCompare(createdB);
+  });
   const itemsByStatement = new Map<string, VTruckingBillingStatementItem[]>();
   for (const item of (itemsData ?? []) as VTruckingBillingStatementItem[]) {
     const list = itemsByStatement.get(item.statement_id) ?? [];

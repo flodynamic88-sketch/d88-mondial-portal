@@ -424,6 +424,8 @@ export interface VTruckingBillingStatement {
   is_negotiated_rate: boolean;
   /** Manual override for the Delivery Report's merged Boxes total. Null = total_boxes is the live-computed sum. */
   total_boxes_override: number | null;
+  /** The truck's own route_plan_trucks.created_at -- same field RoutePlanBoard uses to derive "Truck 1, 2, 3" order. Used to sort the Excel export's sheets. */
+  truck_created_at: string | null;
 }
 
 export interface VTruckingBillingStatementItem {
