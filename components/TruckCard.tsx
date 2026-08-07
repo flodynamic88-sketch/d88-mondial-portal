@@ -82,7 +82,12 @@ export default function TruckCard({
   // Matches the server-side RLS/trigger rules in 0003_user_management.sql —
   // the UI hides actions the backend would reject, but the DB is still the
   // real enforcement point.
-  const canSeeTruckRate = role === "ADMIN" || role === "LOGISTICS_OFFICER";
+  // JMD Admin can see the truck rate (view-only -- canEditTruckDetails below
+  // still excludes JMD_ADMIN, so the Edit button, and therefore editingDetails,
+  // never becomes available to them; this flag only controls the read-only
+  // display path).
+  const canSeeTruckRate =
+    role === "ADMIN" || role === "LOGISTICS_OFFICER" || role === "JMD_ADMIN";
   const canDispatch = role === "ADMIN" || role === "JMD_PLANNER" || role === "LOGISTICS_OFFICER";
   const canUpdateDelivery =
     role === "ADMIN" || role === "LOGISTICS_OFFICER" || role === "LOGISTICS_ASSOCIATE";

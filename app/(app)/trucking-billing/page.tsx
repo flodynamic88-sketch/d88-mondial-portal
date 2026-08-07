@@ -54,17 +54,14 @@ export default function TruckingBillingPage() {
   const profile = useAuth();
   const role = profile?.role;
   const canManage =
-    role === "ADMIN" ||
-    role === "LOGISTICS_OFFICER" ||
-    role === "GENERAL_MANAGER" ||
-    role === "INVOICING_TEAM";
+    role === "ADMIN" || role === "LOGISTICS_OFFICER" || role === "GENERAL_MANAGER";
   const canSeeRate = role === "ADMIN" || role === "LOGISTICS_OFFICER";
   const canDelete = role === "ADMIN";
 
   const [tab, setTab] = useState<TabKey>("GENERATE");
 
   return (
-    <RequireRole roles={["ADMIN", "LOGISTICS_OFFICER", "GENERAL_MANAGER", "INVOICING_TEAM"]}>
+    <RequireRole roles={["ADMIN", "LOGISTICS_OFFICER", "GENERAL_MANAGER"]}>
       <div>
         <div className="page-header border-b-0 pb-0">
           <div>

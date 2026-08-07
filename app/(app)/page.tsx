@@ -290,9 +290,10 @@ async function getMtdCtsSummary(): Promise<MtdCtsSummary> {
 }
 
 export default async function DashboardPage() {
-  // JMD Planner shouldn't see the Dashboard at all (nav link is hidden in
-  // Sidebar.tsx, but that alone doesn't stop direct navigation to "/", so
-  // enforce it here too, the same way AppLayout fetches the profile).
+  // JMD Planner/Admin and Invoicing Team shouldn't see the Dashboard at all
+  // (nav link is hidden in Sidebar.tsx, but that alone doesn't stop direct
+  // navigation to "/", so enforce it here too, the same way AppLayout
+  // fetches the profile).
   const authClient = createClient();
   const {
     data: { user },
@@ -305,6 +306,9 @@ export default async function DashboardPage() {
       .maybeSingle<UserProfile>();
     if (profile?.role === "JMD_PLANNER" || profile?.role === "JMD_ADMIN") {
       redirect("/route-plan");
+    }
+    if (profile?.role === "INVOICING_TEAM") {
+      redirect("/mondial-confirmation");
     }
   }
 

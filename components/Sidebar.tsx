@@ -25,7 +25,6 @@ const NAV_ITEMS: NavItem[] = [
       "MONDIAL_TEAM",
       "LOGISTICS_ASSOCIATE",
       "GENERAL_MANAGER",
-      "INVOICING_TEAM",
     ],
   },
   {
@@ -75,7 +74,7 @@ const NAV_ITEMS: NavItem[] = [
   {
     href: "/trucking-billing",
     label: "Trucking Billing",
-    roles: ["ADMIN", "LOGISTICS_OFFICER", "GENERAL_MANAGER", "INVOICING_TEAM"],
+    roles: ["ADMIN", "LOGISTICS_OFFICER", "GENERAL_MANAGER"],
   },
   {
     href: "/final-billing",
