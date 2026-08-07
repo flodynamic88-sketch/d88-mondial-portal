@@ -229,7 +229,10 @@ export async function exportTruckingBillingExcel(statementIds: string[]) {
     r += 1;
 
     const totalDeclaredValue = items.reduce((sum, x) => sum + (x.declared_value ?? 0), 0);
-    const totalBoxes = items.reduce((sum, x) => sum + (x.qty_box ?? 0), 0);
+    // Override-aware -- matches the merged Boxes total shown on the Delivery
+    // Report print page (statement.total_boxes = coalesce(total_boxes_override,
+    // live-computed sum)), so a manual edit there is reflected here too.
+    const totalBoxes = statement.total_boxes;
     const accountsLabel = Array.from(
       new Set(items.map((x) => x.company_name_raw).filter(Boolean))
     ).join(", ");
@@ -351,8 +354,6 @@ export async function exportTruckingBillingExcel(statementIds: string[]) {
       ws.getCell(`D${r}`).value = item.company_name_raw ?? "";
       ws.mergeCells(`G${r}:I${r}`);
       ws.getCell(`G${r}`).value = item.branch_address ?? "";
-      ws.getCell(`J${r}`).value = item.qty_box ?? "";
-      ws.getCell(`J${r}`).numFmt = "#,##0";
       ws.getCell(`K${r}`).value = money(item.declared_value);
       ws.getCell(`K${r}`).numFmt = "#,##0.00";
       ["A", "B", "D", "G", "J", "K"].forEach((col) => {
@@ -365,12 +366,20 @@ export async function exportTruckingBillingExcel(statementIds: string[]) {
     });
     const lastItemRow = r - 1;
     // "SCHED / AREA" is a single merged cell spanning every item row --
-    // one area value applies to the whole truck, not per receipt.
+    // one area value applies to the whole truck, not per receipt. "BOXES" is
+    // merged the same way, showing the one override-aware total (matching
+    // the print page's rowSpan) instead of a qty_box figure per receipt.
     if (items.length > 0) {
       ws.mergeCells(`A${firstItemRow}:A${lastItemRow}`);
       ws.getCell(`A${firstItemRow}`).value = statement.area ?? "";
       ws.getCell(`A${firstItemRow}`).alignment = { horizontal: "center", vertical: "middle", wrapText: true };
       ws.getCell(`A${firstItemRow}`).border = thinBorder();
+
+      ws.mergeCells(`J${firstItemRow}:J${lastItemRow}`);
+      ws.getCell(`J${firstItemRow}`).value = statement.total_boxes || "";
+      ws.getCell(`J${firstItemRow}`).numFmt = "#,##0";
+      ws.getCell(`J${firstItemRow}`).alignment = { horizontal: "center", vertical: "middle" };
+      ws.getCell(`J${firstItemRow}`).border = thinBorder();
     }
 
     // ── Grand total ──────────────────────────────────────────────────
