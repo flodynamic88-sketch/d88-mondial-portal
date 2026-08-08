@@ -19,8 +19,8 @@ type EntryMode = "grid" | "single";
 
 export default function EncodeInvoicesPage() {
   const profile = useAuth();
-  // JMD Planner can review Encode Invoices but not add or edit anything --
-  // matches invoices insert/update/delete RLS (ADMIN/LOGISTICS_OFFICER only).
+  // JMD Planner and JMD Admin can review Encode Invoices but not add or edit
+  // anything -- matches invoices insert/update/delete RLS (ADMIN/LOGISTICS_OFFICER only).
   const canEdit = profile?.role === "ADMIN" || profile?.role === "LOGISTICS_OFFICER";
 
   const [activeTab, setActiveTab] = useState<InvoiceCategory>("CONSIGNMENT");
@@ -28,7 +28,7 @@ export default function EncodeInvoicesPage() {
   const [refreshKey, setRefreshKey] = useState(0);
 
   return (
-    <RequireRole roles={["ADMIN", "LOGISTICS_OFFICER", "JMD_PLANNER"]}>
+    <RequireRole roles={["ADMIN", "LOGISTICS_OFFICER", "JMD_PLANNER", "JMD_ADMIN"]}>
     <div>
       <div className="page-header border-b-0 pb-0">
         <div>
