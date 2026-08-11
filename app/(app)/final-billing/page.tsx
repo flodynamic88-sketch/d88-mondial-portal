@@ -4,7 +4,7 @@ import { Fragment, useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import RequireRole from "@/components/RequireRole";
 import { useAuth } from "@/components/AuthProvider";
-import { exportToExcel } from "@/lib/exportExcel";
+import { exportFinalBillingExcel } from "@/lib/exportFinalBillingExcel";
 import { getAppSetting, setAppSetting, FINAL_BILLING_REPORT_EMAIL_KEY } from "@/lib/appSettings";
 import type { InvoiceCategory, VFinalBilling, ZoneType } from "@/types/database";
 
@@ -316,35 +316,42 @@ export default function FinalBillingPage() {
 
   const grandTotalFee = feeCategories.reduce((sum, cat) => sum + cat.subtotalFee, 0);
 
-  function handleExport() {
-    const sheets: { name: string; rows: Record<string, unknown>[] }[] = CATEGORY_CONFIG.map(
-      (cat) => {
-        const rawCatRows = rows.filter((r) => r.category === cat.value);
-        const catRows = cat.groupByZone ? sortRowsByZoneAndDc(rawCatRows) : rawCatRows;
-        return {
-          name: cat.label,
-          rows: catRows.map((row) => {
-            const record: Record<string, unknown> = {};
-            cat.columns.forEach((col) => {
-              record[col.header] = col.render(row);
-            });
-            return record;
-          }),
-        };
-      }
-    ).filter((sheet) => sheet.rows.length > 0);
+  async function handleExport() {
+    const exportFeeCategories = feeCategories.map((cat) => ({
+      label: cat.label,
+      isMercury: cat.value === "MERCURY_DRUG",
+      groups: cat.groups.map((g) => ({
+        label: g.label,
+        totalAmount: g.totalAmount,
+        ratePct: g.ratePct,
+        totalFee: g.totalFee,
+      })),
+      subtotalAmount: cat.subtotalAmount,
+      subtotalFee: cat.subtotalFee,
+    }));
 
-    sheets.push({
-      name: "Summary",
-      rows: [
-        {
-          "Delivery Period": `${startDate} to ${endDate}`,
-          "Grand Total Amount": grandTotalAmount,
-        },
-      ],
+    const detailSections = CATEGORY_CONFIG.map((cat) => {
+      const rawCatRows = rows.filter((r) => r.category === cat.value);
+      const catRows = cat.groupByZone ? sortRowsByZoneAndDc(rawCatRows) : rawCatRows;
+      const amountColIndex = cat.columns.findIndex((c) => c.header === "Amount");
+      const subtotalAmount = catRows.reduce((sum, r) => sum + (r.amount ?? 0), 0);
+      return {
+        label: cat.label,
+        columnHeaders: cat.columns.map((c) => c.header),
+        amountColIndex,
+        rows: catRows.map((row) => cat.columns.map((col) => col.render(row))),
+        subtotalAmount,
+      };
+    }).filter((section) => section.rows.length > 0);
+
+    await exportFinalBillingExcel({
+      startDate,
+      endDate,
+      feeCategories: exportFeeCategories,
+      grandTotalFee,
+      grandTotalAmount,
+      detailSections,
     });
-
-    exportToExcel(`final-billing-${startDate}_to_${endDate}`, sheets);
   }
 
   return (
