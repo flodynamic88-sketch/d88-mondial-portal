@@ -303,6 +303,11 @@ export interface VBilling {
   plan_date: string | null;
   posting_date: string | null;
   transmittal_received_date: string | null;
+  /** Set once this invoice has been batched into a printed Transmittal --
+   *  see migration 0012. Non-null here auto-confirms the row for Final
+   *  Billing purposes (alongside the existing manual mondial_confirmations
+   *  path) -- see migration 0049. */
+  transmittal_id: string | null;
   billing_period: string | null;
   delivered_at: string | null;
   service_rate_pct: number | null;

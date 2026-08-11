@@ -64,6 +64,14 @@ export default function RoutePlanBoard() {
   const [loadingTrucks, setLoadingTrucks] = useState(false);
   const [trucksError, setTrucksError] = useState<string | null>(null);
   const [ctsRows, setCtsRows] = useState<VTruckCts[]>([]);
+  // Assigned invoices for this route plan that still need attention: either
+  // no delivery date has been set yet, or they came back from a failed
+  // delivery attempt (Backload/Discrepancy, superseded_at set) and haven't
+  // been picked back up on a new truck/date yet. Surfaced here so staff
+  // don't have to expand every truck to see what's still outstanding.
+  const [pendingRows, setPendingRows] = useState<ExportInvoiceRow[]>([]);
+  const [loadingPending, setLoadingPending] = useState(false);
+  const [showPending, setShowPending] = useState(false);
 
   const [deliveryReasons, setDeliveryReasons] = useState<DeliveryReason[]>([]);
 
@@ -192,6 +200,53 @@ export default function RoutePlanBoard() {
       cancelled = true;
     };
   }, [trucks]);
+
+  // Outstanding invoices for this route plan: not yet delivered (no
+  // delivered_at, still an active assignment) or bounced back from a failed
+  // delivery attempt (superseded_at set -- Backload/Discrepancy) and not yet
+  // re-assigned. Mirrors the query handleExportRoutePlan already uses for
+  // this route plan's invoices, minus the "only active assignments" filter
+  // so superseded rows show up too.
+  useEffect(() => {
+    let cancelled = false;
+    async function loadPending() {
+      if (trucks.length === 0) {
+        setPendingRows([]);
+        return;
+      }
+      setLoadingPending(true);
+      try {
+        const supabase = createClient();
+        const truckIds = trucks.map((t) => t.id);
+        const { data, error } = await supabase
+          .from("route_plan_invoices")
+          .select("*, invoice:invoices(*)")
+          .in("route_plan_truck_id", truckIds)
+          .or("delivered_at.is.null,superseded_at.not.is.null")
+          .order("created_at", { ascending: true });
+        if (!cancelled) {
+          if (error) {
+            setPendingRows([]);
+          } else {
+            setPendingRows((data ?? []) as unknown as ExportInvoiceRow[]);
+          }
+        }
+      } catch {
+        if (!cancelled) setPendingRows([]);
+      } finally {
+        if (!cancelled) setLoadingPending(false);
+      }
+    }
+    loadPending();
+    return () => {
+      cancelled = true;
+    };
+  }, [trucks]);
+
+  const notYetDelivered = pendingRows.filter(
+    (r) => r.delivered_at === null && r.superseded_at === null
+  );
+  const cameBackFromDelivery = pendingRows.filter((r) => r.superseded_at !== null);
 
   const selectedPlanForSync = routePlans.find((p) => p.id === selectedId) ?? null;
 
@@ -800,6 +855,107 @@ export default function RoutePlanBoard() {
                           ({Math.round((ctsPassCount / ctsTotalCount) * 100)}%)
                         </span>
                       </p>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {!loadingTrucks && !trucksError && mainTrucks.length > 0 && (
+                <div className="mb-4 rounded-md border border-amber-200 bg-amber-50 p-3">
+                  <button
+                    type="button"
+                    className="flex w-full items-center justify-between text-left"
+                    onClick={() => setShowPending((v) => !v)}
+                  >
+                    <span className="text-sm font-semibold text-amber-800">
+                      {showPending ? "▾" : "▸"} Needs Attention — Not Yet Delivered or Came Back (
+                      {loadingPending ? "…" : pendingRows.length})
+                    </span>
+                  </button>
+                  <p className="mt-1 text-xs text-amber-700">
+                    Invoices assigned to a truck on this route plan that still have no delivery date,
+                    or that came back from a failed delivery attempt (Backload/Discrepancy) and
+                    haven&apos;t been re-assigned yet. Saves checking every truck card by hand.
+                  </p>
+                  {showPending && (
+                    <div className="mt-3 space-y-3">
+                      {loadingPending && <p className="text-sm text-amber-700">Loading…</p>}
+                      {!loadingPending && pendingRows.length === 0 && (
+                        <p className="text-sm text-amber-700">
+                          Nothing outstanding — every assigned invoice on this route plan has been
+                          delivered.
+                        </p>
+                      )}
+                      {!loadingPending && notYetDelivered.length > 0 && (
+                        <div>
+                          <p className="text-xs font-semibold uppercase text-amber-800">
+                            Not Yet Delivered ({notYetDelivered.length})
+                          </p>
+                          <div className="mt-1 max-h-48 overflow-y-auto rounded-md border border-amber-200 bg-white">
+                            <table className="min-w-full divide-y divide-amber-100 text-sm">
+                              <thead className="sticky top-0 bg-amber-50">
+                                <tr className="text-left text-xs font-semibold uppercase text-amber-700">
+                                  <th className="py-1.5 pl-3 pr-4">Document No.</th>
+                                  <th className="py-1.5 pr-4">Truck</th>
+                                  <th className="py-1.5 pr-3">Company / Store</th>
+                                </tr>
+                              </thead>
+                              <tbody className="divide-y divide-amber-50">
+                                {notYetDelivered.map((row) => (
+                                  <tr key={row.id}>
+                                    <td className="py-1.5 pl-3 pr-4 font-medium text-gray-800">
+                                      {row.invoice?.document_no ?? "—"}
+                                    </td>
+                                    <td className="py-1.5 pr-4 text-gray-600">
+                                      {row.route_plan_truck_id
+                                        ? truckLabelById[row.route_plan_truck_id] ?? "—"
+                                        : "—"}
+                                    </td>
+                                    <td className="py-1.5 pr-3 text-gray-600">
+                                      {row.invoice?.company_name_raw ?? "—"}
+                                    </td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          </div>
+                        </div>
+                      )}
+                      {!loadingPending && cameBackFromDelivery.length > 0 && (
+                        <div>
+                          <p className="text-xs font-semibold uppercase text-amber-800">
+                            Came Back From Delivery ({cameBackFromDelivery.length})
+                          </p>
+                          <div className="mt-1 max-h-48 overflow-y-auto rounded-md border border-amber-200 bg-white">
+                            <table className="min-w-full divide-y divide-amber-100 text-sm">
+                              <thead className="sticky top-0 bg-amber-50">
+                                <tr className="text-left text-xs font-semibold uppercase text-amber-700">
+                                  <th className="py-1.5 pl-3 pr-4">Document No.</th>
+                                  <th className="py-1.5 pr-4">Truck</th>
+                                  <th className="py-1.5 pr-3">Company / Store</th>
+                                </tr>
+                              </thead>
+                              <tbody className="divide-y divide-amber-50">
+                                {cameBackFromDelivery.map((row) => (
+                                  <tr key={row.id}>
+                                    <td className="py-1.5 pl-3 pr-4 font-medium text-gray-800">
+                                      {row.invoice?.document_no ?? "—"}
+                                    </td>
+                                    <td className="py-1.5 pr-4 text-gray-600">
+                                      {row.route_plan_truck_id
+                                        ? truckLabelById[row.route_plan_truck_id] ?? "—"
+                                        : "—"}
+                                    </td>
+                                    <td className="py-1.5 pr-3 text-gray-600">
+                                      {row.invoice?.company_name_raw ?? "—"}
+                                    </td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          </div>
+                        </div>
+                      )}
                     </div>
                   )}
                 </div>

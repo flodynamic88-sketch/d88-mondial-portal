@@ -131,6 +131,13 @@ function GenerateTab({
   const [remarks, setRemarks] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  // All delivered-but-not-yet-transmitted invoices for this category across
+  // EVERY delivery date, not just the one picked above -- so Logistics can
+  // see at a glance what's still waiting on a transmittal batch, even for
+  // older dates they've already moved past.
+  const [allPending, setAllPending] = useState<Invoice[]>([]);
+  const [allPendingLoading, setAllPendingLoading] = useState(true);
+  const [showAllPending, setShowAllPending] = useState(false);
   const [generating, setGenerating] = useState(false);
   const [genError, setGenError] = useState<string | null>(null);
   const [recent, setRecent] = useState<VTransmittal[]>([]);
@@ -178,6 +185,29 @@ function GenerateTab({
     }
   }, [category, deliveryDate]);
 
+  const loadAllPending = useCallback(async () => {
+    setAllPendingLoading(true);
+    try {
+      const supabase = createClient();
+      const { data, error } = await supabase
+        .from("invoices")
+        .select("*")
+        .eq("category", category)
+        .not("actual_delivery_date", "is", null)
+        .is("transmittal_id", null)
+        .order("actual_delivery_date", { ascending: true });
+      if (error) {
+        setAllPending([]);
+        return;
+      }
+      setAllPending((data ?? []) as Invoice[]);
+    } catch {
+      setAllPending([]);
+    } finally {
+      setAllPendingLoading(false);
+    }
+  }, [category]);
+
   const loadRecent = useCallback(async () => {
     try {
       const supabase = createClient();
@@ -200,6 +230,28 @@ function GenerateTab({
   useEffect(() => {
     loadRecent();
   }, [loadRecent]);
+
+  useEffect(() => {
+    loadAllPending();
+  }, [loadAllPending]);
+
+  // Group the all-dates pending list by actual_delivery_date so it reads as
+  // a scannable log of "what's still waiting, by day" instead of one flat
+  // list -- and let clicking a date jump the date-scoped table above to it.
+  const pendingByDate = useMemo(() => {
+    const groups = new Map<string, Invoice[]>();
+    allPending.forEach((inv) => {
+      const key = inv.actual_delivery_date ?? "unknown";
+      const list = groups.get(key);
+      if (list) list.push(inv);
+      else groups.set(key, [inv]);
+    });
+    return Array.from(groups.entries()).sort(([a], [b]) => a.localeCompare(b));
+  }, [allPending]);
+  const allPendingAmount = useMemo(
+    () => allPending.reduce((sum, i) => sum + (i.amount ?? 0), 0),
+    [allPending]
+  );
 
   const selectedAmount = useMemo(
     () => invoices.filter((i) => checked.has(i.id)).reduce((sum, i) => sum + (i.amount ?? 0), 0),
@@ -230,7 +282,7 @@ function GenerateTab({
         return;
       }
       showToast("Transmittal deleted.", "success");
-      await Promise.all([load(), loadRecent()]);
+      await Promise.all([load(), loadRecent(), loadAllPending()]);
     } catch {
       setDeleteError("Could not delete the transmittal. Make sure a Supabase project is connected.");
       showToast("Could not delete the transmittal.", "error");
@@ -367,6 +419,7 @@ function GenerateTab({
       window.open(`/transmittals/print/${newTransmittal.id}`, "_blank");
       await load();
       await loadRecent();
+      await loadAllPending();
     } catch {
       setGenError("Could not generate the transmittal. Make sure a Supabase project is connected.");
       showToast("Could not generate the transmittal.", "error");
@@ -394,6 +447,88 @@ function GenerateTab({
           <p className="text-xs uppercase tracking-wide text-gray-500">Selected Amount</p>
           <p className="text-xl font-bold text-brand-700">{formatMoney(selectedAmount)}</p>
         </div>
+      </div>
+
+      <div className="mt-6 rounded-md border border-amber-200 bg-amber-50 p-3">
+        <button
+          type="button"
+          className="flex w-full items-center justify-between text-left"
+          onClick={() => setShowAllPending((v) => !v)}
+        >
+          <span className="text-sm font-semibold text-amber-800">
+            {showAllPending ? "▾" : "▸"} All Delivered, Not Yet Transmitted — Any Date (
+            {allPendingLoading ? "…" : allPending.length})
+          </span>
+          {!allPendingLoading && allPending.length > 0 && (
+            <span className="text-xs font-medium text-amber-700">
+              {formatMoney(allPendingAmount)}
+            </span>
+          )}
+        </button>
+        <p className="mt-1 text-xs text-amber-700">
+          Every {label.toLowerCase()} invoice that has a delivery date but has never been included
+          in a transmittal, across every date — not just the one selected below. Use this to catch
+          older delivered invoices that got missed.
+        </p>
+        {showAllPending && (
+          <div className="mt-3">
+            {allPendingLoading && <p className="text-sm text-amber-700">Loading…</p>}
+            {!allPendingLoading && allPending.length === 0 && (
+              <p className="text-sm text-amber-700">
+                Nothing pending — every delivered {label.toLowerCase()} invoice has a transmittal.
+              </p>
+            )}
+            {!allPendingLoading && pendingByDate.length > 0 && (
+              <div className="max-h-64 overflow-y-auto rounded-md border border-amber-200 bg-white">
+                <table className="min-w-full divide-y divide-amber-100 text-sm">
+                  <thead className="sticky top-0 bg-amber-50">
+                    <tr className="text-left text-xs font-semibold uppercase text-amber-700">
+                      <th className="py-1.5 pl-3 pr-4">Delivery Date</th>
+                      <th className="py-1.5 pr-4">Document #s</th>
+                      <th className="py-1.5 pr-4">Count</th>
+                      <th className="py-1.5 pr-3">Amount</th>
+                      <th className="py-1.5 pr-3">Action</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-amber-50">
+                    {pendingByDate.map(([date, invs]) => (
+                      <tr key={date}>
+                        <td className="py-1.5 pl-3 pr-4 font-medium text-gray-800">
+                          {date === "unknown" ? "—" : new Date(date).toLocaleDateString()}
+                        </td>
+                        <td className="py-1.5 pr-4 text-gray-600">
+                          {invs
+                            .map((i) => i.document_no)
+                            .slice(0, 3)
+                            .join(", ")}
+                          {invs.length > 3 ? ` +${invs.length - 3} more` : ""}
+                        </td>
+                        <td className="py-1.5 pr-4">{invs.length}</td>
+                        <td className="py-1.5 pr-3">
+                          {formatMoney(invs.reduce((sum, i) => sum + (i.amount ?? 0), 0))}
+                        </td>
+                        <td className="py-1.5 pr-3">
+                          {date !== "unknown" && (
+                            <button
+                              type="button"
+                              className="text-xs font-medium text-brand-600 underline hover:text-brand-700"
+                              onClick={() => {
+                                setDeliveryDate(date);
+                                setShowAllPending(false);
+                              }}
+                            >
+                              Go to date
+                            </button>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
       <h2 className="mt-6 text-lg font-semibold text-gray-800">
