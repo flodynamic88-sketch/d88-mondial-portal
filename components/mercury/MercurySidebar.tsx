@@ -85,8 +85,19 @@ const NAV_SECTIONS: NavSection[] = [
   },
 ];
 
-export default function MercurySidebar() {
+interface MercurySidebarProps {
+  // FLO_ASSOCIATE gets full coverage of Mercury except Billing -- hides the
+  // "Billing" section (Billing, Booklet Summary) from the nav entirely, so
+  // it's absent from the DOM rather than merely hidden. The matching
+  // server-side guard lives in the billing/booklet-summary route layouts.
+  hideBilling?: boolean;
+}
+
+export default function MercurySidebar({ hideBilling = false }: MercurySidebarProps) {
   const pathname = usePathname();
+  const sections = hideBilling
+    ? NAV_SECTIONS.filter((section) => section.title !== "Billing")
+    : NAV_SECTIONS;
 
   return (
     <aside className="no-print sticky top-8 hidden w-56 flex-shrink-0 rounded-xl border border-gray-800 bg-black py-4 md:block">
@@ -95,7 +106,7 @@ export default function MercurySidebar() {
         <p className="mt-0.5 text-xs text-gray-400">Flo Portal (Mercury Drug)</p>
       </div>
       <nav className="mt-3 space-y-4 px-3">
-        {NAV_SECTIONS.map((section) => (
+        {sections.map((section) => (
           <div key={section.title}>
             <div className="mb-1 px-1 text-[11px] font-semibold uppercase tracking-wider text-gray-500">
               {section.title}

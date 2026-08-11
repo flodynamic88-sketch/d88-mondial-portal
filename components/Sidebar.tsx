@@ -97,12 +97,17 @@ export default function Sidebar() {
 
   // "Mercury" (the ported Flo Portal admin section) is appended here --
   // never injected as a static NAV_ITEMS entry -- so it is completely
-  // absent from the DOM for every role except ADMIN, not merely hidden.
-  // Direct-URL access is separately blocked server-side by
+  // absent from the DOM for every role except ADMIN/FLO_ASSOCIATE, not
+  // merely hidden. Direct-URL access is separately blocked server-side by
   // app/(app)/mercury/layout.tsx.
+  //
+  // FLO_ASSOCIATE's access is Mercury-only: it is deliberately excluded
+  // from every entry in NAV_ITEMS above (none of their `roles` arrays list
+  // it), so once its role check runs it is left with the Mercury link and
+  // nothing else.
   const items: NavItem[] =
-    profile?.role === "ADMIN"
-      ? [...NAV_ITEMS, { href: "/mercury", label: "Mercury", roles: ["ADMIN"] }]
+    profile?.role === "ADMIN" || profile?.role === "FLO_ASSOCIATE"
+      ? [...NAV_ITEMS, { href: "/mercury", label: "Mercury", roles: ["ADMIN", "FLO_ASSOCIATE"] }]
       : NAV_ITEMS;
 
   const visibleItems = items.filter((item) => !item.roles || (profile && item.roles.includes(profile.role)));
