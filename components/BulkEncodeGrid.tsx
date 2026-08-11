@@ -1,11 +1,10 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import * as XLSX from "xlsx";
 import { createClient } from "@/lib/supabase/client";
 import { useToast } from "@/components/Toast";
 import { findOrCreateBranchAddress, findOrCreateCompany } from "@/lib/invoiceHelpers";
-import { monthValueToDate, currentMonthValue } from "@/lib/dateHelpers";
+import { monthValueToDate, currentMonthValue, parsePastedDate } from "@/lib/dateHelpers";
 import type { InvoiceCategory } from "@/types/database";
 
 interface BulkEncodeGridProps {
@@ -129,44 +128,6 @@ function formatAmountDisplay(raw: string): string {
  * focused; re-applied on blur via formatAmountDisplay. */
 function unformatAmountForEditing(raw: string): string {
   return raw.replace(/,/g, "");
-}
-
-/**
- * Normalizes a pasted "Posting Date" cell into the "YYYY-MM-DD" shape the
- * native date input requires. Excel copies a date cell to the clipboard as
- * locale-formatted text (e.g. "8/6/2026"), not ISO, so pasting it straight
- * into an <input type="date"> silently fails to display (the browser just
- * shows it blank) while the invalid string still sits in state and would
- * later fail the insert. Handles already-ISO text, "M/D/YY(YY)", and a bare
- * Excel serial number (in case the source cell's format was "General").
- * Falls back to the raw trimmed text for anything unrecognized, so a
- * hand-typed value never gets silently blanked.
- */
-function parsePastedDate(raw: string): string {
-  const text = raw.trim();
-  if (!text) return "";
-  if (/^\d{4}-\d{2}-\d{2}/.test(text)) return text.slice(0, 10);
-
-  const slashMatch = text.match(/^(\d{1,2})\/(\d{1,2})\/(\d{2,4})$/);
-  if (slashMatch) {
-    const [, mStr, dStr, yStr] = slashMatch;
-    let year = parseInt(yStr, 10);
-    if (yStr.length === 2) year += year < 70 ? 2000 : 1900;
-    const mm = mStr.padStart(2, "0");
-    const dd = dStr.padStart(2, "0");
-    return `${year}-${mm}-${dd}`;
-  }
-
-  if (/^\d+(\.\d+)?$/.test(text)) {
-    const parsed = XLSX.SSF.parse_date_code(Number(text));
-    if (parsed) {
-      const mm = String(parsed.m).padStart(2, "0");
-      const dd = String(parsed.d).padStart(2, "0");
-      return `${parsed.y}-${mm}-${dd}`;
-    }
-  }
-
-  return text;
 }
 
 export default function BulkEncodeGrid({ category, onSaved }: BulkEncodeGridProps) {

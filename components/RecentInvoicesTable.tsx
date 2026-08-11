@@ -5,7 +5,7 @@ import { createClient } from "@/lib/supabase/client";
 import { useToast } from "@/components/Toast";
 import { exportToExcel } from "@/lib/exportExcel";
 import { findOrCreateBranchAddress, findOrCreateCompany } from "@/lib/invoiceHelpers";
-import { dateToMonthValue, monthValueToDate } from "@/lib/dateHelpers";
+import { dateToMonthValue, monthValueToDate, parsePastedDate, parsePasteLines } from "@/lib/dateHelpers";
 import type { Invoice, InvoiceCategory, ZoneType } from "@/types/database";
 
 interface RecentInvoicesTableProps {
@@ -270,6 +270,81 @@ export default function RecentInvoicesTable({ refreshKey, readOnly = false }: Re
     saveField(inv.id, patch as Record<string, unknown>);
   }
 
+  /**
+   * Excel-style paste-down: fills a single column starting at `startIndex`
+   * with one value per clipboard line, skipping any row `transform` can't
+   * make sense of (so a stray blank line in the copied range doesn't wipe
+   * an already-set value). Used by the Posting Date and Zone columns below
+   * -- clicking each row one at a time to encode a whole batch was the
+   * complaint this solves.
+   */
+  async function pasteDownColumn<K extends keyof Invoice>(
+    startIndex: number,
+    key: K,
+    lines: string[],
+    transform: (raw: string) => Invoice[K] | null
+  ) {
+    const updates: { id: string; value: Invoice[K] }[] = [];
+    lines.forEach((line, i) => {
+      const rowIndex = startIndex + i;
+      if (rowIndex >= invoices.length) return;
+      const value = transform(line);
+      if (value === null) return;
+      updates.push({ id: invoices[rowIndex].id, value });
+    });
+    if (updates.length === 0) return;
+
+    setInvoices((prev) =>
+      prev.map((inv) => {
+        const match = updates.find((u) => u.id === inv.id);
+        return match ? { ...inv, [key]: match.value } : inv;
+      })
+    );
+
+    await Promise.all(
+      updates.map(({ id, value }) => saveField(id, { [key]: value } as Record<string, unknown>))
+    );
+  }
+
+  // Posting Date supports pasting a column copied from Excel: paste on any
+  // row's date cell fills that row and every row below it with one value
+  // per clipboard line, instead of requiring a click into each date field.
+  function handlePostingDatePaste(e: React.ClipboardEvent<HTMLInputElement>, rowIndex: number) {
+    const text = e.clipboardData.getData("text");
+    if (!text) return;
+    e.preventDefault();
+    const lines = parsePasteLines(text);
+    pasteDownColumn(rowIndex, "posting_date", lines, (raw) => parsePastedDate(raw) || null);
+  }
+
+  // Native <select> elements don't fire a "paste" event, so Zone paste-down
+  // is intercepted on Ctrl+V/Cmd+V via the Clipboard API instead, matching
+  // each pasted line against ZONE_OPTIONS by value or label (case-insensitive).
+  function matchZoneOption(raw: string): ZoneType | null {
+    const text = raw.trim();
+    if (!text) return null;
+    const lower = text.toLowerCase();
+    const found = ZONE_OPTIONS.find(
+      (z) => z.value.toLowerCase() === lower || z.label.toLowerCase() === lower
+    );
+    return found ? found.value : null;
+  }
+
+  async function handleZoneKeyDown(e: React.KeyboardEvent<HTMLSelectElement>, rowIndex: number) {
+    const isPaste = (e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "v";
+    if (!isPaste) return;
+    e.preventDefault();
+    try {
+      const text = await navigator.clipboard.readText();
+      if (!text) return;
+      const lines = parsePasteLines(text);
+      await pasteDownColumn(rowIndex, "zone", lines, matchZoneOption);
+    } catch {
+      // Clipboard read blocked/unavailable (permissions, insecure context,
+      // unsupported browser) -- the dropdown still works normally by hand.
+    }
+  }
+
   // Text/number/date fields: keep local state responsive while typing, and
   // only save on blur so we're not firing a request per keystroke.
   function handleTextChange<K extends keyof Invoice>(inv: Invoice, key: K, value: string) {
@@ -519,7 +594,7 @@ export default function RecentInvoicesTable({ refreshKey, readOnly = false }: Re
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
-              {invoices.map((inv) => (
+              {invoices.map((inv, index) => (
                 <tr key={inv.id}>
                   <td className="py-0.5 pr-1.5">
                     <input
@@ -559,6 +634,7 @@ export default function RecentInvoicesTable({ refreshKey, readOnly = false }: Re
                             zone: (e.target.value || null) as ZoneType | null,
                           })
                         }
+                        onKeyDown={(e) => handleZoneKeyDown(e, index)}
                         disabled={readOnly}
                       >
                         <option value="">Not set</option>
@@ -625,6 +701,7 @@ export default function RecentInvoicesTable({ refreshKey, readOnly = false }: Re
                       defaultValue={inv.posting_date ?? ""}
                       key={`${inv.id}-posting_date-${inv.posting_date ?? ""}`}
                       onBlur={(e) => handleDateFieldBlur(inv, "posting_date", e.target.value)}
+                      onPaste={(e) => handlePostingDatePaste(e, index)}
                       disabled={readOnly}
                     />
                   </td>
