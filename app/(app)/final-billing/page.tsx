@@ -48,8 +48,14 @@ interface ReportColumn {
   render: (row: VFinalBilling) => string;
 }
 
+// Same "Zone — DC" phrasing as the Fulfillment Fee Summary groups below, so
+// a DC row reads the same way in both the summary and the detail breakdown.
+function zoneIndicatorLabel(r: VFinalBilling): string {
+  return r.is_dc ? `${ZONE_LABELS[r.zone]} — DC` : ZONE_LABELS[r.zone];
+}
+
 const CONSIGNMENT_COLUMNS: ReportColumn[] = [
-  { header: "Indicator", render: (r) => ZONE_LABELS[r.zone] },
+  { header: "Indicator", render: zoneIndicatorLabel },
   { header: "CD #", render: (r) => r.document_no },
   { header: "Plan Date", render: (r) => formatDate(r.plan_date) },
   { header: "Delivery Date", render: (r) => formatDate(r.delivered_at) },
@@ -63,7 +69,7 @@ const CONSIGNMENT_COLUMNS: ReportColumn[] = [
 ];
 
 const OUTRIGHT_COLUMNS: ReportColumn[] = [
-  { header: "Indicator", render: (r) => ZONE_LABELS[r.zone] },
+  { header: "Indicator", render: zoneIndicatorLabel },
   { header: "Plan Del. Date", render: (r) => formatDate(r.plan_date) },
   { header: "Delivery Date", render: (r) => formatDate(r.delivered_at) },
   { header: "Month", render: (r) => formatMonth(r.billing_period) },
@@ -89,9 +95,18 @@ const MERCURY_COLUMNS: ReportColumn[] = [
   { header: "Remarks", render: remarksFor },
 ];
 
-const CATEGORY_CONFIG: { value: InvoiceCategory; label: string; columns: ReportColumn[] }[] = [
-  { value: "CONSIGNMENT", label: "Consignment", columns: CONSIGNMENT_COLUMNS },
-  { value: "OUTRIGHT", label: "Outright", columns: OUTRIGHT_COLUMNS },
+const CATEGORY_CONFIG: {
+  value: InvoiceCategory;
+  label: string;
+  columns: ReportColumn[];
+  // Consignment and Outright breakdown rows are grouped the same way as the
+  // Fulfillment Fee Summary above them (zone, non-DC before DC) so the two
+  // sections read consistently. Mercury is a flat rate regardless of
+  // zone/DC, so its detail rows are left in delivery-date order.
+  groupByZone?: boolean;
+}[] = [
+  { value: "CONSIGNMENT", label: "Consignment", columns: CONSIGNMENT_COLUMNS, groupByZone: true },
+  { value: "OUTRIGHT", label: "Outright", columns: OUTRIGHT_COLUMNS, groupByZone: true },
   { value: "MERCURY_DRUG", label: "FLO-Mercury", columns: MERCURY_COLUMNS },
 ];
 
@@ -118,6 +133,27 @@ function summarizeFeeRows(groupRows: VFinalBilling[], label: string, key: string
   const ratePct =
     groupRows[0]?.service_rate_pct ?? (totalAmount > 0 ? (totalFee / totalAmount) * 100 : null);
   return { key, label, totalAmount, totalFee, ratePct };
+}
+
+function zoneSortIndex(zone: ZoneType): number {
+  const idx = ZONE_ORDER.indexOf(zone);
+  return idx === -1 ? ZONE_ORDER.length : idx;
+}
+
+/**
+ * Orders the invoice breakdown the same way buildFeeGroups buckets the
+ * Fulfillment Fee Summary above it: NCR, then NCR — DC, then Far North /
+ * South, then Far North / South — DC, etc. per ZONE_ORDER. Array.sort is
+ * stable, so rows keep their existing delivered_at order within each
+ * zone+DC bucket.
+ */
+function sortRowsByZoneAndDc(catRows: VFinalBilling[]): VFinalBilling[] {
+  return [...catRows].sort((a, b) => {
+    const zoneDiff = zoneSortIndex(a.zone) - zoneSortIndex(b.zone);
+    if (zoneDiff !== 0) return zoneDiff;
+    if (a.is_dc !== b.is_dc) return a.is_dc ? 1 : -1;
+    return 0;
+  });
 }
 
 function buildFeeGroups(catRows: VFinalBilling[], category: InvoiceCategory): FeeGroup[] {
@@ -279,7 +315,8 @@ export default function FinalBillingPage() {
   function handleExport() {
     const sheets: { name: string; rows: Record<string, unknown>[] }[] = CATEGORY_CONFIG.map(
       (cat) => {
-        const catRows = rows.filter((r) => r.category === cat.value);
+        const rawCatRows = rows.filter((r) => r.category === cat.value);
+        const catRows = cat.groupByZone ? sortRowsByZoneAndDc(rawCatRows) : rawCatRows;
         return {
           name: cat.label,
           rows: catRows.map((row) => {
@@ -504,8 +541,9 @@ export default function FinalBillingPage() {
               </div>
 
               {CATEGORY_CONFIG.map((cat) => {
-                const catRows = rows.filter((r) => r.category === cat.value);
-                if (catRows.length === 0) return null;
+                const rawCatRows = rows.filter((r) => r.category === cat.value);
+                if (rawCatRows.length === 0) return null;
+                const catRows = cat.groupByZone ? sortRowsByZoneAndDc(rawCatRows) : rawCatRows;
 
                 const subtotalAmount = catRows.reduce((sum, r) => sum + (r.amount ?? 0), 0);
                 const amountColIndex = cat.columns.findIndex((c) => c.header === "Amount");
