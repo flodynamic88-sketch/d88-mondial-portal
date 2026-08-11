@@ -64,11 +64,15 @@ export default function RoutePlanBoard() {
   const [loadingTrucks, setLoadingTrucks] = useState(false);
   const [trucksError, setTrucksError] = useState<string | null>(null);
   const [ctsRows, setCtsRows] = useState<VTruckCts[]>([]);
-  // Assigned invoices for this route plan that still need attention: either
-  // no delivery date has been set yet, or they came back from a failed
-  // delivery attempt (Backload/Discrepancy, superseded_at set) and haven't
-  // been picked back up on a new truck/date yet. Surfaced here so staff
-  // don't have to expand every truck to see what's still outstanding.
+  // Assigned invoices for this route plan that still have no delivery date
+  // AND no reported issue yet -- i.e. genuinely untouched. Backload/
+  // Discrepancy invoices are deliberately excluded here regardless of
+  // whether they've been reassigned for redelivery yet: they never had a
+  // delivery date to begin with (that's expected, not a gap), and they're
+  // already tracked -- with reschedule actions and highlighting -- on the
+  // truck card and the Delivery Variance Log, so flagging them again here
+  // would be redundant. Surfaced here so staff don't have to expand every
+  // truck to see what's still outstanding.
   const [pendingRows, setPendingRows] = useState<ExportInvoiceRow[]>([]);
   const [loadingPending, setLoadingPending] = useState(false);
   const [showPending, setShowPending] = useState(false);
@@ -222,7 +226,8 @@ export default function RoutePlanBoard() {
           .from("route_plan_invoices")
           .select("*, invoice:invoices(*)")
           .in("route_plan_truck_id", truckIds)
-          .or("delivered_at.is.null,superseded_at.not.is.null")
+          .is("delivered_at", null)
+          .is("reason_id", null)
           .order("created_at", { ascending: true });
         if (!cancelled) {
           if (error) {
@@ -243,18 +248,12 @@ export default function RoutePlanBoard() {
     };
   }, [trucks]);
 
-  // "Not Yet Delivered" must mean genuinely untouched -- no delivery date AND
-  // no issue reported yet. A backload/discrepancy row naturally has no
-  // delivered_at (the delivery attempt failed), so checking delivered_at
-  // alone would wrongly lump it in here even before it's been rescheduled
-  // (superseded_at set). Excluding anything with reason_id set routes those
-  // rows to "Came Back From Delivery" instead, where they belong.
-  const notYetDelivered = pendingRows.filter(
-    (r) => r.delivered_at === null && r.superseded_at === null && !r.reason_id
-  );
-  const cameBackFromDelivery = pendingRows.filter(
-    (r) => r.superseded_at !== null || !!r.reason_id
-  );
+  // The query already restricts pendingRows to delivered_at is null AND
+  // reason_id is null, so every row here is genuinely untouched -- no
+  // delivery date and no reported issue. Kept as its own variable (rather
+  // than rendering pendingRows directly) so the label stays accurate if the
+  // query's shape ever changes.
+  const notYetDelivered = pendingRows;
 
   const selectedPlanForSync = routePlans.find((p) => p.id === selectedId) ?? null;
 
@@ -876,14 +875,15 @@ export default function RoutePlanBoard() {
                     onClick={() => setShowPending((v) => !v)}
                   >
                     <span className="text-sm font-semibold text-amber-800">
-                      {showPending ? "▾" : "▸"} Needs Attention — Not Yet Delivered or Came Back (
+                      {showPending ? "▾" : "▸"} Needs Attention — Not Yet Delivered (
                       {loadingPending ? "…" : pendingRows.length})
                     </span>
                   </button>
                   <p className="mt-1 text-xs text-amber-700">
-                    Invoices assigned to a truck on this route plan that still have no delivery date,
-                    or that came back from a failed delivery attempt (Backload/Discrepancy) and
-                    haven&apos;t been re-assigned yet. Saves checking every truck card by hand.
+                    Invoices assigned to a truck on this route plan that still have no delivery date
+                    and no reported issue. Backload/Discrepancy invoices are tracked separately on
+                    the truck card and the Delivery Variance Log, so they&apos;re excluded here.
+                    Saves checking every truck card by hand.
                   </p>
                   {showPending && (
                     <div className="mt-3 space-y-3">
@@ -910,41 +910,6 @@ export default function RoutePlanBoard() {
                               </thead>
                               <tbody className="divide-y divide-amber-50">
                                 {notYetDelivered.map((row) => (
-                                  <tr key={row.id}>
-                                    <td className="py-1.5 pl-3 pr-4 font-medium text-gray-800">
-                                      {row.invoice?.document_no ?? "—"}
-                                    </td>
-                                    <td className="py-1.5 pr-4 text-gray-600">
-                                      {row.route_plan_truck_id
-                                        ? truckLabelById[row.route_plan_truck_id] ?? "—"
-                                        : "—"}
-                                    </td>
-                                    <td className="py-1.5 pr-3 text-gray-600">
-                                      {row.invoice?.company_name_raw ?? "—"}
-                                    </td>
-                                  </tr>
-                                ))}
-                              </tbody>
-                            </table>
-                          </div>
-                        </div>
-                      )}
-                      {!loadingPending && cameBackFromDelivery.length > 0 && (
-                        <div>
-                          <p className="text-xs font-semibold uppercase text-amber-800">
-                            Came Back From Delivery ({cameBackFromDelivery.length})
-                          </p>
-                          <div className="mt-1 max-h-48 overflow-y-auto rounded-md border border-amber-200 bg-white">
-                            <table className="min-w-full divide-y divide-amber-100 text-sm">
-                              <thead className="sticky top-0 bg-amber-50">
-                                <tr className="text-left text-xs font-semibold uppercase text-amber-700">
-                                  <th className="py-1.5 pl-3 pr-4">Document No.</th>
-                                  <th className="py-1.5 pr-4">Truck</th>
-                                  <th className="py-1.5 pr-3">Company / Store</th>
-                                </tr>
-                              </thead>
-                              <tbody className="divide-y divide-amber-50">
-                                {cameBackFromDelivery.map((row) => (
                                   <tr key={row.id}>
                                     <td className="py-1.5 pl-3 pr-4 font-medium text-gray-800">
                                       {row.invoice?.document_no ?? "—"}

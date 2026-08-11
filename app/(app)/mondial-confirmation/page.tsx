@@ -107,7 +107,15 @@ export default function MondialConfirmationPage() {
     }
   }
 
-  const visibleRows = rows.filter((row) => row.category === activeTab);
+  // Unconfirmed rows first so Mondial can see what's left to confirm without
+  // scrolling past everything already done; within each group keep the
+  // original delivered_at ascending order from the query.
+  const visibleRows = rows
+    .filter((row) => row.category === activeTab)
+    .sort((a, b) => {
+      if (a.confirmed !== b.confirmed) return a.confirmed ? 1 : -1;
+      return 0;
+    });
 
   function handleExport() {
     exportToExcel(`mondial-confirmation-${activeTab.toLowerCase()}`, [

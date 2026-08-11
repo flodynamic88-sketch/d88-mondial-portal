@@ -64,7 +64,11 @@ const CONSIGNMENT_COLUMNS: ReportColumn[] = [
   { header: "Retail Chain", render: (r) => r.company_name ?? "—" },
   { header: "Branch/Store Address", render: (r) => r.branch_address ?? "—" },
   { header: "Amount", render: (r) => formatMoney(r.amount) },
-  { header: "Transmittal Forward Date", render: (r) => formatDate(r.transmittal_received_date) },
+  // The Mondial Team's actual "Confirm Received" click date -- not the
+  // separate transmittal_received_date field -- is what should read as the
+  // Transmittal Forward Date here, since that's the date that matters for
+  // this billing statement.
+  { header: "Transmittal Forward Date", render: (r) => formatDate(r.confirmed_at) },
   { header: "Remarks", render: remarksFor },
 ];
 
@@ -77,7 +81,7 @@ const OUTRIGHT_COLUMNS: ReportColumn[] = [
   { header: "Account", render: (r) => r.company_name ?? "—" },
   { header: "Branch/Store Address", render: (r) => r.branch_address ?? "—" },
   { header: "Amount", render: (r) => formatMoney(r.amount) },
-  { header: "Transmittal Forward Date", render: (r) => formatDate(r.transmittal_received_date) },
+  { header: "Transmittal Forward Date", render: (r) => formatDate(r.confirmed_at) },
   { header: "Remarks", render: remarksFor },
 ];
 
@@ -91,7 +95,7 @@ const MERCURY_COLUMNS: ReportColumn[] = [
   { header: "Retail Chain", render: (r) => r.company_name ?? "—" },
   { header: "Branch/Store Address", render: (r) => r.branch_address ?? "—" },
   { header: "Amount", render: (r) => formatMoney(r.amount) },
-  { header: "Transmittal Forward Date", render: (r) => formatDate(r.transmittal_received_date) },
+  { header: "Transmittal Forward Date", render: (r) => formatDate(r.confirmed_at) },
   { header: "Remarks", render: remarksFor },
 ];
 
