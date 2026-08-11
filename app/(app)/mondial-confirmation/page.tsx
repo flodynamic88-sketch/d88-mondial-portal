@@ -9,12 +9,6 @@ import type { VBilling, MondialConfirmation, InvoiceCategory } from "@/types/dat
 interface MergedRow extends VBilling {
   confirmed: boolean;
   confirmed_at: string | null;
-  /** True when this row is confirmed solely because it's been batched into a
-   *  Transmittal (transmittal_id set), with no manual mondial_confirmations
-   *  row backing it -- see migration 0049. Distinguishes the auto-confirmed
-   *  case so the Action column can show a non-interactive indicator instead
-   *  of an Un-confirm button that would have nothing to actually toggle. */
-  confirmedViaTransmittal: boolean;
 }
 
 const TABS: { value: InvoiceCategory; label: string }[] = [
@@ -65,17 +59,10 @@ export default function MondialConfirmationPage() {
 
       const merged: MergedRow[] = (billing ?? []).map((b) => {
         const c = confirmByInvoice.get(b.invoice_id);
-        const manuallyConfirmed = c?.confirmed ?? false;
-        // Invoices already batched into a Transmittal are auto-confirmed --
-        // Mondial's Invoice Department already has the paperwork, so there's
-        // no need for a separate manual "Confirm Received" click. See
-        // migration 0049.
-        const viaTransmittal = !manuallyConfirmed && b.transmittal_id != null;
         return {
           ...b,
-          confirmed: manuallyConfirmed || viaTransmittal,
+          confirmed: c?.confirmed ?? false,
           confirmed_at: c?.confirmed_at ?? null,
-          confirmedViaTransmittal: viaTransmittal,
         };
       });
 
@@ -229,11 +216,7 @@ export default function MondialConfirmationPage() {
                       {row.delivered_at ? new Date(row.delivered_at).toLocaleDateString() : "—"}
                     </td>
                     <td className="py-2 pr-4">
-                      {row.confirmedViaTransmittal ? (
-                        <span className="badge-success" title="Auto-confirmed: already included in a Transmittal">
-                          Confirmed via Transmittal
-                        </span>
-                      ) : row.confirmed ? (
+                      {row.confirmed ? (
                         <span className="badge-success">Confirmed</span>
                       ) : (
                         <span className="text-gray-400">Unconfirmed</span>
@@ -249,24 +232,18 @@ export default function MondialConfirmationPage() {
                       )}
                     </td>
                     <td className="py-2 pr-4">
-                      {row.confirmedViaTransmittal ? (
-                        <span className="text-xs text-gray-400" title="Already batched into a Transmittal -- nothing to confirm manually">
-                          Auto-confirmed
-                        </span>
-                      ) : (
-                        <button
-                          type="button"
-                          className={row.confirmed ? "tab-button tab-button-inactive" : "btn-primary"}
-                          onClick={() => handleToggle(row)}
-                          disabled={busyId === row.invoice_id}
-                        >
-                          {busyId === row.invoice_id
-                            ? "Saving…"
-                            : row.confirmed
-                              ? "Un-confirm"
-                              : "Confirm Received"}
-                        </button>
-                      )}
+                      <button
+                        type="button"
+                        className={row.confirmed ? "tab-button tab-button-inactive" : "btn-primary"}
+                        onClick={() => handleToggle(row)}
+                        disabled={busyId === row.invoice_id}
+                      >
+                        {busyId === row.invoice_id
+                          ? "Saving…"
+                          : row.confirmed
+                            ? "Un-confirm"
+                            : "Confirm Received"}
+                      </button>
                     </td>
                   </tr>
                 ))}

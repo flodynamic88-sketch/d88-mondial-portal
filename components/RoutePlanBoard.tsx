@@ -243,10 +243,18 @@ export default function RoutePlanBoard() {
     };
   }, [trucks]);
 
+  // "Not Yet Delivered" must mean genuinely untouched -- no delivery date AND
+  // no issue reported yet. A backload/discrepancy row naturally has no
+  // delivered_at (the delivery attempt failed), so checking delivered_at
+  // alone would wrongly lump it in here even before it's been rescheduled
+  // (superseded_at set). Excluding anything with reason_id set routes those
+  // rows to "Came Back From Delivery" instead, where they belong.
   const notYetDelivered = pendingRows.filter(
-    (r) => r.delivered_at === null && r.superseded_at === null
+    (r) => r.delivered_at === null && r.superseded_at === null && !r.reason_id
   );
-  const cameBackFromDelivery = pendingRows.filter((r) => r.superseded_at !== null);
+  const cameBackFromDelivery = pendingRows.filter(
+    (r) => r.superseded_at !== null || !!r.reason_id
+  );
 
   const selectedPlanForSync = routePlans.find((p) => p.id === selectedId) ?? null;
 
