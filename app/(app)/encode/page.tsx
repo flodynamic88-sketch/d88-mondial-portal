@@ -13,6 +13,10 @@ const TABS: { value: InvoiceCategory; label: string }[] = [
   { value: "CONSIGNMENT", label: "Consignment" },
   { value: "OUTRIGHT", label: "Outright" },
   { value: "MERCURY_DRUG", label: "Mercury Drug" },
+  // FLO-Principal: clients other than Mondial, billed on a separate system.
+  // Encodable and routable like any other invoice, but deliberately excluded
+  // from v_billing/Mondial Confirmation/Transmittals -- see migration 0048.
+  { value: "FLO_PRINCIPAL", label: "FLO-Principal" },
 ];
 
 type EntryMode = "grid" | "single";

@@ -16,6 +16,9 @@ export default function DocumentLookup({ routePlanTruckId, onAssigned }: Documen
   const [notFound, setNotFound] = useState(false);
   const [invoice, setInvoice] = useState<Invoice | null>(null);
   const [ratePct, setRatePct] = useState("");
+  // FLO_PRINCIPAL only -- resolved name of invoice.principal_id, shown in
+  // place of Zone since FLO_PRINCIPAL invoices don't carry a zone.
+  const [principalName, setPrincipalName] = useState<string | null>(null);
   const [assigning, setAssigning] = useState(false);
   const [assignMsg, setAssignMsg] = useState<
     { type: "success" | "error"; message: string } | null
@@ -32,6 +35,7 @@ export default function DocumentLookup({ routePlanTruckId, onAssigned }: Documen
     setInvoice(null);
     setAssignMsg(null);
     setRatePct("");
+    setPrincipalName(null);
 
     try {
       const supabase = createClient();
@@ -52,10 +56,18 @@ export default function DocumentLookup({ routePlanTruckId, onAssigned }: Documen
 
       // Consignment/Outright rates depend on Zone + DC, which are set later
       // from Recently Encoded (not at initial encode time). Mercury Drug
-      // uses one flat rate regardless of zone, so it's unaffected.
-      if (data.category !== "MERCURY_DRUG" && !data.zone) {
+      // uses one flat rate regardless of zone, so it's unaffected. FLO_PRINCIPAL
+      // has its own guard below (principal_id instead of zone).
+      if (data.category !== "MERCURY_DRUG" && data.category !== "FLO_PRINCIPAL" && !data.zone) {
         setSearchError(
           `${data.document_no} doesn't have a Zone set yet. Go to Encode Invoices → Recently Encoded and set its Zone (and DC, if applicable) first.`
+        );
+        return;
+      }
+
+      if (data.category === "FLO_PRINCIPAL" && !data.principal_id) {
+        setSearchError(
+          `${data.document_no} doesn't have a Principal set yet. Go to Encode Invoices → Recently Encoded and set its Principal (and DC, if applicable) first.`
         );
         return;
       }
@@ -71,6 +83,21 @@ export default function DocumentLookup({ routePlanTruckId, onAssigned }: Documen
           .limit(1)
           .maybeSingle();
         rate = rateRow?.rate_pct ?? null;
+      } else if (data.category === "FLO_PRINCIPAL") {
+        // FLO-Principal rates are flat per-principal (optionally split by
+        // DC), looked up from principal_rates instead of zone-based
+        // fee_rates -- see migration 0047.
+        const [{ data: rateRow }, { data: principalRow }] = await Promise.all([
+          supabase
+            .from("principal_rates")
+            .select("*")
+            .eq("principal_id", data.principal_id)
+            .eq("is_dc", data.is_dc)
+            .maybeSingle(),
+          supabase.from("principals").select("name").eq("id", data.principal_id).maybeSingle(),
+        ]);
+        rate = rateRow?.rate_pct ?? null;
+        setPrincipalName(principalRow?.name ?? null);
       } else {
         const { data: rateRow } = await supabase
           .from("fee_rates")
@@ -180,7 +207,11 @@ export default function DocumentLookup({ routePlanTruckId, onAssigned }: Documen
               })}
             </span>
             <span>Category: {invoice.category.replace("_", " ")}</span>
-            <span>Zone: {invoice.zone}</span>
+            {invoice.category === "FLO_PRINCIPAL" ? (
+              <span>Principal: {principalName ?? "—"}</span>
+            ) : (
+              <span>Zone: {invoice.zone}</span>
+            )}
             <span>DC: {invoice.is_dc ? "Yes" : "No"}</span>
           </div>
 

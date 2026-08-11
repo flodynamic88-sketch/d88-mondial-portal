@@ -1,7 +1,7 @@
 // TypeScript types mirroring supabase/migrations/0001_init.sql
 // Keep field names in sync with the SQL schema exactly.
 
-export type InvoiceCategory = "CONSIGNMENT" | "OUTRIGHT" | "MERCURY_DRUG";
+export type InvoiceCategory = "CONSIGNMENT" | "OUTRIGHT" | "MERCURY_DRUG" | "FLO_PRINCIPAL";
 export type ZoneType = "NCR" | "FAR_NORTH_SOUTH" | "VIZMIN";
 export type InvoiceStatus = "PENDING" | "DISPATCHED" | "DELIVERED" | "CANCELLED";
 export type ReasonType = "DISCREPANCY" | "BACKLOAD";
@@ -49,6 +49,23 @@ export interface FeeRate {
   rate_pct: number;
 }
 
+/** A client other than Mondial (e.g. Adesteck, Rodzon, Healthwellness) whose
+ *  invoices are billed on a separate system. See migration 0047. */
+export interface Principal {
+  id: string;
+  name: string;
+  created_at: string | null;
+}
+
+/** Flat service rate for a FLO_PRINCIPAL invoice -- looked up by
+ *  (principal_id, is_dc) instead of the zone-based fee_rates. */
+export interface PrincipalRate {
+  id: string;
+  principal_id: string;
+  is_dc: boolean;
+  rate_pct: number;
+}
+
 export interface DeliveryReason {
   id: string;
   type: ReasonType;
@@ -84,6 +101,10 @@ export interface Invoice {
   remarks: string | null;
   status: InvoiceStatus;
   transmittal_id: string | null;
+  /** FLO_PRINCIPAL only -- which principal this invoice belongs to (drives
+   *  its service rate via principal_rates instead of zone-based fee_rates).
+   *  Null for the 3 Mondial categories. See migration 0047. */
+  principal_id: string | null;
   created_at: string | null;
   updated_at: string | null;
 }
@@ -486,6 +507,18 @@ export interface Database {
         Row: FeeRate;
         Insert: Partial<FeeRate>;
         Update: Partial<FeeRate>;
+        Relationships: [];
+      };
+      principals: {
+        Row: Principal;
+        Insert: Partial<Principal> & { name: string };
+        Update: Partial<Principal>;
+        Relationships: [];
+      };
+      principal_rates: {
+        Row: PrincipalRate;
+        Insert: Partial<PrincipalRate> & { principal_id: string; rate_pct: number };
+        Update: Partial<PrincipalRate>;
         Relationships: [];
       };
       delivery_reasons: {

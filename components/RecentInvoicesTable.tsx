@@ -17,6 +17,7 @@ const TABS: { value: InvoiceCategory; label: string }[] = [
   { value: "CONSIGNMENT", label: "Consignment" },
   { value: "OUTRIGHT", label: "Outright" },
   { value: "MERCURY_DRUG", label: "Mercury Drug" },
+  { value: "FLO_PRINCIPAL", label: "FLO-Principal" },
 ];
 
 type RoutePlanSubTab = "UNASSIGNED" | "IN_TRANSIT" | "DELIVERED";
@@ -78,6 +79,7 @@ export default function RecentInvoicesTable({ refreshKey, readOnly = false }: Re
   const [rowErrors, setRowErrors] = useState<Record<string, string>>({});
   const [companyOptions, setCompanyOptions] = useState<string[]>([]);
   const [branchOptions, setBranchOptions] = useState<string[]>([]);
+  const [principalOptions, setPrincipalOptions] = useState<{ id: string; name: string }[]>([]);
   const [search, setSearch] = useState("");
   const [searchInput, setSearchInput] = useState("");
   const [hasMore, setHasMore] = useState(false);
@@ -227,12 +229,14 @@ export default function RecentInvoicesTable({ refreshKey, readOnly = false }: Re
     async function loadOptions() {
       try {
         const supabase = createClient();
-        const [{ data: companies }, { data: branches }] = await Promise.all([
+        const [{ data: companies }, { data: branches }, { data: principals }] = await Promise.all([
           supabase.from("companies").select("name").order("name").limit(500),
           supabase.from("branch_addresses").select("address").order("address").limit(500),
+          supabase.from("principals").select("id, name").order("name"),
         ]);
         setCompanyOptions((companies ?? []).map((c) => c.name));
         setBranchOptions((branches ?? []).map((b) => b.address));
+        setPrincipalOptions(principals ?? []);
       } catch {
         // Non-fatal: datalist suggestions just won't be populated.
       }
@@ -400,12 +404,16 @@ export default function RecentInvoicesTable({ refreshKey, readOnly = false }: Re
   }
 
   function handleExport() {
+    const principalName = (id: string | null) =>
+      principalOptions.find((p) => p.id === id)?.name ?? "";
     exportToExcel(`recent-invoices-${activeTab.toLowerCase()}`, [
       {
         name: activeTab.replace("_", " "),
         rows: invoices.map((inv) => ({
           "Document No.": inv.document_no,
-          Zone: inv.zone ?? "",
+          ...(activeTab === "FLO_PRINCIPAL"
+            ? { Principal: principalName(inv.principal_id) }
+            : { Zone: inv.zone ?? "" }),
           DC: inv.is_dc ? "Yes" : "No",
           "Retail Chain / Account": inv.company_name_raw ?? "",
           "Branch/Store": inv.branch_address ?? "",
@@ -493,7 +501,9 @@ export default function RecentInvoicesTable({ refreshKey, readOnly = false }: Re
             <thead>
               <tr className="text-left text-[11px] font-semibold uppercase text-gray-500">
                 <th className="py-1.5 pr-1.5 min-w-[105px]">Document No.</th>
-                <th className="py-1.5 pr-1.5 min-w-[95px]">Zone</th>
+                <th className="py-1.5 pr-1.5 min-w-[95px]">
+                  {activeTab === "FLO_PRINCIPAL" ? "Principal" : "Zone"}
+                </th>
                 <th className="py-1.5 pr-1.5">DC</th>
                 <th className="py-1.5 pr-1.5 min-w-[135px]">Retail Chain / Account</th>
                 <th className="py-1.5 pr-1.5 min-w-[140px]">Branch/Store Address</th>
@@ -522,23 +532,43 @@ export default function RecentInvoicesTable({ refreshKey, readOnly = false }: Re
                     />
                   </td>
                   <td className="py-0.5 pr-1.5">
-                    <select
-                      className="input-sm"
-                      value={inv.zone ?? ""}
-                      onChange={(e) =>
-                        handleImmediateChange(inv, {
-                          zone: (e.target.value || null) as ZoneType | null,
-                        })
-                      }
-                      disabled={readOnly}
-                    >
-                      <option value="">Not set</option>
-                      {ZONE_OPTIONS.map((z) => (
-                        <option key={z.value} value={z.value}>
-                          {z.label}
-                        </option>
-                      ))}
-                    </select>
+                    {activeTab === "FLO_PRINCIPAL" ? (
+                      <select
+                        className="input-sm"
+                        value={inv.principal_id ?? ""}
+                        onChange={(e) =>
+                          handleImmediateChange(inv, {
+                            principal_id: (e.target.value || null) as string | null,
+                          })
+                        }
+                        disabled={readOnly}
+                      >
+                        <option value="">Not set</option>
+                        {principalOptions.map((p) => (
+                          <option key={p.id} value={p.id}>
+                            {p.name}
+                          </option>
+                        ))}
+                      </select>
+                    ) : (
+                      <select
+                        className="input-sm"
+                        value={inv.zone ?? ""}
+                        onChange={(e) =>
+                          handleImmediateChange(inv, {
+                            zone: (e.target.value || null) as ZoneType | null,
+                          })
+                        }
+                        disabled={readOnly}
+                      >
+                        <option value="">Not set</option>
+                        {ZONE_OPTIONS.map((z) => (
+                          <option key={z.value} value={z.value}>
+                            {z.label}
+                          </option>
+                        ))}
+                      </select>
+                    )}
                   </td>
                   <td className="py-0.5 pr-1.5 text-center">
                     <input

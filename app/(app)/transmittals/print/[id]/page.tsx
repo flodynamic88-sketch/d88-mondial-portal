@@ -11,6 +11,10 @@ const CATEGORY_LABELS: Record<InvoiceCategory, string> = {
   CONSIGNMENT: "Consignment",
   OUTRIGHT: "Outright",
   MERCURY_DRUG: "Flo-Mercury",
+  // A transmittal can never actually be generated for FLO_PRINCIPAL -- the
+  // Transmittals page only offers the 3 Mondial categories -- so this key is
+  // unreachable in practice. Present only to satisfy Record<InvoiceCategory, string>.
+  FLO_PRINCIPAL: "FLO-Principal",
 };
 
 // Both column sets always come out to 7 columns:

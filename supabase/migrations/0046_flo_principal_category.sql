@@ -1,0 +1,12 @@
+-- New invoice category for principals other than Mondial (e.g. Adesteck
+-- Marketing Corp, Rodzon Marketing Corporation, Healthwellness Lifestyle,
+-- Inc.). These invoices are billed on a separate system entirely -- same
+-- pattern as how Mercury Drug invoices are already branded "FLO-Mercury"
+-- throughout the UI, except FLO_PRINCIPAL must NEVER appear in Mondial's own
+-- Billing / Mondial Confirmation / Transmittals (Mercury Drug does appear
+-- there, just at a flat rate) -- see 0048 for the v_billing exclusion.
+--
+-- This is its own migration/transaction because Postgres won't let a new
+-- enum value be referenced (e.g. in a WHERE clause) in the same transaction
+-- it was added in -- 0047/0048 depend on this having already committed.
+alter type invoice_category add value if not exists 'FLO_PRINCIPAL';

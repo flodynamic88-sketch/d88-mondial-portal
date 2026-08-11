@@ -37,6 +37,10 @@ const CATEGORY_LABELS: Record<InvoiceCategory, string> = {
   CONSIGNMENT: "Consignment",
   OUTRIGHT: "Outright",
   MERCURY_DRUG: "Mercury Drug",
+  // Never actually looked up -- getTransmittalBacklog() below only queries the
+  // 3 Mondial categories, since FLO_PRINCIPAL is deliberately excluded from
+  // Transmittals. Present only to satisfy Record<InvoiceCategory, string>.
+  FLO_PRINCIPAL: "FLO-Principal",
 };
 
 function todayStr() {
