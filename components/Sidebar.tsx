@@ -30,10 +30,17 @@ const NAV_ITEMS: NavItem[] = [
   {
     href: "/encode",
     label: "Encode Invoices",
-    // JMD_ADMIN gets the same view-only access as JMD_PLANNER here -- the
-    // page's canEdit check (ADMIN/LOGISTICS_OFFICER only) already hides the
+    // LOGISTICS_ASSOCIATE now gets the same full (add/edit) access as
+    // LOGISTICS_OFFICER, per migration 0053. JMD_ADMIN/JMD_PLANNER get
+    // view-only access -- the page's canEdit check already hides the
     // add/edit UI for both, so this only grants read access to the list.
-    roles: ["ADMIN", "LOGISTICS_OFFICER", "JMD_PLANNER", "JMD_ADMIN"],
+    roles: [
+      "ADMIN",
+      "LOGISTICS_OFFICER",
+      "LOGISTICS_ASSOCIATE",
+      "JMD_PLANNER",
+      "JMD_ADMIN",
+    ],
   },
   {
     href: "/route-plan",
