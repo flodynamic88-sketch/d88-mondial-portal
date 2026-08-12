@@ -738,7 +738,11 @@ export default function TruckCard({
       if (value) {
         patch[field === "chargeable_to_mondial" ? "is_d88_error" : "chargeable_to_mondial"] = false;
       }
-      await supabase.from("delivery_reasons").update(patch).eq("id", reasonId);
+      const { error } = await supabase.from("delivery_reasons").update(patch).eq("id", reasonId);
+      if (error) {
+        showToast("Could not update the reason's Mondial/D88 tag.", "error");
+        return;
+      }
       onRefreshReasons?.();
     } catch {
       setActionError("Could not update the reason's Mondial/D88 tag.");
