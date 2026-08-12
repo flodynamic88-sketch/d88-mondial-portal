@@ -631,6 +631,7 @@ export interface Database {
       v_trucking_billing_statement_items: { Row: VTruckingBillingStatementItem; Relationships: [] };
       v_trucking_billing_candidates: { Row: VTruckingBillingCandidate; Relationships: [] };
       v_trucking_rates: { Row: TruckingRate; Relationships: [] };
+      v_invoices_with_assignment: { Row: Invoice & { is_assigned: boolean }; Relationships: [] };
     };
     Functions: Record<string, never>;
   };

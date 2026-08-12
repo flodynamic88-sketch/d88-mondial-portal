@@ -67,8 +67,6 @@ export default function RecentInvoicesTable({ refreshKey, readOnly = false }: Re
   //    via the route plan truck or entered directly here) -- delivery date
   //    wins over assignment status, since that's the more definitive signal.
   const [subTab, setSubTab] = useState<RoutePlanSubTab>("UNASSIGNED");
-  const [assignedIds, setAssignedIds] = useState<string[]>([]);
-  const [assignedLoaded, setAssignedLoaded] = useState(false);
   const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
@@ -90,40 +88,13 @@ export default function RecentInvoicesTable({ refreshKey, readOnly = false }: Re
     return () => clearTimeout(t);
   }, [searchInput]);
 
-  // Which invoices currently have a *live* (non-superseded) route plan
-  // assignment -- this spans all categories, so it's fetched independently
-  // of activeTab/subTab and just re-read whenever the parent bumps
-  // refreshKey (e.g. after a Route Plan save).
-  useEffect(() => {
-    let cancelled = false;
-
-    async function loadAssigned() {
-      setAssignedLoaded(false);
-      try {
-        const supabase = createClient();
-        const { data } = await supabase
-          .from("route_plan_invoices")
-          .select("invoice_id")
-          .is("superseded_at", null);
-        if (!cancelled) {
-          setAssignedIds((data ?? []).map((r) => r.invoice_id));
-        }
-      } catch {
-        if (!cancelled) setAssignedIds([]);
-      } finally {
-        if (!cancelled) setAssignedLoaded(true);
-      }
-    }
-
-    loadAssigned();
-    return () => {
-      cancelled = true;
-    };
-  }, [refreshKey]);
-
-  // Apply the sub-tab filter on top of the base invoices query. Returns null
-  // when the sub-tab is guaranteed to be empty (e.g. "In-Transit" but
-  // nothing is currently assigned) so callers can skip the request entirely.
+  // Apply the sub-tab filter on top of the base invoices query. Whether an
+  // invoice currently has a *live* (non-superseded) route plan assignment is
+  // computed in the database (v_invoices_with_assignment.is_assigned) rather
+  // than by fetching every assigned ID and sending it back as an `in.(...)`/
+  // `not.in.(...)` filter -- that ID list used to be embedded straight into
+  // the request URL, which broke (400 Bad Request) once it grew past the API
+  // gateway's max URL length. See migration 0054.
   function applySubTabFilter<T extends ReturnType<typeof buildBaseQuery>>(
     query: T
   ): T | null {
@@ -136,18 +107,19 @@ export default function RecentInvoicesTable({ refreshKey, readOnly = false }: Re
     const undelivered = query.is("actual_delivery_date", null) as T;
 
     if (subTab === "IN_TRANSIT") {
-      if (assignedIds.length === 0) return null;
-      return undelivered.in("id", assignedIds) as T;
+      return undelivered.eq("is_assigned", true) as T;
     }
 
     // UNASSIGNED
-    if (assignedIds.length === 0) return undelivered;
-    return undelivered.not("id", "in", `(${assignedIds.join(",")})`) as T;
+    return undelivered.eq("is_assigned", false) as T;
   }
 
   function buildBaseQuery() {
     const supabase = createClient();
-    let query = supabase.from("invoices").select("*").eq("category", activeTab);
+    let query = supabase
+      .from("v_invoices_with_assignment")
+      .select("*")
+      .eq("category", activeTab);
     if (search) {
       query = query.or(
         `document_no.ilike.%${search}%,company_name_raw.ilike.%${search}%,branch_address.ilike.%${search}%`
@@ -160,10 +132,6 @@ export default function RecentInvoicesTable({ refreshKey, readOnly = false }: Re
     let cancelled = false;
 
     async function load() {
-      // Wait for the assigned-IDs set to load first so we don't briefly
-      // flash unfiltered results before the sub-tab filter is known.
-      if (!assignedLoaded) return;
-
       setLoading(true);
       setErrorMsg(null);
       try {
@@ -206,7 +174,7 @@ export default function RecentInvoicesTable({ refreshKey, readOnly = false }: Re
     return () => {
       cancelled = true;
     };
-  }, [activeTab, subTab, refreshKey, search, assignedLoaded, assignedIds]);
+  }, [activeTab, subTab, refreshKey, search]);
 
   async function handleLoadMore() {
     setLoadingMore(true);
