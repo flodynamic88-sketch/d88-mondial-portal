@@ -534,6 +534,74 @@ export default function TruckCard({
     }
   }
 
+  /** Undoes a mistaken Backload declaration: clears the reason and (if it was
+   *  already rescheduled) the supersede flag, and removes the auto-linked
+   *  Delivery Variance Log entry so nothing keeps calling it a backload --
+   *  on this truck's Assigned Invoices table, in the Delivery Variance Log,
+   *  or in the Delivery Report (see is_backload in v_trucking_billing_items,
+   *  0059/0060/0061), which only counts a row once superseded_at is set. */
+  async function handleUndoBackload(row: AssignedInvoiceRow) {
+    const wasRescheduled = Boolean(row.superseded_at);
+    const confirmed = window.confirm(
+      `Undo the backload declaration for invoice ${row.invoice?.document_no ?? ""}?` +
+        (wasRescheduled
+          ? " It will no longer be marked subject for redelivery and returns to a normal pending delivery on this truck."
+          : "") +
+        " Its Delivery Variance Log entry, if any, will be deleted."
+    );
+    if (!confirmed) return;
+
+    setRemovingRowId(row.id);
+    setActionError(null);
+    try {
+      const supabase = createClient();
+
+      // If this assignment was already superseded, make sure the invoice
+      // hasn't already been picked up for redelivery elsewhere -- undoing
+      // here would otherwise leave two active (non-superseded) assignments
+      // for the same invoice.
+      if (wasRescheduled && row.invoice_id) {
+        const { data: others, error: othersError } = await supabase
+          .from("route_plan_invoices")
+          .select("id")
+          .eq("invoice_id", row.invoice_id)
+          .is("superseded_at", null)
+          .neq("id", row.id)
+          .limit(1);
+        if (othersError) {
+          setActionError("Could not verify this invoice's current assignment. Try again.");
+          return;
+        }
+        if (others && others.length > 0) {
+          setActionError(
+            "This invoice has already been assigned for redelivery on another truck/date. Remove that assignment first before undoing this backload."
+          );
+          return;
+        }
+      }
+
+      const { error } = await supabase
+        .from("route_plan_invoices")
+        .update({ reason_id: null, superseded_at: null })
+        .eq("id", row.id);
+      if (error) {
+        setActionError("Failed to undo the backload declaration.");
+        return;
+      }
+
+      // Best-effort cleanup -- if this role can't delete the variance log
+      // (see 0064's RLS widen) it's simply left behind with a stale reason
+      // rather than blocking the undo itself.
+      await supabase.from("delivery_variance_logs").delete().eq("route_plan_invoice_id", row.id);
+
+      setRefreshKey((k) => k + 1);
+    } catch {
+      setActionError("Could not undo the backload. Make sure a Supabase project is connected.");
+    } finally {
+      setRemovingRowId(null);
+    }
+  }
+
   /** Looks up the fee-schedule rate that matches this invoice's zone/DC/category. */
   function expectedRateFor(invoice: Invoice | null): number | null {
     if (!invoice) return null;
@@ -1354,13 +1422,26 @@ export default function TruckCard({
                                 </button>
                               </div>
                             ) : (
-                              <button
-                                type="button"
-                                className="self-start text-xs font-medium text-brand-600 hover:text-brand-700"
-                                onClick={() => setEditingReasonRowId(row.id)}
-                              >
-                                Edit reason
-                              </button>
+                              <div className="flex items-center gap-2">
+                                <button
+                                  type="button"
+                                  className="self-start text-xs font-medium text-brand-600 hover:text-brand-700"
+                                  onClick={() => setEditingReasonRowId(row.id)}
+                                >
+                                  Edit reason
+                                </button>
+                                {canUnassignInvoice && (
+                                  <button
+                                    type="button"
+                                    className="self-start text-xs font-medium text-red-600 hover:text-red-800 disabled:opacity-50"
+                                    onClick={() => handleUndoBackload(row)}
+                                    disabled={removingRowId === row.id}
+                                    title="Clear this backload declaration and restore the invoice as a normal pending delivery on this truck"
+                                  >
+                                    {removingRowId === row.id ? "Undoing…" : "Undo Backload"}
+                                  </button>
+                                )}
+                              </div>
                             ))}
                           {canUpdateDelivery && customEntry?.rowId === row.id && (
                             <div className="flex w-full flex-col gap-1 sm:w-auto">
@@ -1493,6 +1574,19 @@ export default function TruckCard({
                               title="Keep this invoice's history on this truck, exclude it from CTS, and free it up to assign to a new truck/date"
                             >
                               {removingRowId === row.id ? "Saving…" : "Reschedule for Redelivery"}
+                            </button>
+                          )}
+                        {canUnassignInvoice &&
+                          deliveryReasons.find((r) => r.id === row.reason_id)?.type ===
+                            "BACKLOAD" && (
+                            <button
+                              type="button"
+                              className="text-xs font-medium text-red-600 hover:text-red-800 disabled:opacity-50"
+                              onClick={() => handleUndoBackload(row)}
+                              disabled={removingRowId === row.id}
+                              title="Clear this backload declaration"
+                            >
+                              {removingRowId === row.id ? "Undoing…" : "Undo Backload"}
                             </button>
                           )}
                         {canUnassignInvoice && (
