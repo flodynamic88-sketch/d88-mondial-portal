@@ -393,6 +393,11 @@ export interface VTransmittal {
   amount: number;
   first_document_no: string | null;
   last_document_no: string | null;
+  /** Prefix-grouped range, e.g. "BR_0013335 - BR_0013348, PSI-0065801 - PSI-0065812".
+   * Use this for display instead of first_document_no/last_document_no, which span
+   * across document-number prefixes within a batch and can misleadingly suggest a
+   * contiguous range that was never actually transmitted (see migration 0056). */
+  document_ranges: string | null;
 }
 
 export interface VTransmittalItem {

@@ -41,7 +41,14 @@ function formatMonthLabel(dateValue: string | null): string {
 // Staff recognize invoices by their own CD_/PSI-/BR_ document number, not the
 // internal CONS-0001 style transmittal_no -- so batches lead with this range
 // (first-last document_no in the batch, ascending) instead.
-function formatDocRange(first: string | null, last: string | null): string {
+//
+// document_ranges (from v_transmittals, migration 0056) is grouped per document-
+// number prefix -- prefer it over a plain first/last span, which can straddle
+// multiple prefixes (e.g. "BR_0013335 – PSI-0065812") in a way that falsely
+// looks like every number in between was transmitted.
+function formatDocRange(t: { document_ranges?: string | null; first_document_no: string | null; last_document_no: string | null }): string {
+  if (t.document_ranges) return t.document_ranges;
+  const { first_document_no: first, last_document_no: last } = t;
   if (!first && !last) return "—";
   if (!first) return last as string;
   if (!last || first === last) return first;
@@ -264,7 +271,7 @@ function GenerateTab({
   // matches the currently-selected category + delivery date.
   async function handleDeleteTransmittal(t: VTransmittal) {
     const confirmed = window.confirm(
-      `Delete transmittal ${formatDocRange(t.first_document_no, t.last_document_no)} (${
+      `Delete transmittal ${formatDocRange(t)} (${
         t.transmittal_no ?? "no #"
       })? Its invoices will become available again to include in a new transmittal. This cannot be undone.`
     );
@@ -679,7 +686,7 @@ function GenerateTab({
                 {recent.map((t) => (
                   <tr key={t.id}>
                     <td className="py-2 pr-4 font-medium text-gray-800">
-                      {formatDocRange(t.first_document_no, t.last_document_no)}
+                      {formatDocRange(t)}
                     </td>
                     <td className="py-2 pr-4 text-gray-500">{t.transmittal_no ?? "—"}</td>
                     <td className="py-2 pr-4">{new Date(t.delivery_date).toLocaleDateString()}</td>
@@ -821,7 +828,7 @@ function SummaryTab({
 
   async function handleDeleteTransmittal(t: VTransmittal) {
     const confirmed = window.confirm(
-      `Delete transmittal ${formatDocRange(t.first_document_no, t.last_document_no)} (${
+      `Delete transmittal ${formatDocRange(t)} (${
         t.transmittal_no ?? "no #"
       })? Its invoices will become available again to include in a new transmittal. This cannot be undone.`
     );
@@ -853,7 +860,7 @@ function SummaryTab({
     const q = search.trim().toLowerCase();
     if (!q) return rows;
     return rows.filter((t) =>
-      [t.transmittal_no, t.first_document_no, t.last_document_no]
+      [t.transmittal_no, t.first_document_no, t.last_document_no, t.document_ranges]
         .filter(Boolean)
         .some((v) => (v as string).toLowerCase().includes(q))
     );
@@ -921,7 +928,7 @@ function SummaryTab({
               {filteredRows.map((t) => (
                 <tr key={t.id}>
                   <td className="py-2 pr-4 font-medium text-gray-800">
-                    {formatDocRange(t.first_document_no, t.last_document_no)}
+                    {formatDocRange(t)}
                   </td>
                   <td className="py-2 pr-4 text-gray-500">{t.transmittal_no ?? "—"}</td>
                   <td className="py-2 pr-4">
