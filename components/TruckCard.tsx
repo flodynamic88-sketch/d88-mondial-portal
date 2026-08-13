@@ -142,6 +142,11 @@ export default function TruckCard({
   const [actionError, setActionError] = useState<string | null>(null);
   const [deletingTruck, setDeletingTruck] = useState(false);
   const [removingRowId, setRemovingRowId] = useState<string | null>(null);
+  // Which superseded (Rescheduled for Redelivery) row currently has its
+  // reason-select reopened via the "Edit reason" button below -- lets a
+  // wrongly-picked Backload reason still be fixed after redelivery has
+  // already been triggered, instead of being frozen forever.
+  const [editingReasonRowId, setEditingReasonRowId] = useState<string | null>(null);
   const [editingDetails, setEditingDetails] = useState(false);
   const [savingDetails, setSavingDetails] = useState(false);
   const [detailsDraft, setDetailsDraft] = useState({
@@ -1289,11 +1294,136 @@ export default function TruckCard({
                     </td>
                     <td className="py-2 pr-4">
                       {row.superseded_at ? (
-                        <p className="text-xs text-gray-400">
-                          Rescheduled {new Date(row.superseded_at).toLocaleDateString()} — kept
-                          here for history. Look up this document on the new date's Route Plan to
-                          assign it for redelivery.
-                        </p>
+                        <div className="flex flex-col gap-1">
+                          <p className="text-xs text-gray-400">
+                            Rescheduled {new Date(row.superseded_at).toLocaleDateString()} — kept
+                            here for history. Look up this document on the new date's Route Plan to
+                            assign it for redelivery.
+                          </p>
+                          {canUpdateDelivery &&
+                            deliveryReasons.find((r) => r.id === row.reason_id)?.type ===
+                              "BACKLOAD" &&
+                            (editingReasonRowId === row.id ? (
+                              <div className="flex flex-wrap items-center gap-1">
+                                <select
+                                  className="input"
+                                  value={customEntry?.rowId === row.id ? "" : row.reason_id ?? ""}
+                                  onChange={(e) => handleReasonSelect(row.id, e.target.value)}
+                                >
+                                  <option value="">Clear Issue</option>
+                                  <optgroup label="Discrepancy">
+                                    {discrepancyReasons.map((r) => (
+                                      <option key={r.id} value={r.id}>
+                                        {r.label}
+                                      </option>
+                                    ))}
+                                    {canAddCustomReason && (
+                                      <option value={CUSTOM_DISCREPANCY}>+ Type new reason…</option>
+                                    )}
+                                  </optgroup>
+                                  <optgroup label="Backload">
+                                    {backloadReasons.map((r) => (
+                                      <option key={r.id} value={r.id}>
+                                        {r.label}
+                                      </option>
+                                    ))}
+                                    {canAddCustomReason && (
+                                      <option value={CUSTOM_BACKLOAD}>+ Type new reason…</option>
+                                    )}
+                                  </optgroup>
+                                </select>
+                                <button
+                                  type="button"
+                                  className="tab-button tab-button-inactive text-xs"
+                                  onClick={() => setEditingReasonRowId(null)}
+                                >
+                                  Done
+                                </button>
+                              </div>
+                            ) : (
+                              <button
+                                type="button"
+                                className="self-start text-xs font-medium text-brand-600 hover:text-brand-700"
+                                onClick={() => setEditingReasonRowId(row.id)}
+                              >
+                                Edit reason
+                              </button>
+                            ))}
+                          {canUpdateDelivery && customEntry?.rowId === row.id && (
+                            <div className="flex w-full flex-col gap-1 sm:w-auto">
+                              <div className="flex w-full items-center gap-1 sm:w-auto">
+                                <input
+                                  type="text"
+                                  className="input w-full min-w-[12rem] flex-none sm:w-48"
+                                  autoFocus
+                                  placeholder={
+                                    customEntry.type === "DISCREPANCY"
+                                      ? "New discrepancy reason"
+                                      : "New backload reason"
+                                  }
+                                  value={customEntry.text}
+                                  onChange={(e) =>
+                                    setCustomEntry({ ...customEntry, text: e.target.value })
+                                  }
+                                />
+                                <button
+                                  type="button"
+                                  className="btn-primary"
+                                  onClick={handleSaveCustomReason}
+                                  disabled={savingCustom}
+                                >
+                                  {savingCustom ? "Saving…" : "Save"}
+                                </button>
+                                <button
+                                  type="button"
+                                  className="tab-button tab-button-inactive"
+                                  onClick={() => setCustomEntry(null)}
+                                >
+                                  Cancel
+                                </button>
+                              </div>
+                              {customEntry.type === "BACKLOAD" && (
+                                <div className="flex flex-wrap gap-3 text-[11px] text-gray-500">
+                                  <label className="flex items-center gap-1">
+                                    <input
+                                      type="checkbox"
+                                      className="h-3 w-3"
+                                      checked={customEntry.chargeableToMondial}
+                                      onChange={(e) =>
+                                        setCustomEntry({
+                                          ...customEntry,
+                                          chargeableToMondial: e.target.checked,
+                                          isD88Error: e.target.checked
+                                            ? false
+                                            : customEntry.isD88Error,
+                                        })
+                                      }
+                                    />
+                                    Charge to Mondial — Mondial&apos;s fault, auto-double-bill on
+                                    redelivery
+                                  </label>
+                                  <label className="flex items-center gap-1">
+                                    <input
+                                      type="checkbox"
+                                      className="h-3 w-3"
+                                      checked={customEntry.isD88Error}
+                                      onChange={(e) =>
+                                        setCustomEntry({
+                                          ...customEntry,
+                                          isD88Error: e.target.checked,
+                                          chargeableToMondial: e.target.checked
+                                            ? false
+                                            : customEntry.chargeableToMondial,
+                                        })
+                                      }
+                                    />
+                                    D88 Error — our own mistake
+                                  </label>
+                                </div>
+                              )}
+                            </div>
+                          )}
+                        </div>
                       ) : (
                       <div className="flex flex-col flex-wrap gap-1 sm:flex-row sm:items-center">
                         {canUpdateDelivery ? (
