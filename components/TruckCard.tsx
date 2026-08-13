@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import DocumentLookup from "@/components/DocumentLookup";
 import AddTruckForm from "@/components/AddTruckForm";
@@ -172,9 +172,21 @@ export default function TruckCard({
     isD88Error: boolean;
   } | null>(null);
   const [savingCustom, setSavingCustom] = useState(false);
+  // Tracks whether the Assigned Invoices table has ever finished loading for
+  // this truck. Every inline edit here (rate, qty/box, reason, backload,
+  // etc.) bumps `refreshKey` to re-fetch this list -- and re-fetching used to
+  // flip `loadingRows` back to true every time, which swapped the whole
+  // table out for a single "Loading..." line mid-edit. On a truck with many
+  // rows that collapsed the page height for an instant, so the browser
+  // yanked the scroll position back up (often all the way to the very first
+  // invoice) -- the user then had to scroll all the way back down to click
+  // the next row. Only the very first load for this truck should show that
+  // loading state; refreshes after that keep the existing rows on screen
+  // while the fresh data loads in behind them.
+  const hasLoadedRowsRef = useRef(false);
 
   const loadAssigned = useCallback(async () => {
-    setLoadingRows(true);
+    if (!hasLoadedRowsRef.current) setLoadingRows(true);
     setRowsError(null);
     try {
       const supabase = createClient();
@@ -239,6 +251,7 @@ export default function TruckCard({
       setRedeliveredInvoiceIds(new Set());
     } finally {
       setLoadingRows(false);
+      hasLoadedRowsRef.current = true;
     }
   }, [truck.id]);
 

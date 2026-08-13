@@ -26,6 +26,7 @@ export default function RoutePlanBoard() {
     profile?.role === "ADMIN" ||
     profile?.role === "JMD_PLANNER" ||
     profile?.role === "LOGISTICS_OFFICER";
+  const isAdmin = profile?.role === "ADMIN";
   // Same cost-visibility gate as TruckCard's canSeeTruckRate -- rate % is a
   // cost figure and shouldn't leak into the Excel export for other roles.
   const canSeeRatePct = profile?.role === "ADMIN" || profile?.role === "LOGISTICS_OFFICER";
@@ -370,8 +371,21 @@ export default function RoutePlanBoard() {
     }
   }
 
+  // Once any truck under this plan has been dispatched, its invoices are
+  // considered "in flight" -- only an Admin should be able to delete the
+  // whole plan (and thereby unassign those invoices) from that point on.
+  // JMD_PLANNER/LOGISTICS_OFFICER can still delete plans that haven't
+  // dispatched anything yet (e.g. cleaning up a draft plan).
+  const hasDispatchedTruck = trucks.some((t) => t.dispatched_at);
+
   async function handleDeleteRoutePlan() {
     if (!selectedId) return;
+    if (hasDispatchedTruck && !isAdmin) {
+      setHeaderError(
+        "This route plan has at least one dispatched truck. Only an Admin can delete it now, to keep dispatched invoices from being unassigned by mistake."
+      );
+      return;
+    }
     const plan = routePlans.find((p) => p.id === selectedId);
     const confirmed = window.confirm(
       `Delete the route plan for ${plan?.route_date ?? "this date"}${
@@ -726,9 +740,14 @@ export default function RoutePlanBoard() {
                           </button>
                           <button
                             type="button"
-                            className="tab-button border border-red-200 bg-white text-red-600 hover:bg-red-50"
+                            className="tab-button border border-red-200 bg-white text-red-600 hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50"
                             onClick={handleDeleteRoutePlan}
-                            disabled={deletingPlan}
+                            disabled={deletingPlan || (hasDispatchedTruck && !isAdmin)}
+                            title={
+                              hasDispatchedTruck && !isAdmin
+                                ? "A truck under this plan has already been dispatched. Only an Admin can delete this route plan now."
+                                : undefined
+                            }
                           >
                             {deletingPlan ? "Deleting…" : "Delete Route Plan"}
                           </button>
