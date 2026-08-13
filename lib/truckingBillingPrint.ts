@@ -34,16 +34,20 @@ export function formatLongDateNoSpace(value: string | Date | null | undefined) {
   return `${month} ${d.getDate()},${d.getFullYear()}`;
 }
 
-// When a convoy truck rides along on this truck's single rate, its waybill #
-// is joined onto the main truck's with " / " (e.g. "12345 / 67890") so both
-// show together on the one shared sheet.
+// When one or more convoy sub-trucks ride along on this truck's single rate,
+// each of their waybill #s is joined onto the main truck's with " / "
+// (e.g. "12345 / 67890 / 67891") so all show together on the one shared
+// sheet. Reads every entry in `convoys` (migration 0058), not just a single
+// legacy value, so a main truck with N convoy sub-trucks shows all N.
 export function combinedWaybill(
-  statement: Pick<VTruckingBillingStatement, "waybill_no" | "convoy_waybill_no">
+  statement: Pick<VTruckingBillingStatement, "waybill_no" | "convoys">
 ) {
   const main = statement.waybill_no ?? "";
-  const convoy = statement.convoy_waybill_no?.trim();
-  if (!convoy) return main || "—";
-  return main ? `${main} / ${convoy}` : convoy;
+  const convoyNos = (statement.convoys ?? [])
+    .map((c) => c.waybill_no?.trim())
+    .filter((v): v is string => !!v);
+  if (convoyNos.length === 0) return main || "—";
+  return [main, ...convoyNos].filter(Boolean).join(" / ");
 }
 
 /** Shared data loader for both the Billing Statement and Delivery Report printable pages. */

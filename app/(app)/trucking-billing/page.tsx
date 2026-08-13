@@ -465,17 +465,25 @@ function StatusTab({
     }
   }
 
-  // Only meaningful when row.has_convoy is true -- the convoy truck shares
-  // this statement's single rate, so its waybill # is entered here instead
-  // of generating a separate statement for it. Print/export join the two
-  // waybill numbers with " / ".
-  async function handleConvoyWaybillChange(row: VTruckingBillingStatement, convoyWaybillNo: string) {
+  // One row per ACTUAL convoy sub-truck on this main truck (see migration
+  // 0058) -- each convoy sub-truck shares this statement's single rate, so
+  // its waybill # is entered here instead of generating a separate statement
+  // for it. Print/export join every convoy's waybill # with " / ".
+  async function handleConvoyWaybillChange(
+    row: VTruckingBillingStatement,
+    routePlanTruckId: string,
+    convoyWaybillNo: string
+  ) {
     try {
       const supabase = createClient();
-      await supabase
-        .from("trucking_billing_statements")
-        .update({ convoy_waybill_no: convoyWaybillNo.trim() || null })
-        .eq("id", row.id);
+      await supabase.from("trucking_billing_convoy_waybills").upsert(
+        {
+          statement_id: row.id,
+          route_plan_truck_id: routePlanTruckId,
+          waybill_no: convoyWaybillNo.trim() || null,
+        },
+        { onConflict: "statement_id,route_plan_truck_id" }
+      );
     } catch {
       // Best-effort inline save; next full reload will show the last-saved value.
     }
@@ -603,16 +611,19 @@ function StatusTab({
                       onBlur={(e) => handleWaybillChange(r, e.target.value)}
                       disabled={!canManage}
                     />
-                    {r.has_convoy && (
+                    {(r.convoys ?? []).map((c) => (
                       <input
+                        key={c.route_plan_truck_id}
                         type="text"
                         className="input input-sm mt-1"
-                        defaultValue={r.convoy_waybill_no ?? ""}
-                        placeholder="Convoy waybill #"
-                        onBlur={(e) => handleConvoyWaybillChange(r, e.target.value)}
+                        defaultValue={c.waybill_no ?? ""}
+                        placeholder={`Convoy waybill # (${c.plate_number ?? "convoy"})`}
+                        onBlur={(e) =>
+                          handleConvoyWaybillChange(r, c.route_plan_truck_id, e.target.value)
+                        }
                         disabled={!canManage}
                       />
-                    )}
+                    ))}
                   </td>
                   <td className="py-2 pr-4 text-gray-700">
                     {r.area ?? "—"}

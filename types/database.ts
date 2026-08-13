@@ -271,6 +271,19 @@ export interface TruckingBillingStatement {
   updated_at: string | null;
 }
 
+/** One row per convoy sub-truck riding on a main truck's billing statement --
+ *  lets a main truck with N convoy sub-trucks carry N separate waybill #s
+ *  (the old single convoy_waybill_no column on trucking_billing_statements
+ *  could only ever hold one). See migration 0058. */
+export interface TruckingBillingConvoyWaybill {
+  id: string;
+  statement_id: string;
+  route_plan_truck_id: string;
+  waybill_no: string | null;
+  created_at: string | null;
+  updated_at: string | null;
+}
+
 // Views
 
 export interface VFulfillmentSummary {
@@ -442,11 +455,11 @@ export interface VTruckingBillingStatement {
   item_count: number;
   total_boxes: number;
   total_amount: number;
-  /** Vendor-supplied delivery zone/area for the whole truck (e.g. "PARANAQUE"). */
+  /** The truck's Route Plan Destination (e.g. "CALAMBA") -- shown as-is, matching what's set in Route Plan. See migration 0057. */
   area: string | null;
   /** Vendor-supplied vehicle classification (e.g. "4W", "6W"). */
   truck_type: string | null;
-  /** Waybill # of the paired convoy truck, when has_convoy is true. */
+  /** Legacy single convoy waybill # -- superseded by `convoys` (migration 0058), kept for any code not yet migrated off it. */
   convoy_waybill_no: string | null;
   /** True when a route_plan_trucks row exists with main_truck_id = this truck's id. */
   has_convoy: boolean;
@@ -458,6 +471,15 @@ export interface VTruckingBillingStatement {
   total_boxes_override: number | null;
   /** The truck's own route_plan_trucks.created_at -- same field RoutePlanBoard uses to derive "Truck 1, 2, 3" order. Used to sort the Excel export's sheets. */
   truck_created_at: string | null;
+  /** One entry per ACTUAL convoy sub-truck on this main truck, each with its own waybill #, ordered by the convoy truck's created_at ("Truck 1, 2, ..." order). See migration 0058. */
+  convoys: VTruckingBillingConvoy[];
+}
+
+/** One element of VTruckingBillingStatement.convoys. */
+export interface VTruckingBillingConvoy {
+  route_plan_truck_id: string;
+  plate_number: string | null;
+  waybill_no: string | null;
 }
 
 export interface VTruckingBillingStatementItem {
@@ -619,6 +641,12 @@ export interface Database {
         Row: TruckingRate;
         Insert: Partial<TruckingRate> & { destination: string; area: string; rate: number; convoy_rate: number };
         Update: Partial<TruckingRate>;
+        Relationships: [];
+      };
+      trucking_billing_convoy_waybills: {
+        Row: TruckingBillingConvoyWaybill;
+        Insert: Partial<TruckingBillingConvoyWaybill> & { statement_id: string; route_plan_truck_id: string };
+        Update: Partial<TruckingBillingConvoyWaybill>;
         Relationships: [];
       };
     };
