@@ -216,7 +216,10 @@ export default function MondialConfirmationPage() {
               </thead>
               <tbody className="divide-y divide-gray-100">
                 {visibleRows.map((row) => (
-                  <tr key={row.invoice_id} className={row.confirmed ? "bg-green-50" : undefined}>
+                  <tr
+                    key={`${row.invoice_id}-${row.is_mondial_fault_charge}-${row.delivered_at}`}
+                    className={row.confirmed ? "bg-green-50" : undefined}
+                  >
                     <td className="py-2 pr-4 font-medium text-gray-800">{row.document_no}</td>
                     <td className="py-2 pr-4">{formatMoney(row.amount)}</td>
                     <td className="py-2 pr-4">{formatMoney(row.service_fee ?? 0)}</td>
