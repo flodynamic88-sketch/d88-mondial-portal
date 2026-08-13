@@ -4,6 +4,7 @@ import { useParams } from "next/navigation";
 import {
   APPROVED_BY_NAME,
   PREPARED_BY_NAME,
+  combinedPlateNumber,
   combinedWaybill,
   formatMMDDYYYY,
   formatMoney,
@@ -73,7 +74,7 @@ export default function PrintBillingStatementPage() {
             <span className="font-bold">Waybill No#:</span> {combinedWaybill(statement)}
           </p>
           <p>
-            <span className="font-bold">Plate#:</span> {statement.plate_number ?? "—"}
+            <span className="font-bold">Plate#:</span> {combinedPlateNumber(statement)}
           </p>
         </div>
 

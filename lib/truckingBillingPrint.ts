@@ -50,6 +50,36 @@ export function combinedWaybill(
   return [main, ...convoyNos].filter(Boolean).join(" / ");
 }
 
+// Same " / " combine as combinedWaybill, but for the main truck's own
+// plate_number joined with each convoy sub-truck's plate_number -- so a
+// convoy route (e.g. Aug 4, 2026: main truck DBR2926 convoying with
+// NKH2668) shows every plate # actually involved instead of only the main
+// truck's.
+export function combinedPlateNumber(
+  statement: Pick<VTruckingBillingStatement, "plate_number" | "convoys">
+) {
+  const main = statement.plate_number?.trim() ?? "";
+  const convoyPlates = (statement.convoys ?? [])
+    .map((c) => c.plate_number?.trim())
+    .filter((v): v is string => !!v);
+  if (convoyPlates.length === 0) return main || "—";
+  return [main, ...convoyPlates].filter(Boolean).join(" / ");
+}
+
+// Same " / " combine, for the main truck's driver joined with each convoy
+// sub-truck's own driver -- the Delivery Report should show every driver
+// who actually rode the route, not just the main truck's.
+export function combinedDriverName(
+  statement: Pick<VTruckingBillingStatement, "driver_name" | "convoys">
+) {
+  const main = statement.driver_name?.trim() ?? "";
+  const convoyDrivers = (statement.convoys ?? [])
+    .map((c) => c.driver_name?.trim())
+    .filter((v): v is string => !!v);
+  if (convoyDrivers.length === 0) return main || "—";
+  return [main, ...convoyDrivers].filter(Boolean).join(" / ");
+}
+
 /** Shared data loader for both the Billing Statement and Delivery Report printable pages. */
 export function useTruckingBillingPrintData(id: string) {
   const [statement, setStatement] = useState<VTruckingBillingStatement | null>(null);

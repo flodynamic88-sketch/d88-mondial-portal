@@ -52,6 +52,29 @@ function combinedWaybill(statement: Pick<VTruckingBillingStatement, "waybill_no"
   return [main, ...convoyNos].filter(Boolean).join(" / ");
 }
 
+// Same " / " combine as combinedWaybill, but for plate numbers -- a convoy
+// route's Billing Statement/Delivery Report should show every plate # that
+// actually rode, not just the main truck's.
+function combinedPlateNumber(statement: Pick<VTruckingBillingStatement, "plate_number" | "convoys">) {
+  const main = statement.plate_number ?? "";
+  const convoyPlates = (statement.convoys ?? [])
+    .map((c) => c.plate_number?.trim())
+    .filter((v): v is string => !!v);
+  if (convoyPlates.length === 0) return main;
+  return [main, ...convoyPlates].filter(Boolean).join(" / ");
+}
+
+// Same " / " combine, for drivers -- every driver who rode the convoy, not
+// just the main truck's.
+function combinedDriverName(statement: Pick<VTruckingBillingStatement, "driver_name" | "convoys">) {
+  const main = statement.driver_name ?? "";
+  const convoyDrivers = (statement.convoys ?? [])
+    .map((c) => c.driver_name?.trim())
+    .filter((v): v is string => !!v);
+  if (convoyDrivers.length === 0) return main;
+  return [main, ...convoyDrivers].filter(Boolean).join(" / ");
+}
+
 const ACCOUNTING_FMT = '_-* #,##0.00_-;-* #,##0.00_-;_-* "-"??_-;_-@_-';
 
 // JMD's own Billing Statement always carries these two signatures -- there's
@@ -222,7 +245,7 @@ export async function exportTruckingBillingExcel(statementIds: string[]) {
     ws.getCell(`F${r}`).value = "PLATE#:";
     ws.getCell(`F${r}`).font = { bold: true };
     ws.mergeCells(`G${r}:K${r}`);
-    ws.getCell(`G${r}`).value = statement.plate_number ?? "";
+    ws.getCell(`G${r}`).value = combinedPlateNumber(statement);
     r += 2;
 
     // ── Billing summary table (11 columns) ──────────────────────────
@@ -341,11 +364,11 @@ export async function exportTruckingBillingExcel(statementIds: string[]) {
     ws.getCell(`B${r}`).value = combinedWaybill(statement);
     ws.getCell(`C${r}`).value = "PLATE NO.:";
     ws.getCell(`C${r}`).font = { bold: true };
-    ws.getCell(`D${r}`).value = statement.plate_number ?? "";
+    ws.getCell(`D${r}`).value = combinedPlateNumber(statement);
     ws.getCell(`E${r}`).value = "DRIVER'S NAME:";
     ws.getCell(`E${r}`).font = { bold: true };
     ws.mergeCells(`F${r}:H${r}`);
-    ws.getCell(`F${r}`).value = statement.driver_name ?? "";
+    ws.getCell(`F${r}`).value = combinedDriverName(statement);
     ws.getCell(`I${r}`).value = "DATE:";
     ws.getCell(`I${r}`).font = { bold: true };
     ws.mergeCells(`J${r}:K${r}`);

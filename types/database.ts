@@ -480,6 +480,7 @@ export interface VTruckingBillingConvoy {
   route_plan_truck_id: string;
   plate_number: string | null;
   waybill_no: string | null;
+  driver_name: string | null;
 }
 
 export interface VTruckingBillingStatementItem {

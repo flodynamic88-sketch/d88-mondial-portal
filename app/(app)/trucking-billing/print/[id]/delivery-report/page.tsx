@@ -4,6 +4,8 @@ import { useParams } from "next/navigation";
 import {
   APPROVED_BY_NAME,
   PREPARED_BY_NAME,
+  combinedDriverName,
+  combinedPlateNumber,
   combinedWaybill,
   formatLongDateNoSpace,
   formatMoney,
@@ -72,10 +74,10 @@ export default function PrintDeliveryReportPage() {
             <span className="font-bold">Waybill No.:</span> {combinedWaybill(statement)}
           </p>
           <p>
-            <span className="font-bold">Plate No.:</span> {statement.plate_number ?? "—"}
+            <span className="font-bold">Plate No.:</span> {combinedPlateNumber(statement)}
           </p>
           <p>
-            <span className="font-bold">Driver&apos;s Name:</span> {statement.driver_name ?? "—"}
+            <span className="font-bold">Driver&apos;s Name:</span> {combinedDriverName(statement)}
           </p>
           <p>
             <span className="font-bold">Date:</span> {formatLongDateNoSpace(deliveryDate)}
