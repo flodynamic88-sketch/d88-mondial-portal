@@ -89,8 +89,12 @@ export function useTruckingBillingPrintData(id: string) {
   // total_boxes on the view is already override-aware (coalesce(total_boxes_override,
   // computed sum)) -- prefer it once the statement has loaded; fall back to summing
   // the line items only for the brief moment before the statement row arrives.
+  // Backloaded items (is_backload) are kept in `items` so the original truck's
+  // report still shows/tags them (migration 0059), but they never actually
+  // rode this truck, so they're excluded from the summed total here too --
+  // matching the view's own item_count/total_boxes aggregate.
   const computedTotalBoxes = useMemo(
-    () => items.reduce((sum, r) => sum + (r.qty_box ?? 0), 0),
+    () => items.filter((r) => !r.is_backload).reduce((sum, r) => sum + (r.qty_box ?? 0), 0),
     [items]
   );
   const totalBoxes = statement ? statement.total_boxes : computedTotalBoxes;
@@ -112,8 +116,12 @@ export function useTruckingBillingPrintData(id: string) {
     }
     return error;
   }
+  // Same backload exclusion as computedTotalBoxes above -- a backloaded
+  // invoice's declared value never actually rode this truck, so it's kept
+  // visible/tagged in the printed item list but left out of the truck's own
+  // declared-value total and (below) its % CTS.
   const totalDeclaredValue = useMemo(
-    () => items.reduce((sum, r) => sum + (r.declared_value ?? 0), 0),
+    () => items.filter((r) => !r.is_backload).reduce((sum, r) => sum + (r.declared_value ?? 0), 0),
     [items]
   );
   // Raw fraction (not multiplied by 100) to match JMD's own "% CTS" column,

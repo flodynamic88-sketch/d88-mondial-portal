@@ -496,6 +496,10 @@ export interface VTruckingBillingStatementItem {
   posting_date: string | null;
   /** Manual drop/stop sequence number this item's order now follows (nulls sort last). */
   drop_no: number | null;
+  /** True when this row is a truck's own kept-for-history backload attempt (superseded, Backload reason) -- shown on that truck's own report, tagged BACKLOAD. */
+  is_backload: boolean;
+  /** True when this row is the active delivery of an invoice that was previously backloaded on a different truck -- shown on this truck's report, tagged REDELIVER. */
+  is_redeliver: boolean;
 }
 
 export interface VTruckingBillingCandidate {

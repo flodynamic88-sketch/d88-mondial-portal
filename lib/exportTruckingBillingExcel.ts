@@ -245,7 +245,13 @@ export async function exportTruckingBillingExcel(statementIds: string[]) {
     });
     r += 1;
 
-    const totalDeclaredValue = items.reduce((sum, x) => sum + (x.declared_value ?? 0), 0);
+    // Backloaded items (is_backload, migration 0059) are kept in `items` so
+    // the original truck's own sheet still lists/tags them, but they never
+    // actually rode this truck, so they're excluded from its declared-value
+    // total and % CTS -- same exclusion as the print pages.
+    const totalDeclaredValue = items
+      .filter((x) => !x.is_backload)
+      .reduce((sum, x) => sum + (x.declared_value ?? 0), 0);
     // Override-aware -- matches the merged Boxes total shown on the Delivery
     // Report print page (statement.total_boxes = coalesce(total_boxes_override,
     // live-computed sum)), so a manual edit there is reflected here too.
@@ -366,7 +372,11 @@ export async function exportTruckingBillingExcel(statementIds: string[]) {
     const firstItemRow = r;
     items.forEach((item) => {
       ws.mergeCells(`B${r}:C${r}`);
-      ws.getCell(`B${r}`).value = item.document_no;
+      const tag = item.is_backload ? " (BACKLOAD)" : item.is_redeliver ? " (REDELIVER)" : "";
+      ws.getCell(`B${r}`).value = `${item.document_no}${tag}`;
+      if (tag) {
+        ws.getCell(`B${r}`).font = { bold: true, color: { argb: item.is_backload ? "FFDC2626" : "FF2563EB" } };
+      }
       ws.mergeCells(`D${r}:F${r}`);
       ws.getCell(`D${r}`).value = item.company_name_raw ?? "";
       ws.mergeCells(`G${r}:I${r}`);

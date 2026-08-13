@@ -108,7 +108,15 @@ export default function PrintDeliveryReportPage() {
                       {statement.area ?? "—"}
                     </td>
                   )}
-                  <td className="border border-gray-300 px-1 py-1 font-medium">{row.document_no}</td>
+                  <td className="border border-gray-300 px-1 py-1 font-medium">
+                    {row.document_no}
+                    {row.is_backload && (
+                      <span className="ml-1 font-bold text-red-600">(BACKLOAD)</span>
+                    )}
+                    {row.is_redeliver && (
+                      <span className="ml-1 font-bold text-blue-600">(REDELIVER)</span>
+                    )}
+                  </td>
                   <td className="border border-gray-300 px-1 py-1 text-left">
                     {row.company_name_raw ?? "—"}
                   </td>
