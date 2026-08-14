@@ -116,18 +116,19 @@ export function useTruckingBillingPrintData(id: string) {
     })();
   }, [id]);
 
-  // total_boxes on the view is already override-aware (coalesce(total_boxes_override,
-  // computed sum)) -- prefer it once the statement has loaded; fall back to summing
-  // the line items only for the brief moment before the statement row arrives.
-  // Backloaded items (is_backload) are kept in `items` so the original truck's
-  // report still shows/tags them (migration 0059), but they never actually
-  // rode this truck, so they're excluded from the summed total here too --
-  // matching the view's own item_count/total_boxes aggregate.
+  // Per user request (2026-08-14): the Delivery Report / Billing Statement
+  // totals should include EVERY item shown on this truck's own sheet --
+  // backloaded items (is_backload) and redelivered items (is_redeliver)
+  // both count -- rather than the DB view's active-assignment aggregate
+  // (which drops a backloaded invoice's boxes entirely once it's superseded,
+  // since that aggregate only sums the currently-active row per invoice).
+  // Manual total_boxes_override still wins when set; otherwise sum every
+  // line item actually printed on this sheet.
   const computedTotalBoxes = useMemo(
-    () => items.filter((r) => !r.is_backload).reduce((sum, r) => sum + (r.qty_box ?? 0), 0),
+    () => items.reduce((sum, r) => sum + (r.qty_box ?? 0), 0),
     [items]
   );
-  const totalBoxes = statement ? statement.total_boxes : computedTotalBoxes;
+  const totalBoxes = statement?.total_boxes_override ?? computedTotalBoxes;
 
   /** Best-effort save of the manual Boxes-total override; updates local state so the print preview reflects it immediately. */
   async function updateTotalBoxesOverride(value: number | null) {
@@ -146,12 +147,12 @@ export function useTruckingBillingPrintData(id: string) {
     }
     return error;
   }
-  // Same backload exclusion as computedTotalBoxes above -- a backloaded
-  // invoice's declared value never actually rode this truck, so it's kept
-  // visible/tagged in the printed item list but left out of the truck's own
-  // declared-value total and (below) its % CTS.
+  // Same inclusion as computedTotalBoxes above -- backloaded and redelivered
+  // items both count toward this truck's own declared-value total and
+  // (below) its % CTS, matching what's actually shown/tagged in the printed
+  // item list.
   const totalDeclaredValue = useMemo(
-    () => items.filter((r) => !r.is_backload).reduce((sum, r) => sum + (r.declared_value ?? 0), 0),
+    () => items.reduce((sum, r) => sum + (r.declared_value ?? 0), 0),
     [items]
   );
   // Raw fraction (not multiplied by 100) to match JMD's own "% CTS" column,

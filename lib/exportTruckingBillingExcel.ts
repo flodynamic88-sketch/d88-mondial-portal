@@ -268,17 +268,15 @@ export async function exportTruckingBillingExcel(statementIds: string[]) {
     });
     r += 1;
 
-    // Backloaded items (is_backload, migration 0059) are kept in `items` so
-    // the original truck's own sheet still lists/tags them, but they never
-    // actually rode this truck, so they're excluded from its declared-value
-    // total and % CTS -- same exclusion as the print pages.
-    const totalDeclaredValue = items
-      .filter((x) => !x.is_backload)
-      .reduce((sum, x) => sum + (x.declared_value ?? 0), 0);
-    // Override-aware -- matches the merged Boxes total shown on the Delivery
-    // Report print page (statement.total_boxes = coalesce(total_boxes_override,
-    // live-computed sum)), so a manual edit there is reflected here too.
-    const totalBoxes = statement.total_boxes;
+    // Per user request (2026-08-14): backloaded and redelivered items both
+    // count toward this truck's own declared-value total and % CTS here --
+    // same inclusion as the print pages (lib/truckingBillingPrint.ts).
+    const totalDeclaredValue = items.reduce((sum, x) => sum + (x.declared_value ?? 0), 0);
+    // Override-aware -- manual total_boxes_override still wins when set;
+    // otherwise sum every line item on this sheet (including backload/
+    // redeliver), matching the print pages' computedTotalBoxes.
+    const totalBoxes =
+      statement.total_boxes_override ?? items.reduce((sum, x) => sum + (x.qty_box ?? 0), 0);
     const accountsLabel = Array.from(
       new Set(items.map((x) => x.company_name_raw).filter(Boolean))
     ).join(", ");
@@ -426,7 +424,7 @@ export async function exportTruckingBillingExcel(statementIds: string[]) {
       ws.getCell(`A${firstItemRow}`).border = thinBorder();
 
       ws.mergeCells(`J${firstItemRow}:J${lastItemRow}`);
-      ws.getCell(`J${firstItemRow}`).value = statement.total_boxes || "";
+      ws.getCell(`J${firstItemRow}`).value = totalBoxes || "";
       ws.getCell(`J${firstItemRow}`).numFmt = "#,##0";
       ws.getCell(`J${firstItemRow}`).alignment = { horizontal: "center", vertical: "middle" };
       ws.getCell(`J${firstItemRow}`).border = thinBorder();
