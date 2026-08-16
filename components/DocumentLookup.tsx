@@ -7,9 +7,17 @@ import type { Invoice } from "@/types/database";
 interface DocumentLookupProps {
   routePlanTruckId: string;
   onAssigned: () => void;
+  /** Which drop/stop this lookup box assigns into -- null means "no drop
+   *  set" (the legacy/unassigned bucket). Omitted entirely for callers that
+   *  don't group by drop. */
+  dropNo?: number | null;
 }
 
-export default function DocumentLookup({ routePlanTruckId, onAssigned }: DocumentLookupProps) {
+export default function DocumentLookup({
+  routePlanTruckId,
+  onAssigned,
+  dropNo,
+}: DocumentLookupProps) {
   const [query, setQuery] = useState("");
   const [searching, setSearching] = useState(false);
   const [searchError, setSearchError] = useState<string | null>(null);
@@ -135,6 +143,7 @@ export default function DocumentLookup({ routePlanTruckId, onAssigned }: Documen
         route_plan_truck_id: routePlanTruckId,
         invoice_id: invoice.id,
         service_rate_pct: rateNumber,
+        drop_no: dropNo ?? null,
       });
 
       if (error) {

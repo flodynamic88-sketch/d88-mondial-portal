@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import TruckCard from "@/components/TruckCard";
@@ -144,12 +144,26 @@ export default function RoutePlanBoard() {
     loadReasons();
   }, [loadReasons]);
 
+  // Mirrors TruckCard's hasLoadedRowsRef: every truck/invoice edit anywhere
+  // under this plan -- by this user OR, now that Realtime is wired up below,
+  // by any other user viewing the same plan -- calls loadTrucks() again.
+  // Flipping loadingTrucks back to true on every one of those refreshes used
+  // to swap the entire trucks table out for a single "Loading trucks…" line,
+  // collapsing the page height for an instant and yanking the scroll
+  // position back to the top. Only the very first load for a given route
+  // plan should show that loading state.
+  const hasLoadedTrucksRef = useRef(false);
+
+  useEffect(() => {
+    hasLoadedTrucksRef.current = false;
+  }, [selectedId]);
+
   const loadTrucks = useCallback(async () => {
     if (!selectedId) {
       setTrucks([]);
       return;
     }
-    setLoadingTrucks(true);
+    if (!hasLoadedTrucksRef.current) setLoadingTrucks(true);
     setTrucksError(null);
     try {
       const supabase = createClient();
@@ -173,12 +187,56 @@ export default function RoutePlanBoard() {
       setTrucks([]);
     } finally {
       setLoadingTrucks(false);
+      hasLoadedTrucksRef.current = true;
     }
   }, [selectedId]);
 
   useEffect(() => {
     loadTrucks();
   }, [loadTrucks]);
+
+  // Realtime: any truck or invoice change under this plan -- by this user or
+  // (this is the point) any other user viewing the same plan -- refetches
+  // the trucks list and the plan header instead of requiring a manual
+  // browser refresh. loadTrucks()/loadRoutePlans() above are both already
+  // guarded to avoid flashing a "Loading…" state on anything but the very
+  // first load, so these refetches patch the screen in place without
+  // resetting scroll position or collapsing the table.
+  useEffect(() => {
+    if (!selectedId) return;
+    const supabase = createClient();
+    const channel = supabase
+      .channel(`route-plan-${selectedId}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "route_plan_trucks",
+          filter: `route_plan_id=eq.${selectedId}`,
+        },
+        () => {
+          loadTrucks();
+        }
+      )
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "route_plans",
+          filter: `id=eq.${selectedId}`,
+        },
+        () => {
+          loadRoutePlans(selectedId);
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [selectedId, loadTrucks, loadRoutePlans]);
 
   // Average CTS for the whole day: pull v_truck_cts for every truck on this
   // route plan (main + convoy) so we can show one "day average" figure next

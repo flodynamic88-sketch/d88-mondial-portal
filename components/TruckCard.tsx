@@ -41,6 +41,14 @@ interface AssignedInvoiceRow extends RoutePlanInvoice {
   invoice: Invoice | null;
 }
 
+/** Natural ascending sort key for an assigned invoice row -- uses the
+ *  generated document_no_sort column (0030_document_no_sort_key.sql) so
+ *  "CD-0100364" and "CD_0100363" compare correctly regardless of separator,
+ *  falling back to the raw document_no for legacy/missing rows. */
+function invoiceSortKey(row: AssignedInvoiceRow): string {
+  return row.invoice?.document_no_sort ?? row.invoice?.document_no ?? "";
+}
+
 interface TruckCardProps {
   truck: RoutePlanTruck;
   /** Display label for this truck, e.g. "Truck 1" or "Truck 1 · Convoy 1". */
@@ -117,6 +125,10 @@ export default function TruckCard({
     role === "JMD_PLANNER" ||
     role === "LOGISTICS_OFFICER" ||
     role === "LOGISTICS_ASSOCIATE";
+  // Same roles that could already add invoices via the single DocumentLookup
+  // box at the top of the expanded row -- now duplicated per-drop instead.
+  const canAddInvoices =
+    role === "ADMIN" || role === "JMD_PLANNER" || role === "LOGISTICS_OFFICER";
 
   const [rows, setRows] = useState<AssignedInvoiceRow[]>([]);
   // True when at least one of this truck's active (non-superseded) invoices
@@ -137,6 +149,12 @@ export default function TruckCard({
   const [cts, setCts] = useState<VTruckCts | null>(null);
   const [feeRates, setFeeRates] = useState<FeeRate[]>([]);
   const [refreshKey, setRefreshKey] = useState(0);
+  // Drop numbers the planner has explicitly created via "+ Add Drop" but
+  // that don't have any invoice assigned yet -- purely a UI affordance so a
+  // brand-new drop still renders its own add-document box before the first
+  // document lands in it. Once a row with that drop_no exists it shows up
+  // via existingDropNumbers below regardless of this list.
+  const [pendingDropNumbers, setPendingDropNumbers] = useState<number[]>([]);
   const [dispatching, setDispatching] = useState(false);
   const [showAddConvoy, setShowAddConvoy] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
@@ -258,6 +276,35 @@ export default function TruckCard({
   useEffect(() => {
     loadAssigned();
   }, [loadAssigned, refreshKey]);
+
+  // Realtime: another user assigning/moving/marking-delivered an invoice on
+  // THIS truck refetches the Assigned Invoices list automatically instead of
+  // needing a manual browser refresh. loadAssigned() above already only
+  // shows the "Loading…" state on the very first load (hasLoadedRowsRef), so
+  // this refetch patches the table in place without moving the page or
+  // resetting scroll position.
+  useEffect(() => {
+    const supabase = createClient();
+    const channel = supabase
+      .channel(`route-plan-invoices-${truck.id}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "route_plan_invoices",
+          filter: `route_plan_truck_id=eq.${truck.id}`,
+        },
+        () => {
+          loadAssigned();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [truck.id, loadAssigned]);
 
   // Keep the edit draft in sync with the latest truck data whenever we're
   // not actively editing (e.g. after onRefreshTrucks() re-fetches).
@@ -867,6 +914,44 @@ export default function TruckCard({
         truck.truck_rate
       : truck.truck_rate;
 
+  // Group assigned invoices into Drop 1 / Drop 2 / ... cards instead of one
+  // flat mixed table -- each drop's invoices auto-sort ascending by invoice
+  // number (invoiceSortKey) rather than relying on manual ordering. Rows
+  // without a drop_no yet (legacy assignments, or dropped in before this
+  // feature) fall into a trailing "Unassigned" bucket rather than being
+  // silently hidden.
+  const existingDropNumbers = Array.from(
+    new Set(
+      rows
+        .map((r) => r.drop_no)
+        .filter((n): n is number => n !== null && n !== undefined)
+    )
+  ).sort((a, b) => a - b);
+  const allDropNumbers = Array.from(
+    new Set([...existingDropNumbers, ...pendingDropNumbers])
+  ).sort((a, b) => a - b);
+  const nextDropNo = (allDropNumbers.length > 0 ? Math.max(...allDropNumbers) : 0) + 1;
+  const dropGroups: { dropNo: number | null; rows: AssignedInvoiceRow[] }[] = allDropNumbers.map(
+    (n) => ({
+      dropNo: n,
+      rows: rows
+        .filter((r) => r.drop_no === n)
+        .slice()
+        .sort((a, b) => invoiceSortKey(a).localeCompare(invoiceSortKey(b))),
+    })
+  );
+  const unassignedRows = rows
+    .filter((r) => r.drop_no === null || r.drop_no === undefined)
+    .slice()
+    .sort((a, b) => invoiceSortKey(a).localeCompare(invoiceSortKey(b)));
+  const displayGroups: { dropNo: number | null; rows: AssignedInvoiceRow[] }[] =
+    unassignedRows.length > 0 ? [...dropGroups, { dropNo: null, rows: unassignedRows }] : dropGroups;
+  // Nothing created yet for this truck -- show one empty Drop 1 card so the
+  // add-document box is available immediately instead of requiring "+ Add
+  // Drop" first.
+  const effectiveGroups =
+    displayGroups.length > 0 ? displayGroups : [{ dropNo: 1, rows: [] as AssignedInvoiceRow[] }];
+
   return (
     <>
       <tr className={`border-t border-gray-100 align-top ${isConvoy ? "bg-gray-50/60" : ""}`}>
@@ -1163,41 +1248,64 @@ export default function TruckCard({
       {expanded && (
         <tr className="bg-gray-50/50">
           <td colSpan={9} className="px-4 pb-4 pt-1">
-            {(role === "ADMIN" || role === "JMD_PLANNER" || role === "LOGISTICS_OFFICER") && (
-              <div className="mb-3">
-                <DocumentLookup
-                  routePlanTruckId={truck.id}
-                  onAssigned={() => setRefreshKey((k) => k + 1)}
-                />
-              </div>
-            )}
-
             {actionError && <p className="mb-2 text-sm text-red-600">{actionError}</p>}
 
-            <div>
+            <div className="flex items-center justify-between">
               <h3 className="text-sm font-semibold text-gray-700">Assigned Invoices</h3>
-              {loadingRows && <p className="mt-2 text-sm text-gray-400">Loading…</p>}
-        {!loadingRows && rowsError && <p className="mt-2 text-sm text-gray-400">{rowsError}</p>}
-        {!loadingRows && !rowsError && rows.length === 0 && (
-          <p className="mt-2 text-sm text-gray-400">No invoices assigned yet.</p>
-        )}
-        {!loadingRows && !rowsError && rows.length > 0 && (
-          <div className="mt-2 table-scroll-container">
-            <table className="min-w-full divide-y divide-gray-200 text-sm">
-              <thead>
-                <tr className="text-left text-xs font-semibold uppercase text-gray-500">
-                  <th className="py-2 pr-4">Drop No.</th>
-                  <th className="py-2 pr-4">Document No.</th>
-                  <th className="py-2 pr-4">Company / Branch</th>
-                  <th className="py-2 pr-4">Qty/Box</th>
-                  <th className="py-2 pr-4">Amount</th>
-                  <th className="py-2 pr-4">Rate %</th>
-                  <th className="py-2 pr-4">Status</th>
-                  <th className="py-2 pr-4">Actions</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-100">
-                {rows.map((row) => {
+              {canAddInvoices && (
+                <button
+                  type="button"
+                  className="tab-button tab-button-inactive text-xs"
+                  onClick={() =>
+                    setPendingDropNumbers((nums) => Array.from(new Set([...nums, nextDropNo])))
+                  }
+                >
+                  + Add Drop
+                </button>
+              )}
+            </div>
+            {loadingRows && <p className="mt-2 text-sm text-gray-400">Loading…</p>}
+            {!loadingRows && rowsError && <p className="mt-2 text-sm text-gray-400">{rowsError}</p>}
+            {!loadingRows && !rowsError && (
+              <div className="mt-2 space-y-3">
+                {effectiveGroups.map((group) => (
+                  <div
+                    key={group.dropNo ?? "unassigned"}
+                    className={`rounded-md border p-3 ${
+                      group.dropNo === null ? "border-amber-200 bg-amber-50/40" : "border-gray-200"
+                    }`}
+                  >
+                    <h4 className="text-xs font-semibold uppercase text-gray-500">
+                      {group.dropNo === null ? "Unassigned (no drop set)" : `Drop ${group.dropNo}`}
+                    </h4>
+                    {canAddInvoices && (
+                      <div className="mb-2 mt-2">
+                        <DocumentLookup
+                          routePlanTruckId={truck.id}
+                          dropNo={group.dropNo}
+                          onAssigned={() => setRefreshKey((k) => k + 1)}
+                        />
+                      </div>
+                    )}
+                    {group.rows.length === 0 ? (
+                      <p className="mt-1 text-sm text-gray-400">No invoices in this drop yet.</p>
+                    ) : (
+                      <div className="mt-1 table-scroll-container">
+                        <table className="min-w-full divide-y divide-gray-200 text-sm">
+                          <thead>
+                            <tr className="text-left text-xs font-semibold uppercase text-gray-500">
+                              <th className="py-2 pr-4">Drop No.</th>
+                              <th className="py-2 pr-4">Document No.</th>
+                              <th className="py-2 pr-4">Company / Branch</th>
+                              <th className="py-2 pr-4">Qty/Box</th>
+                              <th className="py-2 pr-4">Amount</th>
+                              <th className="py-2 pr-4">Rate %</th>
+                              <th className="py-2 pr-4">Status</th>
+                              <th className="py-2 pr-4">Actions</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-gray-100">
+                            {group.rows.map((row) => {
                   const isRedeliveredInvoice =
                     !row.reason_id &&
                     !!row.invoice_id &&
@@ -1677,11 +1785,14 @@ export default function TruckCard({
                   </tr>
                   );
                 })}
-              </tbody>
-            </table>
-          </div>
-        )}
-            </div>
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
 
             {!isConvoy && canAddConvoy && (
               <div className="mt-4 border-t border-gray-100 pt-4">

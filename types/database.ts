@@ -524,6 +524,8 @@ export interface VTruckingBillingCandidate {
   area: string | null;
   /** True when truck_rate is a manually-negotiated one-off amount (destination rate card lookup was skipped). */
   is_negotiated_rate: boolean;
+  /** The truck's own created_at -- used to sort candidates in the same Truck 1, 2, 3... order as the Route Plan board. */
+  truck_created_at: string | null;
 }
 
 export interface Database {

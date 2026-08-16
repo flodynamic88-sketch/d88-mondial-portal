@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import RequireRole from "@/components/RequireRole";
@@ -132,7 +132,8 @@ function GenerateTab({
         .select("*")
         .gte("route_date", startDate)
         .lte("route_date", endDate)
-        .order("route_date", { ascending: true });
+        .order("route_date", { ascending: true })
+        .order("truck_created_at", { ascending: true });
       if (error) {
         setErrorMsg(
           "Could not load Route Plan trucks for this period. Connect a Supabase project to see live data."
@@ -365,19 +366,39 @@ function StatusTab({
   const [search, setSearch] = useState("");
   const [savingId, setSavingId] = useState<string | null>(null);
   const [exporting, setExporting] = useState(false);
+  // Which SOA/series_no group's per-truck breakdown is currently expanded --
+  // only used on the Billed/Paid tabs, which show one row per SOA batch
+  // (Total Amount + Billing Period) instead of one row per truck, since the
+  // SOA itself already represents the whole billed period. For Billing stays
+  // itemized per-truck since that's still an editing workflow.
+  const [expandedSeries, setExpandedSeries] = useState<Set<string>>(new Set());
 
   const label = STATUS_TABS.find((t) => t.status === status)?.label ?? status;
+
+  function toggleSeries(key: string) {
+    setExpandedSeries((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+  }
 
   const load = useCallback(async () => {
     setLoading(true);
     setErrorMsg(null);
     try {
       const supabase = createClient();
+      // Truck order within a date must mirror Route Plan's Truck 1/2/3 labeling
+      // (RoutePlanBoard.tsx orders main trucks by created_at ASC) -- otherwise
+      // Trucking Billing lists the same day's trucks in a different sequence
+      // than the board they were dispatched from.
       const { data, error } = await supabase
         .from("v_trucking_billing_statements")
         .select("*")
         .eq("status", status)
-        .order("route_date", { ascending: false });
+        .order("route_date", { ascending: false })
+        .order("truck_created_at", { ascending: true });
       if (error) {
         setErrorMsg(
           "Could not load billing statements. Connect a Supabase project to see live data."
@@ -416,6 +437,49 @@ function StatusTab({
   );
   const vat = subtotal * VAT_RATE;
   const total = subtotal + vat;
+
+  // Billed/Paid tabs group statements by SOA (series_no) -- one row per SOA
+  // batch, not per truck. Rows with no series_no set yet get their own
+  // single-truck "group" (keyed by row id) instead of being lumped together
+  // under one shared bucket, so an ungrouped statement still shows plainly.
+  const seriesGroups = useMemo(() => {
+    if (status === "FOR_BILLING") return [];
+    const map = new Map<
+      string,
+      {
+        key: string;
+        seriesNo: string | null;
+        rows: VTruckingBillingStatement[];
+        totalAmount: number;
+        periodStart: string | null;
+        periodEnd: string | null;
+      }
+    >();
+    const order: string[] = [];
+    for (const r of filteredRows) {
+      const trimmed = r.series_no?.trim() || "";
+      const key = trimmed ? `soa:${trimmed}` : `row:${r.id}`;
+      if (!map.has(key)) {
+        map.set(key, {
+          key,
+          seriesNo: trimmed || null,
+          rows: [],
+          totalAmount: 0,
+          periodStart: null,
+          periodEnd: null,
+        });
+        order.push(key);
+      }
+      const group = map.get(key)!;
+      group.rows.push(r);
+      group.totalAmount += r.truck_rate ?? 0;
+      if (r.route_date) {
+        if (!group.periodStart || r.route_date < group.periodStart) group.periodStart = r.route_date;
+        if (!group.periodEnd || r.route_date > group.periodEnd) group.periodEnd = r.route_date;
+      }
+    }
+    return order.map((k) => map.get(k)!);
+  }, [filteredRows, status]);
 
   async function handleStatusChange(row: VTruckingBillingStatement, next: TruckingBillingStatus) {
     setSavingId(row.id);
@@ -532,6 +596,134 @@ function StatusTab({
     }
   }
 
+  // Shared itemized (one row per truck) table body -- used as-is for the For
+  // Billing tab, and reused inside each SOA group's expandable breakdown on
+  // the Billed/Paid tabs so editing (waybill #, status, delete) still works
+  // per-truck even when the top-level view is grouped.
+  function renderItemizedTable(list: VTruckingBillingStatement[]) {
+    return (
+      <table className="min-w-full divide-y divide-gray-200 text-sm">
+        <thead>
+          <tr className="text-left text-xs font-semibold uppercase text-gray-500">
+            <th className="py-2 pr-4">Series #</th>
+            <th className="py-2 pr-4">Waybill #</th>
+            <th className="py-2 pr-4">Area</th>
+            <th className="py-2 pr-4">Truck Type</th>
+            <th className="py-2 pr-4">Route Date</th>
+            <th className="py-2 pr-4">Plate #</th>
+            <th className="py-2 pr-4">Carrier</th>
+            <th className="py-2 pr-4 text-right">Boxes</th>
+            {canSeeRate && <th className="py-2 pr-4 text-right">Rate</th>}
+            <th className="py-2 pr-4">Status</th>
+            <th className="py-2 pr-4">Actions</th>
+          </tr>
+        </thead>
+        <tbody className="divide-y divide-gray-100">
+          {list.map((r) => (
+            <tr key={r.id}>
+              <td className="py-2 pr-4">
+                <input
+                  type="text"
+                  className="input input-sm"
+                  defaultValue={r.series_no ?? ""}
+                  placeholder="e.g. MND-0726-040"
+                  onBlur={(e) => handleSeriesNoChange(r, e.target.value)}
+                  disabled={!canManage}
+                />
+              </td>
+              <td className="py-2 pr-4">
+                <input
+                  type="text"
+                  className="input input-sm"
+                  defaultValue={r.waybill_no ?? ""}
+                  placeholder="e.g. JMD 26-0674"
+                  onBlur={(e) => handleWaybillChange(r, e.target.value)}
+                  disabled={!canManage}
+                />
+                {(r.convoys ?? []).map((c) => (
+                  <input
+                    key={c.route_plan_truck_id}
+                    type="text"
+                    className="input input-sm mt-1"
+                    defaultValue={c.waybill_no ?? ""}
+                    placeholder={`Convoy waybill # (${c.plate_number ?? "convoy"})`}
+                    onBlur={(e) =>
+                      handleConvoyWaybillChange(r, c.route_plan_truck_id, e.target.value)
+                    }
+                    disabled={!canManage}
+                  />
+                ))}
+              </td>
+              <td className="py-2 pr-4 text-gray-700">
+                {r.area ?? "—"}
+              </td>
+              <td className="py-2 pr-4">
+                <select
+                  className="input input-sm"
+                  value={r.truck_type ?? ""}
+                  onChange={(e) => handleTruckTypeChange(r, e.target.value)}
+                  disabled={!canManage}
+                >
+                  <option value="">—</option>
+                  <option value="4W">4W</option>
+                  <option value="6W">6W</option>
+                </select>
+              </td>
+              <td className="py-2 pr-4">{formatDate(r.route_date)}</td>
+              <td className="py-2 pr-4 font-medium text-gray-800">{r.plate_number ?? "—"}</td>
+              <td className="py-2 pr-4">{r.carrier ?? "—"}</td>
+              <td className="py-2 pr-4 text-right">{r.total_boxes}</td>
+              {canSeeRate && (
+                <td className="py-2 pr-4 text-right">{formatMoney(r.truck_rate)}</td>
+              )}
+              <td className="py-2 pr-4">
+                <select
+                  className="input input-sm"
+                  value={r.status}
+                  onChange={(e) =>
+                    handleStatusChange(r, e.target.value as TruckingBillingStatus)
+                  }
+                  disabled={!canManage || savingId === r.id}
+                >
+                  <option value="FOR_BILLING">For Billing</option>
+                  <option value="BILLED">Billed</option>
+                  <option value="PAID">Paid</option>
+                </select>
+              </td>
+              <td className="py-2 pr-4">
+                <div className="flex flex-wrap gap-2">
+                  <Link
+                    href={`/trucking-billing/print/${r.id}/billing-statement`}
+                    target="_blank"
+                    className="tab-button tab-button-inactive"
+                  >
+                    Billing Statement
+                  </Link>
+                  <Link
+                    href={`/trucking-billing/print/${r.id}/delivery-report`}
+                    target="_blank"
+                    className="tab-button tab-button-inactive"
+                  >
+                    Delivery Report
+                  </Link>
+                  {canDelete && (
+                    <button
+                      type="button"
+                      className="text-xs font-medium text-red-600 hover:text-red-800"
+                      onClick={() => handleDelete(r)}
+                    >
+                      Delete
+                    </button>
+                  )}
+                </div>
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    );
+  }
+
   return (
     <div className="card mt-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
@@ -571,124 +763,69 @@ function StatusTab({
       {!loading && !errorMsg && rows.length > 0 && filteredRows.length === 0 && (
         <p className="mt-3 text-sm text-gray-400">No statements match &quot;{search}&quot;.</p>
       )}
-      {!loading && !errorMsg && filteredRows.length > 0 && (
+      {!loading && !errorMsg && filteredRows.length > 0 && status === "FOR_BILLING" && (
+        <div className="mt-3 table-scroll-container">{renderItemizedTable(filteredRows)}</div>
+      )}
+
+      {!loading && !errorMsg && filteredRows.length > 0 && status !== "FOR_BILLING" && (
         <div className="mt-3 table-scroll-container">
           <table className="min-w-full divide-y divide-gray-200 text-sm">
             <thead>
               <tr className="text-left text-xs font-semibold uppercase text-gray-500">
-                <th className="py-2 pr-4">Series #</th>
-                <th className="py-2 pr-4">Waybill #</th>
-                <th className="py-2 pr-4">Area</th>
-                <th className="py-2 pr-4">Truck Type</th>
-                <th className="py-2 pr-4">Route Date</th>
-                <th className="py-2 pr-4">Plate #</th>
-                <th className="py-2 pr-4">Carrier</th>
-                <th className="py-2 pr-4 text-right">Boxes</th>
-                {canSeeRate && <th className="py-2 pr-4 text-right">Rate</th>}
-                <th className="py-2 pr-4">Status</th>
+                <th className="py-2 pr-4"></th>
+                <th className="py-2 pr-4">SOA / Series #</th>
+                <th className="py-2 pr-4">Billing Period</th>
+                <th className="py-2 pr-4 text-right">Trucks</th>
+                {canSeeRate && <th className="py-2 pr-4 text-right">Total Amount</th>}
                 <th className="py-2 pr-4">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
-              {filteredRows.map((r) => (
-                <tr key={r.id}>
-                  <td className="py-2 pr-4">
-                    <input
-                      type="text"
-                      className="input input-sm"
-                      defaultValue={r.series_no ?? ""}
-                      placeholder="e.g. MND-0726-040"
-                      onBlur={(e) => handleSeriesNoChange(r, e.target.value)}
-                      disabled={!canManage}
-                    />
-                  </td>
-                  <td className="py-2 pr-4">
-                    <input
-                      type="text"
-                      className="input input-sm"
-                      defaultValue={r.waybill_no ?? ""}
-                      placeholder="e.g. JMD 26-0674"
-                      onBlur={(e) => handleWaybillChange(r, e.target.value)}
-                      disabled={!canManage}
-                    />
-                    {(r.convoys ?? []).map((c) => (
-                      <input
-                        key={c.route_plan_truck_id}
-                        type="text"
-                        className="input input-sm mt-1"
-                        defaultValue={c.waybill_no ?? ""}
-                        placeholder={`Convoy waybill # (${c.plate_number ?? "convoy"})`}
-                        onBlur={(e) =>
-                          handleConvoyWaybillChange(r, c.route_plan_truck_id, e.target.value)
-                        }
-                        disabled={!canManage}
-                      />
-                    ))}
-                  </td>
-                  <td className="py-2 pr-4 text-gray-700">
-                    {r.area ?? "—"}
-                  </td>
-                  <td className="py-2 pr-4">
-                    <select
-                      className="input input-sm"
-                      value={r.truck_type ?? ""}
-                      onChange={(e) => handleTruckTypeChange(r, e.target.value)}
-                      disabled={!canManage}
-                    >
-                      <option value="">—</option>
-                      <option value="4W">4W</option>
-                      <option value="6W">6W</option>
-                    </select>
-                  </td>
-                  <td className="py-2 pr-4">{formatDate(r.route_date)}</td>
-                  <td className="py-2 pr-4 font-medium text-gray-800">{r.plate_number ?? "—"}</td>
-                  <td className="py-2 pr-4">{r.carrier ?? "—"}</td>
-                  <td className="py-2 pr-4 text-right">{r.total_boxes}</td>
-                  {canSeeRate && (
-                    <td className="py-2 pr-4 text-right">{formatMoney(r.truck_rate)}</td>
+              {seriesGroups.map((g) => (
+                <Fragment key={g.key}>
+                  <tr className="bg-gray-50/50">
+                    <td className="py-2 pl-4 pr-2">
+                      <button
+                        type="button"
+                        className="text-gray-500"
+                        onClick={() => toggleSeries(g.key)}
+                        aria-label={expandedSeries.has(g.key) ? "Collapse" : "Expand"}
+                      >
+                        {expandedSeries.has(g.key) ? "▾" : "▸"}
+                      </button>
+                    </td>
+                    <td className="py-2 pr-4 font-medium text-gray-800">
+                      {g.seriesNo ?? "(no SOA # yet)"}
+                    </td>
+                    <td className="py-2 pr-4">
+                      {g.periodStart === g.periodEnd
+                        ? formatDate(g.periodStart)
+                        : `${formatDate(g.periodStart)} – ${formatDate(g.periodEnd)}`}
+                    </td>
+                    <td className="py-2 pr-4 text-right">{g.rows.length}</td>
+                    {canSeeRate && (
+                      <td className="py-2 pr-4 text-right font-medium text-gray-800">
+                        {formatMoney(g.totalAmount)}
+                      </td>
+                    )}
+                    <td className="py-2 pr-4">
+                      <button
+                        type="button"
+                        className="tab-button tab-button-inactive text-xs"
+                        onClick={() => toggleSeries(g.key)}
+                      >
+                        {expandedSeries.has(g.key) ? "Hide trucks" : "View trucks"}
+                      </button>
+                    </td>
+                  </tr>
+                  {expandedSeries.has(g.key) && (
+                    <tr>
+                      <td colSpan={canSeeRate ? 6 : 5} className="bg-gray-50/30 p-3">
+                        <div className="table-scroll-container">{renderItemizedTable(g.rows)}</div>
+                      </td>
+                    </tr>
                   )}
-                  <td className="py-2 pr-4">
-                    <select
-                      className="input input-sm"
-                      value={r.status}
-                      onChange={(e) =>
-                        handleStatusChange(r, e.target.value as TruckingBillingStatus)
-                      }
-                      disabled={!canManage || savingId === r.id}
-                    >
-                      <option value="FOR_BILLING">For Billing</option>
-                      <option value="BILLED">Billed</option>
-                      <option value="PAID">Paid</option>
-                    </select>
-                  </td>
-                  <td className="py-2 pr-4">
-                    <div className="flex flex-wrap gap-2">
-                      <Link
-                        href={`/trucking-billing/print/${r.id}/billing-statement`}
-                        target="_blank"
-                        className="tab-button tab-button-inactive"
-                      >
-                        Billing Statement
-                      </Link>
-                      <Link
-                        href={`/trucking-billing/print/${r.id}/delivery-report`}
-                        target="_blank"
-                        className="tab-button tab-button-inactive"
-                      >
-                        Delivery Report
-                      </Link>
-                      {canDelete && (
-                        <button
-                          type="button"
-                          className="text-xs font-medium text-red-600 hover:text-red-800"
-                          onClick={() => handleDelete(r)}
-                        >
-                          Delete
-                        </button>
-                      )}
-                    </div>
-                  </td>
-                </tr>
+                </Fragment>
               ))}
             </tbody>
           </table>
