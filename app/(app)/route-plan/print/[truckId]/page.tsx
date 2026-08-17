@@ -139,14 +139,25 @@ export default function PrintTruckItineraryPage() {
 
   return (
     <div>
+      {/* Landscape gives the drop cards more room per row, which cuts down
+          how often a page break lands mid-card. The fixed-header trick below
+          only re-shows the title on every printed page in browsers that
+          support position:fixed during print (Chrome/Edge) -- harmless
+          no-op elsewhere. */}
+      <style>{`
+        @media print {
+          @page { size: landscape; margin: 10mm; }
+        }
+      `}</style>
+
       <div className="no-print mb-4 flex justify-end">
         <button type="button" className="btn-primary" onClick={() => window.print()}>
           Print / Save as PDF
         </button>
       </div>
 
-      <div className="printable-area mx-auto max-w-4xl overflow-hidden rounded-2xl border border-gray-200 bg-white text-sm text-gray-800 shadow-panel">
-        <div className="border-b-2 border-brand-600 bg-white px-8 py-7">
+      <div className="printable-area mx-auto max-w-4xl overflow-hidden rounded-2xl border border-gray-200 bg-white text-sm text-gray-800 shadow-panel print:max-w-none print:overflow-visible print:rounded-none print:border-0 print:shadow-none">
+        <div className="print:fixed print:inset-x-0 print:top-0 print:z-50 print:min-h-[110px] border-b-2 border-brand-600 bg-white px-8 py-7">
           <div className="flex items-center justify-between gap-6">
             <div>
               <p className="text-xs font-semibold uppercase tracking-[0.25em] text-gray-400">
@@ -168,113 +179,132 @@ export default function PrintTruckItineraryPage() {
           </div>
         </div>
 
-        <div className="bg-gray-50 px-8 py-6">
-          <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
-            <div className="rounded-lg border border-gray-200 bg-white p-3">
-              <p className="text-xs uppercase tracking-wide text-gray-500">Carrier</p>
-              <p className="mt-1 font-semibold">{truck.carrier ?? "—"}</p>
+        {/* Spacer matching the fixed header's height above, so page 1's
+            content doesn't slide up underneath it once it's pulled out of
+            flow for print. */}
+        <div className="print:pt-[125px]">
+          <div className="bg-gray-50 px-8 py-6">
+            <div className="grid grid-cols-2 gap-4 sm:grid-cols-4 print:break-inside-avoid">
+              <div className="rounded-lg border border-gray-200 bg-white p-3">
+                <p className="text-xs uppercase tracking-wide text-gray-500">Carrier</p>
+                <p className="mt-1 font-semibold">{truck.carrier ?? "—"}</p>
+              </div>
+              <div className="rounded-lg border border-gray-200 bg-white p-3">
+                <p className="text-xs uppercase tracking-wide text-gray-500">Plate Number</p>
+                <p className="mt-1 font-semibold">{truck.plate_number ?? "—"}</p>
+              </div>
+              <div className="rounded-lg border border-gray-200 bg-white p-3">
+                <p className="text-xs uppercase tracking-wide text-gray-500">Driver</p>
+                <p className="mt-1 font-semibold">{truck.driver_name ?? "—"}</p>
+              </div>
+              <div className="rounded-lg border border-gray-200 bg-white p-3">
+                <p className="text-xs uppercase tracking-wide text-gray-500">Helpers</p>
+                <p className="mt-1 font-semibold">{helpers || "—"}</p>
+              </div>
             </div>
-            <div className="rounded-lg border border-gray-200 bg-white p-3">
-              <p className="text-xs uppercase tracking-wide text-gray-500">Plate Number</p>
-              <p className="mt-1 font-semibold">{truck.plate_number ?? "—"}</p>
-            </div>
-            <div className="rounded-lg border border-gray-200 bg-white p-3">
-              <p className="text-xs uppercase tracking-wide text-gray-500">Driver</p>
-              <p className="mt-1 font-semibold">{truck.driver_name ?? "—"}</p>
-            </div>
-            <div className="rounded-lg border border-gray-200 bg-white p-3">
-              <p className="text-xs uppercase tracking-wide text-gray-500">Helpers</p>
-              <p className="mt-1 font-semibold">{helpers || "—"}</p>
-            </div>
-          </div>
 
-          <div className="mt-5 space-y-3">
-            {dropGroups.map((group) => {
-              const firstRow = group.rows[0];
-              const storeName = firstRow?.invoice?.company_name_raw ?? "—";
-              const address = firstRow?.delivery_address || firstRow?.invoice?.branch_address || "—";
-              return (
-                <div key={group.key} className="rounded-lg border border-gray-200 bg-white p-3 text-xs shadow-card">
-                  <div className="mb-2 flex items-start justify-between gap-3">
-                    <div>
-                      {group.dropNo !== null && (
-                        <p className="text-[10px] font-semibold uppercase tracking-wide text-brand-600">
-                          Drop {group.dropNo}
+            <div className="mt-5 space-y-3">
+              {dropGroups.map((group) => {
+                const firstRow = group.rows[0];
+                const storeName = firstRow?.invoice?.company_name_raw ?? "—";
+                const address = firstRow?.delivery_address || firstRow?.invoice?.branch_address || "—";
+                const groupTotalBoxes = group.rows.reduce((sum, r) => sum + (r.qty_box ?? 0), 0);
+                return (
+                  <div
+                    key={group.key}
+                    className="rounded-lg border border-gray-200 bg-white p-3 text-xs shadow-card print:break-inside-avoid"
+                  >
+                    <div className="mb-2 flex items-start justify-between gap-3">
+                      <div>
+                        {group.dropNo !== null && (
+                          <p className="text-[10px] font-semibold uppercase tracking-wide text-brand-600">
+                            Drop {group.dropNo}
+                          </p>
+                        )}
+                        <p className="text-sm font-bold text-gray-900">{storeName}</p>
+                        <p className="text-[11px] text-gray-500">{address}</p>
+                        {firstRow?.merchandiser_name_snapshot && (
+                          <p className="text-[11px] font-medium text-brand-600">
+                            Merchandiser: {firstRow.merchandiser_name_snapshot}
+                            {firstRow.merchandiser_contact_snapshot
+                              ? ` · ${firstRow.merchandiser_contact_snapshot}`
+                              : ""}
+                          </p>
+                        )}
+                      </div>
+                      <div className="shrink-0 whitespace-nowrap text-right">
+                        <p className="text-[10px] text-gray-400">
+                          {group.rows.length} invoice{group.rows.length === 1 ? "" : "s"}
                         </p>
-                      )}
-                      <p className="text-sm font-bold text-gray-900">{storeName}</p>
-                      <p className="text-[11px] text-gray-500">{address}</p>
-                      {firstRow?.merchandiser_name_snapshot && (
-                        <p className="text-[11px] font-medium text-brand-600">
-                          Merchandiser: {firstRow.merchandiser_name_snapshot}
-                          {firstRow.merchandiser_contact_snapshot
-                            ? ` · ${firstRow.merchandiser_contact_snapshot}`
-                            : ""}
-                        </p>
-                      )}
-                    </div>
-                    <p className="shrink-0 whitespace-nowrap text-[10px] text-gray-400">
-                      {group.rows.length} invoice{group.rows.length === 1 ? "" : "s"}
-                    </p>
-                  </div>
-                  <div className="flex flex-wrap gap-2">
-                    {group.rows.map((row) => (
-                      <div
-                        key={row.id}
-                        className="min-w-[96px] rounded-md border border-gray-200 bg-gray-50 px-2 py-1.5 leading-tight"
-                      >
-                        <p className="font-semibold text-gray-800">
-                          {row.invoice?.document_no ?? "—"}
-                        </p>
-                        <p className="text-gray-500">{row.qty_box ?? 0} box</p>
-                        <p className="font-semibold text-gray-900">
-                          {formatMoney(row.invoice?.amount)}
+                        <p className="text-xs font-bold text-gray-800">
+                          Total Box Qty: {groupTotalBoxes}
                         </p>
                       </div>
-                    ))}
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      {group.rows.map((row) => (
+                        <div
+                          key={row.id}
+                          className="min-w-[96px] rounded-md border border-gray-200 bg-gray-50 px-2 py-1.5 leading-tight"
+                        >
+                          <p className="font-semibold text-gray-800">
+                            {row.invoice?.document_no ?? "—"}
+                          </p>
+                          {/* Left blank on purpose -- the actual box count
+                              gets handwritten in once the truck is loaded,
+                              not printed from the planned qty_box. */}
+                          <p className="whitespace-nowrap text-gray-400">
+                            Box: <span className="inline-block w-10 border-b border-gray-400">&nbsp;</span>
+                          </p>
+                          <p className="font-semibold text-gray-900">
+                            {formatMoney(row.invoice?.amount)}
+                          </p>
+                        </div>
+                      ))}
+                    </div>
                   </div>
+                );
+              })}
+              {rows.length === 0 && (
+                <p className="rounded-lg border border-dashed border-gray-300 bg-white py-6 text-center text-xs text-gray-400">
+                  No invoices assigned to this truck.
+                </p>
+              )}
+
+              {rows.length > 0 && (
+                <div className="flex items-center justify-end gap-6 border-t-2 border-gray-300 pt-3 text-sm font-semibold text-gray-800 print:break-inside-avoid">
+                  <span>
+                    Total: {totalBoxes || 0} box{totalBoxes === 1 ? "" : "es"}
+                  </span>
+                  <span>{formatMoney(totalAmount)}</span>
                 </div>
-              );
-            })}
-            {rows.length === 0 && (
-              <p className="rounded-lg border border-dashed border-gray-300 bg-white py-6 text-center text-xs text-gray-400">
-                No invoices assigned to this truck.
-              </p>
-            )}
-
-            {rows.length > 0 && (
-              <div className="flex items-center justify-end gap-6 border-t-2 border-gray-300 pt-3 text-sm font-semibold text-gray-800">
-                <span>
-                  Total: {totalBoxes || 0} box{totalBoxes === 1 ? "" : "es"}
-                </span>
-                <span>{formatMoney(totalAmount)}</span>
-              </div>
-            )}
-          </div>
-        </div>
-
-        <div className="border-t border-gray-100 bg-white px-8 py-6">
-          <div className="grid grid-cols-3 gap-x-8 gap-y-10">
-            <div>
-              <div className="border-t border-gray-400 pt-1">
-                <p className="text-xs text-gray-500">Driver's Signature</p>
-              </div>
-            </div>
-            <div>
-              <div className="border-t border-gray-400 pt-1">
-                <p className="text-xs text-gray-500">Checked By</p>
-              </div>
-            </div>
-            <div>
-              <div className="border-t border-gray-400 pt-1">
-                <p className="text-xs text-gray-500">Approved By</p>
-              </div>
+              )}
             </div>
           </div>
 
-          <p className="mt-8 text-center text-[10px] text-gray-400">
-            Generated {new Date().toLocaleString()}
-          </p>
+          <div className="border-t border-gray-100 bg-white px-8 py-6 print:break-inside-avoid">
+            <div className="grid grid-cols-3 gap-x-8 gap-y-10">
+              <div>
+                <div className="border-t border-gray-400 pt-1">
+                  <p className="text-xs text-gray-500">Driver's Signature</p>
+                </div>
+              </div>
+              <div>
+                <div className="border-t border-gray-400 pt-1">
+                  <p className="text-xs text-gray-500">Checked By</p>
+                </div>
+              </div>
+              <div>
+                <div className="border-t border-gray-400 pt-1">
+                  <p className="text-xs text-gray-500">Approved By</p>
+                </div>
+              </div>
+            </div>
+
+            <p className="mt-8 text-center text-[10px] text-gray-400">
+              Generated {new Date().toLocaleString()}
+            </p>
+          </div>
         </div>
       </div>
     </div>

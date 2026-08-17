@@ -233,12 +233,18 @@ export default function PrintDayDeliveryRoutePage() {
       </div>
       {errorMsg && <p className="no-print mx-auto mb-4 max-w-4xl text-sm text-red-600">{errorMsg}</p>}
 
+      <style>{`
+        @media print {
+          @page { size: landscape; margin: 10mm; }
+        }
+      `}</style>
+
       <div
         ref={reportRef}
-        className="printable-area mx-auto max-w-4xl overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-panel"
+        className="printable-area mx-auto max-w-4xl overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-panel print:max-w-none print:overflow-visible print:rounded-none print:border-0 print:shadow-none"
       >
         {/* Header */}
-        <div className="border-b-2 border-brand-600 bg-white px-8 py-7">
+        <div className="border-b-2 border-brand-600 bg-white px-8 py-7 print:fixed print:inset-x-0 print:top-0 print:z-50 print:min-h-[110px]">
           <div className="flex items-center justify-between gap-6">
             <div>
               <p className="text-xs font-semibold uppercase tracking-[0.25em] text-gray-400">
@@ -260,6 +266,7 @@ export default function PrintDayDeliveryRoutePage() {
           </div>
         </div>
 
+        <div className="print:pt-[125px]">
         {/* Truck sections */}
         <div className="space-y-6 bg-gray-50 px-8 py-7">
           {orderedTrucks.length === 0 && (
@@ -276,7 +283,7 @@ export default function PrintDayDeliveryRoutePage() {
             return (
               <div
                 key={truck.id}
-                className="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-card"
+                className="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-card print:break-inside-avoid"
               >
                 <div className="flex items-center justify-between border-b border-gray-100 bg-brand-50/70 px-5 py-3">
                   <span className="inline-flex items-center gap-2 rounded-full bg-brand-600 px-3 py-1 text-xs font-bold uppercase tracking-wide text-white">
@@ -344,8 +351,15 @@ export default function PrintDayDeliveryRoutePage() {
                       const storeName = firstStop?.invoice?.company_name_raw ?? "—";
                       const address =
                         firstStop?.delivery_address || firstStop?.invoice?.branch_address || "—";
+                      const groupTotalBoxes = group.rows.reduce(
+                        (sum, r) => sum + (r.qty_box ?? 0),
+                        0
+                      );
                       return (
-                        <div key={group.key} className="rounded-md border border-gray-100 p-2">
+                        <div
+                          key={group.key}
+                          className="rounded-md border border-gray-100 p-2 print:break-inside-avoid"
+                        >
                           <div className="mb-1.5 flex items-start justify-between gap-3">
                             <div>
                               {group.dropNo !== null && (
@@ -364,6 +378,14 @@ export default function PrintDayDeliveryRoutePage() {
                                 </p>
                               )}
                             </div>
+                            <div className="shrink-0 whitespace-nowrap text-right">
+                              <p className="text-[10px] text-gray-400">
+                                {group.rows.length} invoice{group.rows.length === 1 ? "" : "s"}
+                              </p>
+                              <p className="text-[10px] font-bold text-gray-800">
+                                Total Box Qty: {groupTotalBoxes}
+                              </p>
+                            </div>
                           </div>
                           <div className="flex flex-wrap gap-1.5">
                             {group.rows.map((stop) => (
@@ -374,7 +396,12 @@ export default function PrintDayDeliveryRoutePage() {
                                 <p className="font-semibold text-gray-800">
                                   {stop.invoice?.document_no ?? "—"}
                                 </p>
-                                <p className="text-gray-500">{stop.qty_box ?? 0} box</p>
+                                <p className="whitespace-nowrap text-gray-400">
+                                  Box:{" "}
+                                  <span className="inline-block w-8 border-b border-gray-400">
+                                    &nbsp;
+                                  </span>
+                                </p>
                               </div>
                             ))}
                           </div>
@@ -393,10 +420,11 @@ export default function PrintDayDeliveryRoutePage() {
           })}
         </div>
 
-        <div className="bg-white px-8 py-4">
+        <div className="bg-white px-8 py-4 print:break-inside-avoid">
           <p className="text-center text-[10px] text-gray-400">
             Generated {new Date().toLocaleString()}
           </p>
+        </div>
         </div>
       </div>
     </div>
