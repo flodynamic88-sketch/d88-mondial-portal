@@ -261,12 +261,7 @@ export default function PrintDayDeliveryRoutePage() {
                   D88
                 </div>
               )}
-              <div>
-                <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-brand-100">
-                  Dynamic88 Solutions · Mondial Portal
-                </p>
-                <h1 className="mt-1 text-3xl font-extrabold tracking-tight">Delivery Route</h1>
-              </div>
+              <h1 className="text-2xl font-bold uppercase tracking-wide">Delivery Itinerary</h1>
             </div>
             <div className="text-right">
               <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-brand-100">
@@ -415,7 +410,7 @@ export default function PrintDayDeliveryRoutePage() {
 
         <div className="bg-white px-8 py-4">
           <p className="text-center text-[10px] text-gray-400">
-            Generated {new Date().toLocaleString()} · Dynamic88 Solutions
+            Generated {new Date().toLocaleString()}
           </p>
         </div>
       </div>

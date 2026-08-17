@@ -145,139 +145,152 @@ export default function PrintTruckItineraryPage() {
         </button>
       </div>
 
-      <div className="printable-area mx-auto max-w-4xl rounded-xl border border-gray-200 bg-white p-8 text-sm text-gray-800">
-        <div className="flex items-center justify-between border-b-2 border-brand-600 pb-4">
-          <div className="flex items-center gap-4">
-            {logoUrl ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img src={logoUrl} alt="Dynamic88 logo" className="h-16 w-auto" />
-            ) : (
-              <div className="flex h-16 w-16 items-center justify-center rounded-lg bg-brand-600 text-xl font-bold text-white">
-                D88
+      <div className="printable-area mx-auto max-w-4xl overflow-hidden rounded-2xl border border-gray-200 bg-white text-sm text-gray-800 shadow-panel">
+        <div className="relative overflow-hidden bg-gradient-to-br from-brand-800 via-brand-700 to-brand-600 px-8 py-6 text-white">
+          <div
+            className="pointer-events-none absolute -right-10 -top-16 h-56 w-56 rounded-full bg-white/10"
+            aria-hidden
+          />
+          <div
+            className="pointer-events-none absolute -bottom-16 right-20 h-32 w-32 rounded-full bg-white/5"
+            aria-hidden
+          />
+          <div className="relative flex items-center justify-between gap-6">
+            <div className="flex items-center gap-4">
+              {logoUrl ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={logoUrl}
+                  alt="Dynamic88 logo"
+                  className="h-14 w-14 rounded-xl bg-white/95 object-contain p-1.5"
+                />
+              ) : (
+                <div className="flex h-14 w-14 items-center justify-center rounded-xl bg-white/95 text-lg font-bold text-brand-700">
+                  D88
+                </div>
+              )}
+              <h1 className="text-2xl font-bold uppercase tracking-wide">Delivery Itinerary</h1>
+            </div>
+            <div className="text-right">
+              <span className="inline-block rounded-full bg-white/15 px-3 py-1 text-xs font-semibold uppercase tracking-wide">
+                {convoyLabel ?? "Main Truck"}
+              </span>
+              <p className="mt-2 text-lg font-bold">
+                {routePlan ? new Date(routePlan.route_date).toLocaleDateString() : "—"}
+              </p>
+              {routePlan?.label && <p className="text-xs text-brand-100">{routePlan.label}</p>}
+            </div>
+          </div>
+        </div>
+
+        <div className="bg-gray-50 px-8 py-6">
+          <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+            <div className="rounded-lg border border-gray-200 bg-white p-3">
+              <p className="text-xs uppercase tracking-wide text-gray-500">Carrier</p>
+              <p className="mt-1 font-semibold">{truck.carrier ?? "—"}</p>
+            </div>
+            <div className="rounded-lg border border-gray-200 bg-white p-3">
+              <p className="text-xs uppercase tracking-wide text-gray-500">Plate Number</p>
+              <p className="mt-1 font-semibold">{truck.plate_number ?? "—"}</p>
+            </div>
+            <div className="rounded-lg border border-gray-200 bg-white p-3">
+              <p className="text-xs uppercase tracking-wide text-gray-500">Driver</p>
+              <p className="mt-1 font-semibold">{truck.driver_name ?? "—"}</p>
+            </div>
+            <div className="rounded-lg border border-gray-200 bg-white p-3">
+              <p className="text-xs uppercase tracking-wide text-gray-500">Helpers</p>
+              <p className="mt-1 font-semibold">{helpers || "—"}</p>
+            </div>
+          </div>
+
+          <div className="mt-5 space-y-3">
+            {dropGroups.map((group) => {
+              const firstRow = group.rows[0];
+              const storeName = firstRow?.invoice?.company_name_raw ?? "—";
+              const address = firstRow?.delivery_address || firstRow?.invoice?.branch_address || "—";
+              return (
+                <div key={group.key} className="rounded-lg border border-gray-200 bg-white p-3 text-xs shadow-card">
+                  <div className="mb-2 flex items-start justify-between gap-3">
+                    <div>
+                      {group.dropNo !== null && (
+                        <p className="text-[10px] font-semibold uppercase tracking-wide text-brand-600">
+                          Drop {group.dropNo}
+                        </p>
+                      )}
+                      <p className="text-sm font-bold text-gray-900">{storeName}</p>
+                      <p className="text-[11px] text-gray-500">{address}</p>
+                      {firstRow?.merchandiser_name_snapshot && (
+                        <p className="text-[11px] font-medium text-brand-600">
+                          Merchandiser: {firstRow.merchandiser_name_snapshot}
+                          {firstRow.merchandiser_contact_snapshot
+                            ? ` · ${firstRow.merchandiser_contact_snapshot}`
+                            : ""}
+                        </p>
+                      )}
+                    </div>
+                    <p className="shrink-0 whitespace-nowrap text-[10px] text-gray-400">
+                      {group.rows.length} invoice{group.rows.length === 1 ? "" : "s"}
+                    </p>
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    {group.rows.map((row) => (
+                      <div
+                        key={row.id}
+                        className="min-w-[96px] rounded-md border border-gray-200 bg-gray-50 px-2 py-1.5 leading-tight"
+                      >
+                        <p className="font-semibold text-gray-800">
+                          {row.invoice?.document_no ?? "—"}
+                        </p>
+                        <p className="text-gray-500">{row.qty_box ?? 0} box</p>
+                        <p className="font-semibold text-gray-900">
+                          {formatMoney(row.invoice?.amount)}
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              );
+            })}
+            {rows.length === 0 && (
+              <p className="rounded-lg border border-dashed border-gray-300 bg-white py-6 text-center text-xs text-gray-400">
+                No invoices assigned to this truck.
+              </p>
+            )}
+
+            {rows.length > 0 && (
+              <div className="flex items-center justify-end gap-6 border-t-2 border-gray-300 pt-3 text-sm font-semibold text-gray-800">
+                <span>
+                  Total: {totalBoxes || 0} box{totalBoxes === 1 ? "" : "es"}
+                </span>
+                <span>{formatMoney(totalAmount)}</span>
               </div>
             )}
+          </div>
+        </div>
+
+        <div className="border-t border-gray-100 bg-white px-8 py-6">
+          <div className="grid grid-cols-3 gap-x-8 gap-y-10">
             <div>
-              <p className="text-lg font-bold tracking-tight text-gray-900">
-                Dynamic88 Solutions
-              </p>
-              <p className="text-xs text-gray-500">Mondial Portal — Delivery Itinerary</p>
-            </div>
-          </div>
-          <div className="text-right">
-            <span className="inline-block rounded-full bg-brand-50 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-brand-700">
-              {convoyLabel ?? "Main Truck"}
-            </span>
-            <p className="mt-2 text-lg font-bold text-gray-900">
-              {routePlan ? new Date(routePlan.route_date).toLocaleDateString() : "—"}
-            </p>
-            {routePlan?.label && <p className="text-xs text-gray-500">{routePlan.label}</p>}
-          </div>
-        </div>
-
-        <div className="mt-5 grid grid-cols-2 gap-4 sm:grid-cols-4">
-          <div className="rounded-lg border border-gray-200 bg-gray-50 p-3">
-            <p className="text-xs uppercase tracking-wide text-gray-500">Carrier</p>
-            <p className="mt-1 font-semibold">{truck.carrier ?? "—"}</p>
-          </div>
-          <div className="rounded-lg border border-gray-200 bg-gray-50 p-3">
-            <p className="text-xs uppercase tracking-wide text-gray-500">Plate Number</p>
-            <p className="mt-1 font-semibold">{truck.plate_number ?? "—"}</p>
-          </div>
-          <div className="rounded-lg border border-gray-200 bg-gray-50 p-3">
-            <p className="text-xs uppercase tracking-wide text-gray-500">Driver</p>
-            <p className="mt-1 font-semibold">{truck.driver_name ?? "—"}</p>
-          </div>
-          <div className="rounded-lg border border-gray-200 bg-gray-50 p-3">
-            <p className="text-xs uppercase tracking-wide text-gray-500">Helpers</p>
-            <p className="mt-1 font-semibold">{helpers || "—"}</p>
-          </div>
-        </div>
-
-        <div className="mt-6 space-y-3">
-          {dropGroups.map((group) => {
-            const firstRow = group.rows[0];
-            const storeName = firstRow?.invoice?.company_name_raw ?? "—";
-            const address = firstRow?.delivery_address || firstRow?.invoice?.branch_address || "—";
-            return (
-              <div key={group.key} className="rounded-lg border border-gray-200 p-3 text-xs">
-                <div className="mb-2 flex items-start justify-between gap-3">
-                  <div>
-                    {group.dropNo !== null && (
-                      <p className="text-[10px] font-semibold uppercase tracking-wide text-brand-600">
-                        Drop {group.dropNo}
-                      </p>
-                    )}
-                    <p className="text-sm font-bold text-gray-900">{storeName}</p>
-                    <p className="text-[11px] text-gray-500">{address}</p>
-                    {firstRow?.merchandiser_name_snapshot && (
-                      <p className="text-[11px] font-medium text-brand-600">
-                        Merchandiser: {firstRow.merchandiser_name_snapshot}
-                        {firstRow.merchandiser_contact_snapshot
-                          ? ` · ${firstRow.merchandiser_contact_snapshot}`
-                          : ""}
-                      </p>
-                    )}
-                  </div>
-                  <p className="shrink-0 whitespace-nowrap text-[10px] text-gray-400">
-                    {group.rows.length} invoice{group.rows.length === 1 ? "" : "s"}
-                  </p>
-                </div>
-                <div className="flex flex-wrap gap-2">
-                  {group.rows.map((row) => (
-                    <div
-                      key={row.id}
-                      className="min-w-[96px] rounded-md border border-gray-200 bg-gray-50 px-2 py-1.5 leading-tight"
-                    >
-                      <p className="font-semibold text-gray-800">
-                        {row.invoice?.document_no ?? "—"}
-                      </p>
-                      <p className="text-gray-500">{row.qty_box ?? 0} box</p>
-                      <p className="font-semibold text-gray-900">
-                        {formatMoney(row.invoice?.amount)}
-                      </p>
-                    </div>
-                  ))}
-                </div>
+              <div className="border-t border-gray-400 pt-1">
+                <p className="text-xs text-gray-500">Driver's Signature</p>
               </div>
-            );
-          })}
-          {rows.length === 0 && (
-            <p className="rounded-lg border border-dashed border-gray-200 py-6 text-center text-xs text-gray-400">
-              No invoices assigned to this truck.
-            </p>
-          )}
-
-          {rows.length > 0 && (
-            <div className="flex items-center justify-end gap-6 border-t-2 border-gray-300 pt-2 text-sm font-semibold text-gray-800">
-              <span>
-                Total: {totalBoxes || 0} box{totalBoxes === 1 ? "" : "es"}
-              </span>
-              <span>{formatMoney(totalAmount)}</span>
             </div>
-          )}
+            <div>
+              <div className="border-t border-gray-400 pt-1">
+                <p className="text-xs text-gray-500">Checked By</p>
+              </div>
+            </div>
+            <div>
+              <div className="border-t border-gray-400 pt-1">
+                <p className="text-xs text-gray-500">Approved By</p>
+              </div>
+            </div>
+          </div>
+
+          <p className="mt-8 text-center text-[10px] text-gray-400">
+            Generated {new Date().toLocaleString()}
+          </p>
         </div>
-
-        <div className="mt-12 grid grid-cols-3 gap-x-8 gap-y-10">
-          <div>
-            <div className="border-t border-gray-400 pt-1">
-              <p className="text-xs text-gray-500">Driver's Signature</p>
-            </div>
-          </div>
-          <div>
-            <div className="border-t border-gray-400 pt-1">
-              <p className="text-xs text-gray-500">Checked By</p>
-            </div>
-          </div>
-          <div>
-            <div className="border-t border-gray-400 pt-1">
-              <p className="text-xs text-gray-500">Approved By</p>
-            </div>
-          </div>
-        </div>
-
-        <p className="mt-8 text-center text-[10px] text-gray-400">
-          Generated {new Date().toLocaleString()} · Dynamic88 Solutions
-        </p>
       </div>
     </div>
   );
