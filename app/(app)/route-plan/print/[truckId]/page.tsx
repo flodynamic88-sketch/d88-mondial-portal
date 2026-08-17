@@ -96,11 +96,6 @@ export default function PrintTruckItineraryPage() {
     () => rows.reduce((sum, r) => sum + (r.invoice?.amount ?? 0), 0),
     [rows]
   );
-  const totalBoxes = useMemo(
-    () => rows.reduce((sum, r) => sum + (r.qty_box ?? 0), 0),
-    [rows]
-  );
-
   // Group rows by drop_no so every invoice sharing a drop (e.g. 4 receipts
   // under Drop #1) prints together, store name and address shown once per
   // group, mirroring the Drop-card grouping already shown on-screen in Route
@@ -218,7 +213,6 @@ export default function PrintTruckItineraryPage() {
               const firstRow = group.rows[0];
               const storeName = firstRow?.invoice?.company_name_raw ?? "—";
               const address = firstRow?.delivery_address || firstRow?.invoice?.branch_address || "—";
-              const groupTotalBoxes = group.rows.reduce((sum, r) => sum + (r.qty_box ?? 0), 0);
               return (
                 <tr key={group.key} className="print:break-inside-avoid">
                   <td className="p-0">
@@ -245,9 +239,6 @@ export default function PrintTruckItineraryPage() {
                           <div className="shrink-0 whitespace-nowrap text-right">
                             <p className="text-[10px] text-gray-400">
                               {group.rows.length} invoice{group.rows.length === 1 ? "" : "s"}
-                            </p>
-                            <p className="text-xs font-bold text-gray-800">
-                              Total Box Qty: {groupTotalBoxes}
                             </p>
                           </div>
                         </div>
@@ -296,9 +287,6 @@ export default function PrintTruckItineraryPage() {
                 <td className="p-0">
                   <div className="bg-gray-50 px-8 pb-6 pt-3 print:px-4 print:pb-3 print:pt-1.5">
                     <div className="flex items-center justify-end gap-6 border-t-2 border-gray-300 pt-3 text-sm font-semibold text-gray-800">
-                      <span>
-                        Total: {totalBoxes || 0} box{totalBoxes === 1 ? "" : "es"}
-                      </span>
                       <span>{formatMoney(totalAmount)}</span>
                     </div>
                   </div>

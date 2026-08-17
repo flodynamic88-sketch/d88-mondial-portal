@@ -372,10 +372,6 @@ export default function PrintDayDeliveryRoutePage() {
                                   firstStop?.delivery_address ||
                                   firstStop?.invoice?.branch_address ||
                                   "—";
-                                const groupTotalBoxes = group.rows.reduce(
-                                  (sum, r) => sum + (r.qty_box ?? 0),
-                                  0
-                                );
                                 return (
                                   <tr key={group.key} className="print:break-inside-avoid">
                                     <td className="p-0 pb-2 print:pb-1">
@@ -404,9 +400,6 @@ export default function PrintDayDeliveryRoutePage() {
                                             <p className="text-[10px] text-gray-400">
                                               {group.rows.length} invoice
                                               {group.rows.length === 1 ? "" : "s"}
-                                            </p>
-                                            <p className="text-[10px] font-bold text-gray-800">
-                                              Total Box Qty: {groupTotalBoxes}
                                             </p>
                                           </div>
                                         </div>
