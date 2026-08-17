@@ -31,6 +31,9 @@ function zoneLabel(invoice: Invoice | null): string {
 
 const CUSTOM_DISCREPANCY = "__custom_discrepancy__";
 const CUSTOM_BACKLOAD = "__custom_backload__";
+/** Sentinel value picked from the Carrier dropdown to reveal a free-text
+ * input for a carrier not yet on file -- mirrors CUSTOM_DISCREPANCY above. */
+const CUSTOM_CARRIER = "__custom_carrier__";
 
 /** Display label for a merchandiser_schedules row in the Diser picker's datalist. */
 function diserOptionLabel(m: MerchandiserSchedule): string {
@@ -235,6 +238,14 @@ export default function TruckCard({
   // assignment, offered as <datalist> suggestions on the per-invoice Delivery
   // Address override input below -- see handleDeliveryAddressChange.
   const [deliveryAddressOptions, setDeliveryAddressOptions] = useState<string[]>([]);
+  // Distinct carriers ever typed in across all trucks/route plans, offered
+  // as a dropdown on the Carrier field below instead of retyping a returning
+  // carrier (e.g. "J.M.D Southern Industrial Trading Inc.") every time.
+  const [carrierOptions, setCarrierOptions] = useState<string[]>([]);
+  // True while the Carrier field is showing the free-text "+ Type new
+  // carrier…" input instead of the dropdown -- mirrors the custom-reason
+  // entry pattern (see customEntry) but scoped to just this one field.
+  const [isCustomCarrierEdit, setIsCustomCarrierEdit] = useState(false);
   // Master merchandiser ("diser") list for the Diser picker below -- fetched
   // once per mount since it's a shared reference table, not truck-specific.
   const [merchandiserOptions, setMerchandiserOptions] = useState<MerchandiserSchedule[]>([]);
@@ -383,6 +394,7 @@ export default function TruckCard({
         destination: truck.destination ?? "",
         is_negotiated_rate: truck.is_negotiated_rate ?? false,
       });
+      setIsCustomCarrierEdit(false);
     }
   }, [
     truck.carrier,
@@ -420,6 +432,29 @@ export default function TruckCard({
         }
       });
   }, [isConvoy, canSeeTruckRate]);
+
+  // Carrier suggestions -- every distinct carrier ever typed in across all
+  // trucks/route plans. Fetched once per mount; non-fatal if it fails,
+  // "+ Type new carrier…" still lets the field fall back to free text.
+  useEffect(() => {
+    const supabase = createClient();
+    supabase
+      .from("route_plan_trucks")
+      .select("carrier")
+      .not("carrier", "is", null)
+      .then(({ data }) => {
+        if (data) {
+          const unique = Array.from(
+            new Set(
+              data
+                .map((r) => (r as { carrier: string | null }).carrier)
+                .filter((v): v is string => !!v && v.trim() !== "")
+            )
+          ).sort();
+          setCarrierOptions(unique);
+        }
+      });
+  }, []);
 
   // Delivery address suggestions -- every distinct value ever typed into
   // route_plan_invoices.delivery_address across all trucks/route plans, so
@@ -642,6 +677,7 @@ export default function TruckCard({
       destination: truck.destination ?? "",
       is_negotiated_rate: truck.is_negotiated_rate ?? false,
     });
+    setIsCustomCarrierEdit(false);
     setEditingDetails(false);
   }
 
@@ -1176,13 +1212,49 @@ export default function TruckCard({
       <tr className={`border-t border-gray-100 align-top ${isConvoy ? "bg-gray-50/60" : ""}`}>
         <td className="py-2 pl-4 pr-3 text-xs text-gray-700">
           {editingDetails ? (
-            <input
-              type="text"
-              className="input w-24 text-xs"
-              value={detailsDraft.carrier}
-              onChange={(e) => setDetailsDraft((d) => ({ ...d, carrier: e.target.value }))}
-              placeholder="Carrier"
-            />
+            isCustomCarrierEdit ? (
+              <div className="flex flex-col gap-1">
+                <input
+                  type="text"
+                  className="input w-24 text-xs"
+                  value={detailsDraft.carrier}
+                  onChange={(e) => setDetailsDraft((d) => ({ ...d, carrier: e.target.value }))}
+                  placeholder="Carrier"
+                  autoFocus
+                />
+                <button
+                  type="button"
+                  className="text-left text-[10px] text-brand-600 underline"
+                  onClick={() => {
+                    setIsCustomCarrierEdit(false);
+                    setDetailsDraft((d) => ({ ...d, carrier: "" }));
+                  }}
+                >
+                  Choose from list
+                </button>
+              </div>
+            ) : (
+              <select
+                className="input w-24 text-xs"
+                value={detailsDraft.carrier}
+                onChange={(e) => {
+                  if (e.target.value === CUSTOM_CARRIER) {
+                    setIsCustomCarrierEdit(true);
+                    setDetailsDraft((d) => ({ ...d, carrier: "" }));
+                  } else {
+                    setDetailsDraft((d) => ({ ...d, carrier: e.target.value }));
+                  }
+                }}
+              >
+                <option value="">— Select —</option>
+                {carrierOptions.map((c) => (
+                  <option key={c} value={c}>
+                    {c}
+                  </option>
+                ))}
+                <option value={CUSTOM_CARRIER}>+ Type new carrier…</option>
+              </select>
+            )
           ) : (
             truck.carrier ?? "—"
           )}

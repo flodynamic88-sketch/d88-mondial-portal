@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import "./globals.css";
+import GlobalUppercaseInputs from "@/components/GlobalUppercaseInputs";
 
 export const metadata: Metadata = {
   title: "Mondial Portal | Dynamic88 Solutions",
@@ -13,7 +14,10 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en">
-      <body>{children}</body>
+      <body>
+        <GlobalUppercaseInputs />
+        {children}
+      </body>
     </html>
   );
 }

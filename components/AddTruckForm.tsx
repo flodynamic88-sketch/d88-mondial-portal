@@ -17,6 +17,11 @@ interface DestinationOption {
   area: string;
 }
 
+/** Sentinel value picked from the Carrier dropdown to reveal a free-text
+ * input for a carrier not yet on file -- mirrors the CUSTOM_DISCREPANCY /
+ * CUSTOM_BACKLOAD pattern in TruckCard.tsx. */
+const CUSTOM_CARRIER = "__custom_carrier__";
+
 export default function AddTruckForm({
   routePlanId,
   mainTruckId,
@@ -28,6 +33,8 @@ export default function AddTruckForm({
 
   const [plateNumber, setPlateNumber] = useState("");
   const [carrier, setCarrier] = useState("");
+  const [carrierOptions, setCarrierOptions] = useState<string[]>([]);
+  const [isCustomCarrier, setIsCustomCarrier] = useState(false);
   const [destination, setDestination] = useState("");
   const [destinations, setDestinations] = useState<DestinationOption[]>([]);
   const [truckRate, setTruckRate] = useState("");
@@ -57,6 +64,31 @@ export default function AddTruckForm({
         }
       });
   }, [mainTruckId, canSetTruckRate]);
+
+  // Carrier suggestions -- every distinct carrier ever typed in across all
+  // trucks/route plans, so a returning carrier (e.g. "J.M.D Southern
+  // Industrial Trading Inc.") can be picked from a dropdown instead of
+  // retyped. Fetched once per mount; non-fatal if it fails, "+ Type new
+  // carrier…" still lets the field fall back to free text.
+  useEffect(() => {
+    const supabase = createClient();
+    supabase
+      .from("route_plan_trucks")
+      .select("carrier")
+      .not("carrier", "is", null)
+      .then(({ data }) => {
+        if (data) {
+          const unique = Array.from(
+            new Set(
+              data
+                .map((r) => (r as { carrier: string | null }).carrier)
+                .filter((v): v is string => !!v && v.trim() !== "")
+            )
+          ).sort();
+          setCarrierOptions(unique);
+        }
+      });
+  }, []);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -107,6 +139,7 @@ export default function AddTruckForm({
 
       setPlateNumber("");
       setCarrier("");
+      setIsCustomCarrier(false);
       setDestination("");
       setTruckRate("");
       setIsNegotiatedRate(false);
@@ -125,7 +158,48 @@ export default function AddTruckForm({
     <form onSubmit={handleSubmit} className="grid grid-cols-1 gap-3 sm:grid-cols-4 sm:items-end">
       <div>
         <label className="label">Carrier</label>
-        <input className="input" value={carrier} onChange={(e) => setCarrier(e.target.value)} />
+        {isCustomCarrier ? (
+          <div className="flex flex-col gap-1">
+            <input
+              className="input"
+              value={carrier}
+              onChange={(e) => setCarrier(e.target.value)}
+              placeholder="Type carrier name"
+              autoFocus
+            />
+            <button
+              type="button"
+              className="text-left text-xs text-brand-600 underline"
+              onClick={() => {
+                setIsCustomCarrier(false);
+                setCarrier("");
+              }}
+            >
+              Choose from list instead
+            </button>
+          </div>
+        ) : (
+          <select
+            className="input"
+            value={carrier}
+            onChange={(e) => {
+              if (e.target.value === CUSTOM_CARRIER) {
+                setIsCustomCarrier(true);
+                setCarrier("");
+              } else {
+                setCarrier(e.target.value);
+              }
+            }}
+          >
+            <option value="">— Select —</option>
+            {carrierOptions.map((c) => (
+              <option key={c} value={c}>
+                {c}
+              </option>
+            ))}
+            <option value={CUSTOM_CARRIER}>+ Type new carrier…</option>
+          </select>
+        )}
       </div>
       <div>
         <label className="label">Plate Number</label>

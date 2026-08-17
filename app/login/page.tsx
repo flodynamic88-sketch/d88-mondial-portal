@@ -70,6 +70,10 @@ export default function LoginPage() {
               onChange={(e) => setUsername(e.target.value)}
               className="input"
               disabled={loading}
+              // Usernames are stored/matched as typed (see lib/authUsername.ts) --
+              // opt out of the site-wide auto-uppercase behavior so login never
+              // mismatches a mixed-case username.
+              data-no-uppercase
             />
           </div>
 
