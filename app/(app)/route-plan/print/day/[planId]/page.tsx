@@ -233,9 +233,18 @@ export default function PrintDayDeliveryRoutePage() {
       </div>
       {errorMsg && <p className="no-print mx-auto mb-4 max-w-4xl text-sm text-red-600">{errorMsg}</p>}
 
+      {/* Portrait, standard margins. The page header repeats on every
+          printed page via a native <thead> -- browsers reliably repeat
+          table headers across page breaks, unlike a position:fixed div,
+          which only reserves space on the first page and can overlap
+          content on the rest. Each truck is its own <tr>, and each drop
+          group inside it is a <tr> in a nested table, both with
+          break-inside:avoid -- browsers honor that far more consistently
+          for table rows than for plain divs, so a drop's invoices don't
+          get sliced apart when a page break lands in the middle of it. */}
       <style>{`
         @media print {
-          @page { size: landscape; margin: 10mm; }
+          @page { size: portrait; margin: 10mm; }
         }
       `}</style>
 
@@ -243,189 +252,217 @@ export default function PrintDayDeliveryRoutePage() {
         ref={reportRef}
         className="printable-area mx-auto max-w-4xl overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-panel print:max-w-none print:overflow-visible print:rounded-none print:border-0 print:shadow-none"
       >
-        {/* Header */}
-        <div className="border-b-2 border-brand-600 bg-white px-8 py-7 print:fixed print:inset-x-0 print:top-0 print:z-50 print:min-h-[110px]">
-          <div className="flex items-center justify-between gap-6">
-            <div>
-              <p className="text-xs font-semibold uppercase tracking-[0.25em] text-gray-400">
-                Dynamic88 Solutions
-              </p>
-              <h1 className="mt-1 text-3xl font-bold uppercase leading-tight tracking-wide text-gray-900">
-                Delivery Itinerary
-              </h1>
-            </div>
-            <div className="text-right">
-              <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-gray-400">
-                Date
-              </p>
-              <p className="mt-1 text-xl font-bold leading-tight text-gray-900">{formattedDate}</p>
-              {routePlan.label && (
-                <p className="mt-0.5 text-sm text-gray-500">{routePlan.label}</p>
-              )}
-            </div>
-          </div>
-        </div>
-
-        <div className="print:pt-[125px]">
-        {/* Truck sections */}
-        <div className="space-y-6 bg-gray-50 px-8 py-7">
-          {orderedTrucks.length === 0 && (
-            <p className="py-10 text-center text-sm text-gray-400">
-              No trucks on this route plan yet.
-            </p>
-          )}
-
-          {orderedTrucks.map((truck) => {
-            const stops = stopsByTruck[truck.id] ?? [];
-            const helpers = [truck.helper1_name, truck.helper2_name].filter(Boolean).join(" / ");
-            const truckDetails = [truck.carrier, truck.plate_number].filter(Boolean).join(" · ");
-
-            return (
-              <div
-                key={truck.id}
-                className="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-card print:break-inside-avoid"
-              >
-                <div className="flex items-center justify-between border-b border-gray-100 bg-brand-50/70 px-5 py-3">
-                  <span className="inline-flex items-center gap-2 rounded-full bg-brand-600 px-3 py-1 text-xs font-bold uppercase tracking-wide text-white">
-                    {truckLabelById[truck.id] ?? "Truck"}
-                  </span>
-                  <span className="text-xs font-medium text-gray-400">
-                    {stops.length} stop{stops.length === 1 ? "" : "s"}
-                  </span>
-                </div>
-
-                <div className="grid grid-cols-2 gap-4 px-5 py-4 sm:grid-cols-4">
-                  <div>
-                    <p className="text-[10px] font-semibold uppercase tracking-wide text-gray-400">
-                      Truck Details
-                    </p>
-                    <p className="mt-1 text-sm font-semibold text-gray-900">
-                      {truckDetails || "—"}
-                    </p>
-                  </div>
-                  <div>
-                    <p className="text-[10px] font-semibold uppercase tracking-wide text-gray-400">
-                      Driver
-                    </p>
-                    <p className="mt-1 text-sm font-semibold text-gray-900">
-                      {truck.driver_name ?? "—"}
-                    </p>
-                  </div>
-                  <div>
-                    <p className="text-[10px] font-semibold uppercase tracking-wide text-gray-400">
-                      Helper1 / Helper2
-                    </p>
-                    <p className="mt-1 text-sm font-semibold text-gray-900">{helpers || "—"}</p>
-                  </div>
-                  <div>
-                    <p className="text-[10px] font-semibold uppercase tracking-wide text-gray-400">
-                      Contact #
-                    </p>
-                    {canEditContact ? (
-                      <input
-                        type="text"
-                        value={contactDrafts[truck.id] ?? ""}
-                        onChange={(e) =>
-                          setContactDrafts((prev) => ({ ...prev, [truck.id]: e.target.value }))
-                        }
-                        onBlur={() => handleContactBlur(truck.id)}
-                        placeholder="09xx-xxx-xxxx"
-                        className="no-print-border mt-1 w-full rounded-md border border-gray-200 bg-gray-50 px-2 py-1 text-sm font-semibold text-gray-900 focus:border-brand-500 focus:bg-white focus:outline-none focus:ring-1 focus:ring-brand-500"
-                        disabled={savingContact[truck.id]}
-                      />
-                    ) : (
-                      <p className="mt-1 text-sm font-semibold text-gray-900">
-                        {truck.contact_number ?? "—"}
+        <table className="w-full border-collapse">
+          <thead>
+            <tr>
+              <td className="p-0">
+                <div className="border-b-2 border-brand-600 bg-white px-8 py-7">
+                  <div className="flex items-center justify-between gap-6">
+                    <div>
+                      <p className="text-xs font-semibold uppercase tracking-[0.25em] text-gray-400">
+                        Dynamic88 Solutions
                       </p>
-                    )}
+                      <h1 className="mt-1 text-3xl font-bold uppercase leading-tight tracking-wide text-gray-900">
+                        Delivery Itinerary
+                      </h1>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-gray-400">
+                        Date
+                      </p>
+                      <p className="mt-1 text-xl font-bold leading-tight text-gray-900">{formattedDate}</p>
+                      {routePlan.label && (
+                        <p className="mt-0.5 text-sm text-gray-500">{routePlan.label}</p>
+                      )}
+                    </div>
                   </div>
                 </div>
+              </td>
+            </tr>
+          </thead>
+          <tbody>
+            {orderedTrucks.length === 0 && (
+              <tr>
+                <td className="p-0">
+                  <div className="bg-gray-50 px-8 py-7">
+                    <p className="py-10 text-center text-sm text-gray-400">
+                      No trucks on this route plan yet.
+                    </p>
+                  </div>
+                </td>
+              </tr>
+            )}
 
-                <div className="border-t border-gray-100 px-5 py-4">
-                  <p className="mb-2 text-[10px] font-semibold uppercase tracking-wide text-gray-400">
-                    Stores
-                  </p>
-                  <div className="space-y-2">
-                    {groupStopsByDrop(stops).map((group) => {
-                      const firstStop = group.rows[0];
-                      const storeName = firstStop?.invoice?.company_name_raw ?? "—";
-                      const address =
-                        firstStop?.delivery_address || firstStop?.invoice?.branch_address || "—";
-                      const groupTotalBoxes = group.rows.reduce(
-                        (sum, r) => sum + (r.qty_box ?? 0),
-                        0
-                      );
-                      return (
-                        <div
-                          key={group.key}
-                          className="rounded-md border border-gray-100 p-2 print:break-inside-avoid"
-                        >
-                          <div className="mb-1.5 flex items-start justify-between gap-3">
-                            <div>
-                              {group.dropNo !== null && (
-                                <p className="text-[9px] font-semibold uppercase tracking-wide text-brand-600">
-                                  Drop {group.dropNo}
-                                </p>
-                              )}
-                              <p className="text-sm font-medium text-gray-900">{storeName}</p>
-                              <p className="text-[11px] text-gray-500">{address}</p>
-                              {firstStop?.merchandiser_name_snapshot && (
-                                <p className="text-[10px] font-medium text-brand-600">
-                                  Merchandiser: {firstStop.merchandiser_name_snapshot}
-                                  {firstStop.merchandiser_contact_snapshot
-                                    ? ` · ${firstStop.merchandiser_contact_snapshot}`
-                                    : ""}
-                                </p>
-                              )}
-                            </div>
-                            <div className="shrink-0 whitespace-nowrap text-right">
-                              <p className="text-[10px] text-gray-400">
-                                {group.rows.length} invoice{group.rows.length === 1 ? "" : "s"}
-                              </p>
-                              <p className="text-[10px] font-bold text-gray-800">
-                                Total Box Qty: {groupTotalBoxes}
-                              </p>
-                            </div>
+            {orderedTrucks.map((truck) => {
+              const stops = stopsByTruck[truck.id] ?? [];
+              const helpers = [truck.helper1_name, truck.helper2_name].filter(Boolean).join(" / ");
+              const truckDetails = [truck.carrier, truck.plate_number].filter(Boolean).join(" · ");
+
+              return (
+                <tr key={truck.id} className="print:break-inside-avoid">
+                  <td className="p-0">
+                    <div className="bg-gray-50 px-8 pt-6">
+                      <div className="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-card">
+                        <div className="flex items-center justify-between border-b border-gray-100 bg-brand-50/70 px-5 py-3">
+                          <span className="inline-flex items-center gap-2 rounded-full bg-brand-600 px-3 py-1 text-xs font-bold uppercase tracking-wide text-white">
+                            {truckLabelById[truck.id] ?? "Truck"}
+                          </span>
+                          <span className="text-xs font-medium text-gray-400">
+                            {stops.length} stop{stops.length === 1 ? "" : "s"}
+                          </span>
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-4 px-5 py-4 sm:grid-cols-4">
+                          <div>
+                            <p className="text-[10px] font-semibold uppercase tracking-wide text-gray-400">
+                              Truck Details
+                            </p>
+                            <p className="mt-1 text-sm font-semibold text-gray-900">
+                              {truckDetails || "—"}
+                            </p>
                           </div>
-                          <div className="flex flex-wrap gap-1.5">
-                            {group.rows.map((stop) => (
-                              <div
-                                key={stop.id}
-                                className="min-w-[88px] rounded border border-gray-200 bg-gray-50 px-1.5 py-1 text-[10px] leading-tight"
-                              >
-                                <p className="font-semibold text-gray-800">
-                                  {stop.invoice?.document_no ?? "—"}
-                                </p>
-                                <p className="whitespace-nowrap text-gray-400">
-                                  Box:{" "}
-                                  <span className="inline-block w-8 border-b border-gray-400">
-                                    &nbsp;
-                                  </span>
-                                </p>
-                              </div>
-                            ))}
+                          <div>
+                            <p className="text-[10px] font-semibold uppercase tracking-wide text-gray-400">
+                              Driver
+                            </p>
+                            <p className="mt-1 text-sm font-semibold text-gray-900">
+                              {truck.driver_name ?? "—"}
+                            </p>
+                          </div>
+                          <div>
+                            <p className="text-[10px] font-semibold uppercase tracking-wide text-gray-400">
+                              Helper1 / Helper2
+                            </p>
+                            <p className="mt-1 text-sm font-semibold text-gray-900">{helpers || "—"}</p>
+                          </div>
+                          <div>
+                            <p className="text-[10px] font-semibold uppercase tracking-wide text-gray-400">
+                              Contact #
+                            </p>
+                            {canEditContact ? (
+                              <input
+                                type="text"
+                                value={contactDrafts[truck.id] ?? ""}
+                                onChange={(e) =>
+                                  setContactDrafts((prev) => ({ ...prev, [truck.id]: e.target.value }))
+                                }
+                                onBlur={() => handleContactBlur(truck.id)}
+                                placeholder="09xx-xxx-xxxx"
+                                className="no-print-border mt-1 w-full rounded-md border border-gray-200 bg-gray-50 px-2 py-1 text-sm font-semibold text-gray-900 focus:border-brand-500 focus:bg-white focus:outline-none focus:ring-1 focus:ring-brand-500"
+                                disabled={savingContact[truck.id]}
+                              />
+                            ) : (
+                              <p className="mt-1 text-sm font-semibold text-gray-900">
+                                {truck.contact_number ?? "—"}
+                              </p>
+                            )}
                           </div>
                         </div>
-                      );
-                    })}
-                    {stops.length === 0 && (
-                      <p className="py-3 text-center text-sm text-gray-400">
-                        No stores assigned to this truck yet.
-                      </p>
-                    )}
-                  </div>
-                </div>
-              </div>
-            );
-          })}
-        </div>
 
-        <div className="bg-white px-8 py-4 print:break-inside-avoid">
-          <p className="text-center text-[10px] text-gray-400">
-            Generated {new Date().toLocaleString()}
-          </p>
-        </div>
-        </div>
+                        <div className="border-t border-gray-100 px-5 py-4">
+                          <p className="mb-2 text-[10px] font-semibold uppercase tracking-wide text-gray-400">
+                            Stores
+                          </p>
+                          <table className="w-full border-collapse">
+                            <tbody>
+                              {groupStopsByDrop(stops).map((group) => {
+                                const firstStop = group.rows[0];
+                                const storeName = firstStop?.invoice?.company_name_raw ?? "—";
+                                const address =
+                                  firstStop?.delivery_address ||
+                                  firstStop?.invoice?.branch_address ||
+                                  "—";
+                                const groupTotalBoxes = group.rows.reduce(
+                                  (sum, r) => sum + (r.qty_box ?? 0),
+                                  0
+                                );
+                                return (
+                                  <tr key={group.key} className="print:break-inside-avoid">
+                                    <td className="p-0 pb-2">
+                                      <div className="rounded-md border border-gray-100 p-2">
+                                        <div className="mb-1.5 flex items-start justify-between gap-3">
+                                          <div>
+                                            {group.dropNo !== null && (
+                                              <p className="text-[9px] font-semibold uppercase tracking-wide text-brand-600">
+                                                Drop {group.dropNo}
+                                              </p>
+                                            )}
+                                            <p className="text-sm font-medium text-gray-900">
+                                              {storeName}
+                                            </p>
+                                            <p className="text-[11px] text-gray-500">{address}</p>
+                                            {firstStop?.merchandiser_name_snapshot && (
+                                              <p className="text-[10px] font-medium text-brand-600">
+                                                Merchandiser: {firstStop.merchandiser_name_snapshot}
+                                                {firstStop.merchandiser_contact_snapshot
+                                                  ? ` · ${firstStop.merchandiser_contact_snapshot}`
+                                                  : ""}
+                                              </p>
+                                            )}
+                                          </div>
+                                          <div className="shrink-0 whitespace-nowrap text-right">
+                                            <p className="text-[10px] text-gray-400">
+                                              {group.rows.length} invoice
+                                              {group.rows.length === 1 ? "" : "s"}
+                                            </p>
+                                            <p className="text-[10px] font-bold text-gray-800">
+                                              Total Box Qty: {groupTotalBoxes}
+                                            </p>
+                                          </div>
+                                        </div>
+                                        <div className="flex flex-wrap gap-1.5">
+                                          {group.rows.map((stop) => (
+                                            <div
+                                              key={stop.id}
+                                              className="min-w-[88px] rounded border border-gray-200 bg-gray-50 px-1.5 py-1 text-[10px] leading-tight print:break-inside-avoid"
+                                            >
+                                              <p className="font-semibold text-gray-800">
+                                                {stop.invoice?.document_no ?? "—"}
+                                              </p>
+                                              <p className="whitespace-nowrap text-gray-400">
+                                                Box:{" "}
+                                                <span className="inline-block w-8 border-b border-gray-400">
+                                                  &nbsp;
+                                                </span>
+                                              </p>
+                                            </div>
+                                          ))}
+                                        </div>
+                                      </div>
+                                    </td>
+                                  </tr>
+                                );
+                              })}
+                              {stops.length === 0 && (
+                                <tr>
+                                  <td className="p-0">
+                                    <p className="py-3 text-center text-sm text-gray-400">
+                                      No stores assigned to this truck yet.
+                                    </p>
+                                  </td>
+                                </tr>
+                              )}
+                            </tbody>
+                          </table>
+                        </div>
+                      </div>
+                    </div>
+                  </td>
+                </tr>
+              );
+            })}
+
+            <tr className="print:break-inside-avoid">
+              <td className="p-0">
+                <div className="bg-white px-8 py-4">
+                  <p className="text-center text-[10px] text-gray-400">
+                    Generated {new Date().toLocaleString()}
+                  </p>
+                </div>
+              </td>
+            </tr>
+          </tbody>
+        </table>
       </div>
     </div>
   );
