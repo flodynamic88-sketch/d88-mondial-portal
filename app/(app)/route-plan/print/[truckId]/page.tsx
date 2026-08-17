@@ -44,6 +44,7 @@ export default function PrintTruckItineraryPage() {
               .select("*, invoice:invoices(*)")
               .eq("route_plan_truck_id", truckId)
               .is("superseded_at", null)
+              .order("drop_no", { ascending: true, nullsFirst: false })
               .order("created_at", { ascending: true }),
             getAppSetting(LOGO_SETTING_KEY),
           ]);
@@ -99,6 +100,30 @@ export default function PrintTruckItineraryPage() {
     () => rows.reduce((sum, r) => sum + (r.qty_box ?? 0), 0),
     [rows]
   );
+
+  // Group rows by drop_no so every invoice sharing a drop (e.g. 4 receipts
+  // under Drop #1) prints together under one "Drop N" heading, mirroring the
+  // Drop-card grouping already shown on-screen in Route Plan. Rows arrive
+  // pre-sorted by drop_no (nulls last) then created_at, so a single pass
+  // preserves that order -- no extra sort needed. Query the actual data
+  // structure fresh per drop_no so re-ordering upstream doesn't desync this.
+  const dropGroups = useMemo(() => {
+    const groups: { dropNo: number | null; rows: ItineraryRow[] }[] = [];
+    for (const row of rows) {
+      const key = row.drop_no ?? null;
+      const last = groups[groups.length - 1];
+      if (last && last.dropNo === key) {
+        last.rows.push(row);
+      } else {
+        groups.push({ dropNo: key, rows: [row] });
+      }
+    }
+    return groups;
+  }, [rows]);
+  // Trucks that never used the manual drop-number feature all fall into one
+  // "unassigned" group -- skip the heading in that case so the print output
+  // for those trucks looks exactly as it always has (non-breaking).
+  const showDropHeadings = dropGroups.length > 1;
 
   if (loading) {
     return <p className="p-8 text-sm text-gray-400">Loading…</p>;
@@ -177,20 +202,42 @@ export default function PrintTruckItineraryPage() {
               </tr>
             </thead>
             <tbody>
-              {rows.map((row, idx) => (
-                <tr key={row.id} className="border-b border-gray-200">
-                  <td className="py-1.5 pl-2 text-gray-400">{idx + 1}</td>
-                  <td className="py-1.5 font-medium">{row.invoice?.document_no ?? "—"}</td>
-                  <td className="py-1.5">
-                    <p>{row.invoice?.company_name_raw ?? "—"}</p>
-                    <p className="text-[10px] text-gray-400">
-                      {row.invoice?.branch_address ?? "—"}
-                    </p>
-                  </td>
-                  <td className="py-1.5 text-right">{row.qty_box ?? "—"}</td>
-                  <td className="py-1.5 pr-2 text-right">{formatMoney(row.invoice?.amount)}</td>
-                </tr>
-              ))}
+              {(() => {
+                let counter = 0;
+                return dropGroups.flatMap((group) => {
+                  const elements = [];
+                  if (showDropHeadings) {
+                    elements.push(
+                      <tr key={`drop-${group.dropNo ?? "unassigned"}`} className="bg-gray-100">
+                        <td
+                          colSpan={5}
+                          className="py-1 pl-2 text-[10px] font-semibold uppercase tracking-wide text-gray-600"
+                        >
+                          {group.dropNo === null ? "Unassigned" : `Drop ${group.dropNo}`}
+                        </td>
+                      </tr>
+                    );
+                  }
+                  group.rows.forEach((row) => {
+                    counter += 1;
+                    elements.push(
+                      <tr key={row.id} className="border-b border-gray-200">
+                        <td className="py-1.5 pl-2 text-gray-400">{counter}</td>
+                        <td className="py-1.5 font-medium">{row.invoice?.document_no ?? "—"}</td>
+                        <td className="py-1.5">
+                          <p>{row.invoice?.company_name_raw ?? "—"}</p>
+                          <p className="text-[10px] text-gray-400">
+                            {row.delivery_address || row.invoice?.branch_address || "—"}
+                          </p>
+                        </td>
+                        <td className="py-1.5 text-right">{row.qty_box ?? "—"}</td>
+                        <td className="py-1.5 pr-2 text-right">{formatMoney(row.invoice?.amount)}</td>
+                      </tr>
+                    );
+                  });
+                  return elements;
+                });
+              })()}
               {rows.length === 0 && (
                 <tr>
                   <td colSpan={5} className="py-3 text-center text-gray-400">

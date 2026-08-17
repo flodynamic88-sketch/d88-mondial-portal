@@ -180,6 +180,10 @@ export default function TruckCard({
   const [destinationOptions, setDestinationOptions] = useState<
     { destination: string; area: string; rate: number | null; convoy_rate: number | null }[]
   >([]);
+  // Distinct delivery addresses previously typed in on ANY route plan
+  // assignment, offered as <datalist> suggestions on the per-invoice Delivery
+  // Address override input below -- see handleDeliveryAddressChange.
+  const [deliveryAddressOptions, setDeliveryAddressOptions] = useState<string[]>([]);
   const [customEntry, setCustomEntry] = useState<{
     rowId: string;
     type: ReasonType;
@@ -358,6 +362,31 @@ export default function TruckCard({
         }
       });
   }, [isConvoy, canSeeTruckRate]);
+
+  // Delivery address suggestions -- every distinct value ever typed into
+  // route_plan_invoices.delivery_address across all trucks/route plans, so
+  // a previously-used exact address (e.g. a recurring drop point) can be
+  // picked again instead of retyped. Fetched once per mount; non-fatal if it
+  // fails, the input just falls back to plain free text.
+  useEffect(() => {
+    const supabase = createClient();
+    supabase
+      .from("route_plan_invoices")
+      .select("delivery_address")
+      .not("delivery_address", "is", null)
+      .then(({ data }) => {
+        if (data) {
+          const unique = Array.from(
+            new Set(
+              data
+                .map((r) => (r as { delivery_address: string | null }).delivery_address)
+                .filter((v): v is string => !!v && v.trim() !== "")
+            )
+          ).sort();
+          setDeliveryAddressOptions(unique);
+        }
+      });
+  }, []);
 
   async function handleSaveTruckDetails() {
     setActionError(null);
@@ -740,6 +769,39 @@ export default function TruckCard({
       }
     } catch {
       setActionError("Could not update drop no. Make sure a Supabase project is connected.");
+    }
+  }
+
+  async function handleDeliveryAddressChange(rowId: string, value: string) {
+    const trimmed = value.trim();
+    try {
+      const supabase = createClient();
+      // Same RLS policy as qty_box/drop_no (route_plan_invoices UPDATE), so
+      // the same 0-row-vs-error distinction applies -- see
+      // handleQtyBoxChange above. Empty input clears the override back to
+      // null, which falls back to invoices.branch_address in every consumer.
+      const { data, error } = await supabase
+        .from("route_plan_invoices")
+        .update({ delivery_address: trimmed === "" ? null : trimmed })
+        .eq("id", rowId)
+        .select("id");
+      if (error) {
+        setActionError("Failed to update delivery address.");
+      } else if (!data || data.length === 0) {
+        setActionError(
+          "Delivery address was not saved -- you may not have permission to edit it. Ask an Admin to check your account access."
+        );
+        setRefreshKey((k) => k + 1);
+      } else {
+        if (trimmed !== "") {
+          setDeliveryAddressOptions((opts) =>
+            opts.includes(trimmed) ? opts : [...opts, trimmed].sort()
+          );
+        }
+        setRefreshKey((k) => k + 1);
+      }
+    } catch {
+      setActionError("Could not update delivery address. Make sure a Supabase project is connected.");
     }
   }
 
@@ -1252,17 +1314,6 @@ export default function TruckCard({
 
             <div className="flex items-center justify-between">
               <h3 className="text-sm font-semibold text-gray-700">Assigned Invoices</h3>
-              {canAddInvoices && (
-                <button
-                  type="button"
-                  className="tab-button tab-button-inactive text-xs"
-                  onClick={() =>
-                    setPendingDropNumbers((nums) => Array.from(new Set([...nums, nextDropNo])))
-                  }
-                >
-                  + Add Drop
-                </button>
-              )}
             </div>
             {loadingRows && <p className="mt-2 text-sm text-gray-400">Loading…</p>}
             {!loadingRows && rowsError && <p className="mt-2 text-sm text-gray-400">{rowsError}</p>}
@@ -1354,6 +1405,29 @@ export default function TruckCard({
                     <td className="py-2 pr-4">
                       <p>{row.invoice?.company_name_raw ?? "—"}</p>
                       <p className="text-xs text-gray-400">{row.invoice?.branch_address ?? "—"}</p>
+                      {canEditQtyBox ? (
+                        <input
+                          type="text"
+                          list={`delivery-address-options-${truck.id}`}
+                          className="input-sm mt-1 w-full min-w-[12rem]"
+                          placeholder="Exact delivery address (optional)"
+                          title="Optional exact delivery address for this drop -- overrides the invoice's on-file address above for this assignment only."
+                          defaultValue={row.delivery_address ?? ""}
+                          onBlur={(e) => handleDeliveryAddressChange(row.id, e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter") {
+                              e.preventDefault();
+                              e.currentTarget.blur();
+                            }
+                          }}
+                        />
+                      ) : (
+                        row.delivery_address && (
+                          <p className="mt-1 text-xs font-medium text-brand-600">
+                            Deliver to: {row.delivery_address}
+                          </p>
+                        )
+                      )}
                     </td>
                     <td className="py-2 pr-4">
                       {canEditQtyBox ? (
@@ -1791,6 +1865,19 @@ export default function TruckCard({
                     )}
                   </div>
                 ))}
+                {canAddInvoices && (
+                  <div className="flex justify-start">
+                    <button
+                      type="button"
+                      className="tab-button tab-button-inactive text-xs"
+                      onClick={() =>
+                        setPendingDropNumbers((nums) => Array.from(new Set([...nums, nextDropNo])))
+                      }
+                    >
+                      + Add Drop
+                    </button>
+                  </div>
+                )}
               </div>
             )}
 
@@ -1838,6 +1925,12 @@ export default function TruckCard({
             onToggleExpand={onToggleExpand}
           />
         ))}
+
+      <datalist id={`delivery-address-options-${truck.id}`}>
+        {deliveryAddressOptions.map((address) => (
+          <option key={address} value={address} />
+        ))}
+      </datalist>
     </>
   );
 }

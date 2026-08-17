@@ -177,6 +177,8 @@ export interface RoutePlanInvoice {
   qty_box: number | null;
   /** Manual drop/stop sequence number (1st drop, 2nd drop, ...) for this invoice on this truck. Null = no manual sequence set. */
   drop_no: number | null;
+  /** Optional exact delivery address override for this invoice on this specific truck/route-plan assignment. Null = use invoices.branch_address as-is. */
+  delivery_address: string | null;
 }
 
 export interface MondialConfirmation {
@@ -501,6 +503,8 @@ export interface VTruckingBillingStatementItem {
   is_backload: boolean;
   /** True when this row is the active delivery of an invoice that was previously backloaded on a different truck -- shown on this truck's report, tagged REDELIVER. */
   is_redeliver: boolean;
+  /** Optional exact delivery address override for this assignment. Null = use branch_address as-is. */
+  delivery_address: string | null;
 }
 
 export interface VTruckingBillingCandidate {

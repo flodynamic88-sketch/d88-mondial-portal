@@ -74,6 +74,7 @@ export default function PrintDayDeliveryRoutePage() {
             .select("*, invoice:invoices(*)")
             .in("route_plan_truck_id", truckIds)
             .is("superseded_at", null)
+            .order("drop_no", { ascending: true, nullsFirst: false })
             .order("created_at", { ascending: true });
 
           const grouped: Record<string, StopRow[]> = {};
@@ -125,6 +126,28 @@ export default function PrintDayDeliveryRoutePage() {
     });
     return out;
   }, [mainTrucks, convoysByMain]);
+
+  // Group a truck's stops by drop_no so invoices sharing a drop (e.g. 4
+  // receipts under Drop #1) print together under one "Drop N" heading,
+  // mirroring the Drop-card grouping already shown on-screen in Route Plan.
+  // stopsByTruck rows arrive pre-sorted by drop_no (nulls last) then
+  // created_at, so a single pass preserves that order. Trucks that never
+  // used the manual drop-number feature collapse to one "unassigned" group,
+  // whose heading is skipped by the caller so untouched trucks print exactly
+  // as before.
+  function groupStopsByDrop(stops: StopRow[]) {
+    const groups: { dropNo: number | null; rows: StopRow[] }[] = [];
+    for (const stop of stops) {
+      const key = stop.drop_no ?? null;
+      const last = groups[groups.length - 1];
+      if (last && last.dropNo === key) {
+        last.rows.push(stop);
+      } else {
+        groups.push({ dropNo: key, rows: [stop] });
+      }
+    }
+    return groups;
+  }
 
   async function handleContactBlur(truckId: string) {
     if (!canEditContact) return;
@@ -332,17 +355,41 @@ export default function PrintDayDeliveryRoutePage() {
                   </p>
                   <table className="w-full border-collapse text-sm">
                     <tbody>
-                      {stops.map((stop, idx) => (
-                        <tr key={stop.id} className="border-b border-gray-100 last:border-0">
-                          <td className="w-8 py-2 align-top text-gray-400">{idx + 1}.</td>
-                          <td className="w-1/3 py-2 pr-4 align-top font-medium text-gray-900">
-                            {stop.invoice?.company_name_raw ?? "—"}
-                          </td>
-                          <td className="py-2 align-top text-gray-600">
-                            {stop.invoice?.branch_address ?? "—"}
-                          </td>
-                        </tr>
-                      ))}
+                      {(() => {
+                        const dropGroups = groupStopsByDrop(stops);
+                        const showDropHeadings = dropGroups.length > 1;
+                        let counter = 0;
+                        return dropGroups.flatMap((group) => {
+                          const elements = [];
+                          if (showDropHeadings) {
+                            elements.push(
+                              <tr key={`drop-${group.dropNo ?? "unassigned"}`}>
+                                <td
+                                  colSpan={3}
+                                  className="bg-gray-50 py-1.5 text-[10px] font-semibold uppercase tracking-wide text-gray-500"
+                                >
+                                  {group.dropNo === null ? "Unassigned" : `Drop ${group.dropNo}`}
+                                </td>
+                              </tr>
+                            );
+                          }
+                          group.rows.forEach((stop) => {
+                            counter += 1;
+                            elements.push(
+                              <tr key={stop.id} className="border-b border-gray-100 last:border-0">
+                                <td className="w-8 py-2 align-top text-gray-400">{counter}.</td>
+                                <td className="w-1/3 py-2 pr-4 align-top font-medium text-gray-900">
+                                  {stop.invoice?.company_name_raw ?? "—"}
+                                </td>
+                                <td className="py-2 align-top text-gray-600">
+                                  {stop.delivery_address || stop.invoice?.branch_address || "—"}
+                                </td>
+                              </tr>
+                            );
+                          });
+                          return elements;
+                        });
+                      })()}
                       {stops.length === 0 && (
                         <tr>
                           <td colSpan={3} className="py-3 text-center text-gray-400">
