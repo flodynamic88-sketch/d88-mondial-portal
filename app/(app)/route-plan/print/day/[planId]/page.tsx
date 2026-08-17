@@ -244,7 +244,7 @@ export default function PrintDayDeliveryRoutePage() {
               <p className="text-xs font-semibold uppercase tracking-[0.25em] text-gray-400">
                 Dynamic88 Solutions
               </p>
-              <h1 className="mt-1 text-3xl font-extrabold uppercase leading-tight tracking-tight text-brand-800">
+              <h1 className="mt-1 text-3xl font-bold uppercase leading-tight tracking-wide text-gray-900">
                 Delivery Itinerary
               </h1>
             </div>
