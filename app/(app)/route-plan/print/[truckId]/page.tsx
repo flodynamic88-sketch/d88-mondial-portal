@@ -148,23 +148,13 @@ export default function PrintTruckItineraryPage() {
       <div className="printable-area mx-auto max-w-4xl overflow-hidden rounded-2xl border border-gray-200 bg-white text-sm text-gray-800 shadow-panel">
         <div className="border-b-2 border-brand-600 bg-white px-8 py-7">
           <div className="flex items-center justify-between gap-6">
-            <div className="flex items-center gap-5">
-              {logoUrl ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img src={logoUrl} alt="Dynamic88 logo" className="h-20 w-auto object-contain" />
-              ) : (
-                <div className="flex h-20 w-20 items-center justify-center rounded-xl bg-brand-600 text-2xl font-bold text-white">
-                  D88
-                </div>
-              )}
-              <div>
-                <h1 className="text-3xl font-extrabold uppercase leading-tight tracking-tight text-brand-800">
-                  Delivery Itinerary
-                </h1>
-                <p className="mt-1 text-xs font-semibold uppercase tracking-[0.25em] text-gray-400">
-                  Route Plan
-                </p>
-              </div>
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-[0.25em] text-gray-400">
+                Dynamic88 Solutions
+              </p>
+              <h1 className="mt-1 text-3xl font-extrabold uppercase leading-tight tracking-tight text-brand-800">
+                Delivery Itinerary
+              </h1>
             </div>
             <div className="text-right">
               <span className="inline-block rounded-full bg-brand-50 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-brand-700">

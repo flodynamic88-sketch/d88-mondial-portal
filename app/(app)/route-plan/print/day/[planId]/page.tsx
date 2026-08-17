@@ -240,23 +240,13 @@ export default function PrintDayDeliveryRoutePage() {
         {/* Header */}
         <div className="border-b-2 border-brand-600 bg-white px-8 py-7">
           <div className="flex items-center justify-between gap-6">
-            <div className="flex items-center gap-5">
-              {logoUrl ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img src={logoUrl} alt="Dynamic88 logo" className="h-20 w-auto object-contain" />
-              ) : (
-                <div className="flex h-20 w-20 items-center justify-center rounded-xl bg-brand-600 text-2xl font-bold text-white">
-                  D88
-                </div>
-              )}
-              <div>
-                <h1 className="text-3xl font-extrabold uppercase leading-tight tracking-tight text-brand-800">
-                  Delivery Itinerary
-                </h1>
-                <p className="mt-1 text-xs font-semibold uppercase tracking-[0.25em] text-gray-400">
-                  Route Plan
-                </p>
-              </div>
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-[0.25em] text-gray-400">
+                Dynamic88 Solutions
+              </p>
+              <h1 className="mt-1 text-3xl font-extrabold uppercase leading-tight tracking-tight text-brand-800">
+                Delivery Itinerary
+              </h1>
             </div>
             <div className="text-right">
               <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-gray-400">
