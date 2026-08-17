@@ -211,7 +211,7 @@ export default function PrintTruckItineraryPage() {
                     <p className="text-[11px] text-gray-500">{address}</p>
                     {firstRow?.merchandiser_name_snapshot && (
                       <p className="text-[11px] font-medium text-brand-600">
-                        Diser: {firstRow.merchandiser_name_snapshot}
+                        Merchandiser: {firstRow.merchandiser_name_snapshot}
                         {firstRow.merchandiser_contact_snapshot
                           ? ` · ${firstRow.merchandiser_contact_snapshot}`
                           : ""}

@@ -495,15 +495,15 @@ export default function TruckCard({
         .in("id", rowIds)
         .select("id");
       if (error) {
-        setActionError("Failed to update diser for this drop.");
+        setActionError("Failed to update merchandiser for this drop.");
       } else if (!data || data.length === 0) {
         setActionError(
-          "Diser was not saved -- you may not have permission to edit it. Ask an Admin to check your account access."
+          "Merchandiser was not saved -- you may not have permission to edit it. Ask an Admin to check your account access."
         );
       }
       setRefreshKey((k) => k + 1);
     } catch {
-      setActionError("Could not update diser. Make sure a Supabase project is connected.");
+      setActionError("Could not update merchandiser. Make sure a Supabase project is connected.");
     } finally {
       setSavingDiserGroupKey(null);
     }
@@ -1504,7 +1504,7 @@ export default function TruckCard({
                         return (
                           <div className="mb-2 mt-2 rounded border border-gray-200 bg-white/70 p-2 text-xs">
                             <p className="mb-1 font-semibold uppercase tracking-wide text-gray-500">
-                              Diser (Merchandiser)
+                              Merchandiser
                             </p>
                             {canEditQtyBox ? (
                               <>
@@ -1558,7 +1558,7 @@ export default function TruckCard({
                                 <input
                                   type="text"
                                   className="input-sm mt-1 w-48"
-                                  placeholder="Diser contact number"
+                                  placeholder="Merchandiser contact number"
                                   defaultValue={firstRow.merchandiser_contact_snapshot ?? ""}
                                   onBlur={(e) => handleDiserContactSave(group, e.target.value)}
                                   onKeyDown={(e) => {

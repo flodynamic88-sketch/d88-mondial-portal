@@ -377,7 +377,7 @@ export default function PrintDayDeliveryRoutePage() {
                               <p className="text-[11px] text-gray-500">{address}</p>
                               {firstStop?.merchandiser_name_snapshot && (
                                 <p className="text-[10px] font-medium text-brand-600">
-                                  Diser: {firstStop.merchandiser_name_snapshot}
+                                  Merchandiser: {firstStop.merchandiser_name_snapshot}
                                   {firstStop.merchandiser_contact_snapshot
                                     ? ` · ${firstStop.merchandiser_contact_snapshot}`
                                     : ""}
