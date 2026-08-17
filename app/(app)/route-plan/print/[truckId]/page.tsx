@@ -102,28 +102,31 @@ export default function PrintTruckItineraryPage() {
   );
 
   // Group rows by drop_no so every invoice sharing a drop (e.g. 4 receipts
-  // under Drop #1) prints together under one "Drop N" heading, mirroring the
-  // Drop-card grouping already shown on-screen in Route Plan. Rows arrive
+  // under Drop #1) prints together, store name and address shown once per
+  // group, mirroring the Drop-card grouping already shown on-screen in Route
+  // Plan. When drop_no isn't set (trucks that never used the manual
+  // drop-number feature), fall back to grouping consecutive rows by store
+  // identity (company + delivery address) -- never merge two different
+  // stores into one block just because both lack a drop number. Rows arrive
   // pre-sorted by drop_no (nulls last) then created_at, so a single pass
-  // preserves that order -- no extra sort needed. Query the actual data
-  // structure fresh per drop_no so re-ordering upstream doesn't desync this.
+  // preserves that order.
   const dropGroups = useMemo(() => {
-    const groups: { dropNo: number | null; rows: ItineraryRow[] }[] = [];
+    const groups: { key: string; dropNo: number | null; rows: ItineraryRow[] }[] = [];
     for (const row of rows) {
-      const key = row.drop_no ?? null;
+      const address = row.delivery_address || row.invoice?.branch_address || "";
+      const key =
+        row.drop_no !== null && row.drop_no !== undefined
+          ? `drop:${row.drop_no}`
+          : `store:${row.invoice?.company_name_raw ?? ""}|${address}`;
       const last = groups[groups.length - 1];
-      if (last && last.dropNo === key) {
+      if (last && last.key === key) {
         last.rows.push(row);
       } else {
-        groups.push({ dropNo: key, rows: [row] });
+        groups.push({ key, dropNo: row.drop_no ?? null, rows: [row] });
       }
     }
     return groups;
   }, [rows]);
-  // Trucks that never used the manual drop-number feature all fall into one
-  // "unassigned" group -- skip the heading in that case so the print output
-  // for those trucks looks exactly as it always has (non-breaking).
-  const showDropHeadings = dropGroups.length > 1;
 
   if (loading) {
     return <p className="p-8 text-sm text-gray-400">Loading…</p>;
@@ -190,72 +193,60 @@ export default function PrintTruckItineraryPage() {
           </div>
         </div>
 
-        <div className="mt-6">
-          <table className="w-full border-collapse text-xs">
-            <thead>
-              <tr className="border-b border-t border-gray-300 bg-gray-50 text-left uppercase text-gray-500">
-                <th className="py-1.5 pl-2">#</th>
-                <th className="py-1.5">Invoice No.</th>
-                <th className="py-1.5">Store / Branch</th>
-                <th className="py-1.5 text-right">Qty/Box</th>
-                <th className="py-1.5 pr-2 text-right">Amount</th>
-              </tr>
-            </thead>
-            <tbody>
-              {(() => {
-                let counter = 0;
-                return dropGroups.flatMap((group) => {
-                  const elements = [];
-                  if (showDropHeadings) {
-                    elements.push(
-                      <tr key={`drop-${group.dropNo ?? "unassigned"}`} className="bg-gray-100">
-                        <td
-                          colSpan={5}
-                          className="py-1 pl-2 text-[10px] font-semibold uppercase tracking-wide text-gray-600"
-                        >
-                          {group.dropNo === null ? "Unassigned" : `Drop ${group.dropNo}`}
-                        </td>
-                      </tr>
-                    );
-                  }
-                  group.rows.forEach((row) => {
-                    counter += 1;
-                    elements.push(
-                      <tr key={row.id} className="border-b border-gray-200">
-                        <td className="py-1.5 pl-2 text-gray-400">{counter}</td>
-                        <td className="py-1.5 font-medium">{row.invoice?.document_no ?? "—"}</td>
-                        <td className="py-1.5">
-                          <p>{row.invoice?.company_name_raw ?? "—"}</p>
-                          <p className="text-[10px] text-gray-400">
-                            {row.delivery_address || row.invoice?.branch_address || "—"}
-                          </p>
-                        </td>
-                        <td className="py-1.5 text-right">{row.qty_box ?? "—"}</td>
-                        <td className="py-1.5 pr-2 text-right">{formatMoney(row.invoice?.amount)}</td>
-                      </tr>
-                    );
-                  });
-                  return elements;
-                });
-              })()}
-              {rows.length === 0 && (
-                <tr>
-                  <td colSpan={5} className="py-3 text-center text-gray-400">
-                    No invoices assigned to this truck.
-                  </td>
-                </tr>
-              )}
-            </tbody>
-            <tfoot>
-              <tr className="border-t-2 border-gray-300 font-semibold">
-                <td colSpan={3} className="py-2 pl-2 text-right text-gray-500">
-                  Total
-                </td>
-                <td className="py-2 text-right">{totalBoxes || "—"}</td>
-                <td className="py-2 pr-2 text-right">{formatMoney(totalAmount)}</td>
-              </tr>
-            </tfoot>
-          </table>
+        <div className="mt-6 space-y-3">
+          {dropGroups.map((group) => {
+            const firstRow = group.rows[0];
+            const storeName = firstRow?.invoice?.company_name_raw ?? "—";
+            const address = firstRow?.delivery_address || firstRow?.invoice?.branch_address || "—";
+            return (
+              <div key={group.key} className="rounded-lg border border-gray-200 p-3 text-xs">
+                <div className="mb-2 flex items-start justify-between gap-3">
+                  <div>
+                    {group.dropNo !== null && (
+                      <p className="text-[10px] font-semibold uppercase tracking-wide text-brand-600">
+                        Drop {group.dropNo}
+                      </p>
+                    )}
+                    <p className="text-sm font-bold text-gray-900">{storeName}</p>
+                    <p className="text-[11px] text-gray-500">{address}</p>
+                  </div>
+                  <p className="shrink-0 whitespace-nowrap text-[10px] text-gray-400">
+                    {group.rows.length} invoice{group.rows.length === 1 ? "" : "s"}
+                  </p>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  {group.rows.map((row) => (
+                    <div
+                      key={row.id}
+                      className="min-w-[96px] rounded-md border border-gray-200 bg-gray-50 px-2 py-1.5 leading-tight"
+                    >
+                      <p className="font-semibold text-gray-800">
+                        {row.invoice?.document_no ?? "—"}
+                      </p>
+                      <p className="text-gray-500">{row.qty_box ?? 0} box</p>
+                      <p className="font-semibold text-gray-900">
+                        {formatMoney(row.invoice?.amount)}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            );
+          })}
+          {rows.length === 0 && (
+            <p className="rounded-lg border border-dashed border-gray-200 py-6 text-center text-xs text-gray-400">
+              No invoices assigned to this truck.
+            </p>
+          )}
+
+          {rows.length > 0 && (
+            <div className="flex items-center justify-end gap-6 border-t-2 border-gray-300 pt-2 text-sm font-semibold text-gray-800">
+              <span>
+                Total: {totalBoxes || 0} box{totalBoxes === 1 ? "" : "es"}
+              </span>
+              <span>{formatMoney(totalAmount)}</span>
+            </div>
+          )}
         </div>
 
         <div className="mt-12 grid grid-cols-3 gap-x-8 gap-y-10">

@@ -128,22 +128,27 @@ export default function PrintDayDeliveryRoutePage() {
   }, [mainTrucks, convoysByMain]);
 
   // Group a truck's stops by drop_no so invoices sharing a drop (e.g. 4
-  // receipts under Drop #1) print together under one "Drop N" heading,
-  // mirroring the Drop-card grouping already shown on-screen in Route Plan.
-  // stopsByTruck rows arrive pre-sorted by drop_no (nulls last) then
-  // created_at, so a single pass preserves that order. Trucks that never
-  // used the manual drop-number feature collapse to one "unassigned" group,
-  // whose heading is skipped by the caller so untouched trucks print exactly
-  // as before.
+  // receipts under Drop #1) print together, with the store name/address
+  // shown once per group, mirroring the Drop-card grouping already shown
+  // on-screen in Route Plan. When drop_no isn't set (trucks that never used
+  // the manual drop-number feature), fall back to grouping consecutive
+  // stops by store identity (company + delivery address) so two different
+  // stores never merge just because both lack a drop number. stopsByTruck
+  // rows arrive pre-sorted by drop_no (nulls last) then created_at, so a
+  // single pass preserves that order.
   function groupStopsByDrop(stops: StopRow[]) {
-    const groups: { dropNo: number | null; rows: StopRow[] }[] = [];
+    const groups: { key: string; dropNo: number | null; rows: StopRow[] }[] = [];
     for (const stop of stops) {
-      const key = stop.drop_no ?? null;
+      const address = stop.delivery_address || stop.invoice?.branch_address || "";
+      const key =
+        stop.drop_no !== null && stop.drop_no !== undefined
+          ? `drop:${stop.drop_no}`
+          : `store:${stop.invoice?.company_name_raw ?? ""}|${address}`;
       const last = groups[groups.length - 1];
-      if (last && last.dropNo === key) {
+      if (last && last.key === key) {
         last.rows.push(stop);
       } else {
-        groups.push({ dropNo: key, rows: [stop] });
+        groups.push({ key, dropNo: stop.drop_no ?? null, rows: [stop] });
       }
     }
     return groups;
@@ -351,54 +356,49 @@ export default function PrintDayDeliveryRoutePage() {
 
                 <div className="border-t border-gray-100 px-5 py-4">
                   <p className="mb-2 text-[10px] font-semibold uppercase tracking-wide text-gray-400">
-                    Company / Branch
+                    Stores
                   </p>
-                  <table className="w-full border-collapse text-sm">
-                    <tbody>
-                      {(() => {
-                        const dropGroups = groupStopsByDrop(stops);
-                        const showDropHeadings = dropGroups.length > 1;
-                        let counter = 0;
-                        return dropGroups.flatMap((group) => {
-                          const elements = [];
-                          if (showDropHeadings) {
-                            elements.push(
-                              <tr key={`drop-${group.dropNo ?? "unassigned"}`}>
-                                <td
-                                  colSpan={3}
-                                  className="bg-gray-50 py-1.5 text-[10px] font-semibold uppercase tracking-wide text-gray-500"
-                                >
-                                  {group.dropNo === null ? "Unassigned" : `Drop ${group.dropNo}`}
-                                </td>
-                              </tr>
-                            );
-                          }
-                          group.rows.forEach((stop) => {
-                            counter += 1;
-                            elements.push(
-                              <tr key={stop.id} className="border-b border-gray-100 last:border-0">
-                                <td className="w-8 py-2 align-top text-gray-400">{counter}.</td>
-                                <td className="w-1/3 py-2 pr-4 align-top font-medium text-gray-900">
-                                  {stop.invoice?.company_name_raw ?? "—"}
-                                </td>
-                                <td className="py-2 align-top text-gray-600">
-                                  {stop.delivery_address || stop.invoice?.branch_address || "—"}
-                                </td>
-                              </tr>
-                            );
-                          });
-                          return elements;
-                        });
-                      })()}
-                      {stops.length === 0 && (
-                        <tr>
-                          <td colSpan={3} className="py-3 text-center text-gray-400">
-                            No stores assigned to this truck yet.
-                          </td>
-                        </tr>
-                      )}
-                    </tbody>
-                  </table>
+                  <div className="space-y-2">
+                    {groupStopsByDrop(stops).map((group) => {
+                      const firstStop = group.rows[0];
+                      const storeName = firstStop?.invoice?.company_name_raw ?? "—";
+                      const address =
+                        firstStop?.delivery_address || firstStop?.invoice?.branch_address || "—";
+                      return (
+                        <div key={group.key} className="rounded-md border border-gray-100 p-2">
+                          <div className="mb-1.5 flex items-start justify-between gap-3">
+                            <div>
+                              {group.dropNo !== null && (
+                                <p className="text-[9px] font-semibold uppercase tracking-wide text-brand-600">
+                                  Drop {group.dropNo}
+                                </p>
+                              )}
+                              <p className="text-sm font-medium text-gray-900">{storeName}</p>
+                              <p className="text-[11px] text-gray-500">{address}</p>
+                            </div>
+                          </div>
+                          <div className="flex flex-wrap gap-1.5">
+                            {group.rows.map((stop) => (
+                              <div
+                                key={stop.id}
+                                className="min-w-[88px] rounded border border-gray-200 bg-gray-50 px-1.5 py-1 text-[10px] leading-tight"
+                              >
+                                <p className="font-semibold text-gray-800">
+                                  {stop.invoice?.document_no ?? "—"}
+                                </p>
+                                <p className="text-gray-500">{stop.qty_box ?? 0} box</p>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      );
+                    })}
+                    {stops.length === 0 && (
+                      <p className="py-3 text-center text-sm text-gray-400">
+                        No stores assigned to this truck yet.
+                      </p>
+                    )}
+                  </div>
                 </div>
               </div>
             );
