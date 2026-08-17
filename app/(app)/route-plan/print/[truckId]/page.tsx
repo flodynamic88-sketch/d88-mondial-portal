@@ -146,39 +146,34 @@ export default function PrintTruckItineraryPage() {
       </div>
 
       <div className="printable-area mx-auto max-w-4xl overflow-hidden rounded-2xl border border-gray-200 bg-white text-sm text-gray-800 shadow-panel">
-        <div className="relative overflow-hidden bg-gradient-to-br from-brand-800 via-brand-700 to-brand-600 px-8 py-6 text-white">
-          <div
-            className="pointer-events-none absolute -right-10 -top-16 h-56 w-56 rounded-full bg-white/10"
-            aria-hidden
-          />
-          <div
-            className="pointer-events-none absolute -bottom-16 right-20 h-32 w-32 rounded-full bg-white/5"
-            aria-hidden
-          />
-          <div className="relative flex items-center justify-between gap-6">
-            <div className="flex items-center gap-4">
+        <div className="border-b-2 border-brand-600 bg-white px-8 py-7">
+          <div className="flex items-center justify-between gap-6">
+            <div className="flex items-center gap-5">
               {logoUrl ? (
                 // eslint-disable-next-line @next/next/no-img-element
-                <img
-                  src={logoUrl}
-                  alt="Dynamic88 logo"
-                  className="h-14 w-14 rounded-xl bg-white/95 object-contain p-1.5"
-                />
+                <img src={logoUrl} alt="Dynamic88 logo" className="h-20 w-auto object-contain" />
               ) : (
-                <div className="flex h-14 w-14 items-center justify-center rounded-xl bg-white/95 text-lg font-bold text-brand-700">
+                <div className="flex h-20 w-20 items-center justify-center rounded-xl bg-brand-600 text-2xl font-bold text-white">
                   D88
                 </div>
               )}
-              <h1 className="text-2xl font-bold uppercase tracking-wide">Delivery Itinerary</h1>
+              <div>
+                <h1 className="text-3xl font-extrabold uppercase leading-tight tracking-tight text-brand-800">
+                  Delivery Itinerary
+                </h1>
+                <p className="mt-1 text-xs font-semibold uppercase tracking-[0.25em] text-gray-400">
+                  Route Plan
+                </p>
+              </div>
             </div>
             <div className="text-right">
-              <span className="inline-block rounded-full bg-white/15 px-3 py-1 text-xs font-semibold uppercase tracking-wide">
+              <span className="inline-block rounded-full bg-brand-50 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-brand-700">
                 {convoyLabel ?? "Main Truck"}
               </span>
-              <p className="mt-2 text-lg font-bold">
+              <p className="mt-2 text-lg font-bold text-gray-900">
                 {routePlan ? new Date(routePlan.route_date).toLocaleDateString() : "—"}
               </p>
-              {routePlan?.label && <p className="text-xs text-brand-100">{routePlan.label}</p>}
+              {routePlan?.label && <p className="text-xs text-gray-500">{routePlan.label}</p>}
             </div>
           </div>
         </div>
