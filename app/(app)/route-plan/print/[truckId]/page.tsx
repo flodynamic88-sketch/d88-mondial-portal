@@ -149,7 +149,7 @@ export default function PrintTruckItineraryPage() {
           a page break lands in the middle of it. */}
       <style>{`
         @media print {
-          @page { size: portrait; margin: 10mm; }
+          @page { size: portrait; margin: 6mm; }
         }
       `}</style>
 
@@ -164,7 +164,7 @@ export default function PrintTruckItineraryPage() {
           <thead>
             <tr>
               <td className="p-0">
-                <div className="border-b-2 border-brand-600 bg-white px-8 py-7">
+                <div className="border-b-2 border-brand-600 bg-white px-8 py-7 print:px-4 print:py-3">
                   <div className="flex items-center justify-between gap-6">
                     <div>
                       <p className="text-xs font-semibold uppercase tracking-[0.25em] text-gray-400">
@@ -191,7 +191,7 @@ export default function PrintTruckItineraryPage() {
           <tbody>
             <tr className="print:break-inside-avoid">
               <td className="p-0">
-                <div className="bg-gray-50 px-8 pt-6">
+                <div className="bg-gray-50 px-8 pt-6 print:px-4 print:pt-3">
                   <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
                     <div className="rounded-lg border border-gray-200 bg-white p-3">
                       <p className="text-xs uppercase tracking-wide text-gray-500">Carrier</p>
@@ -222,7 +222,7 @@ export default function PrintTruckItineraryPage() {
               return (
                 <tr key={group.key} className="print:break-inside-avoid">
                   <td className="p-0">
-                    <div className="bg-gray-50 px-8 pt-3">
+                    <div className="bg-gray-50 px-8 pt-3 print:px-4 print:pt-1.5">
                       <div className="rounded-lg border border-gray-200 bg-white p-3 text-xs shadow-card">
                         <div className="mb-2 flex items-start justify-between gap-3">
                           <div>
@@ -282,7 +282,7 @@ export default function PrintTruckItineraryPage() {
             {rows.length === 0 && (
               <tr>
                 <td className="p-0">
-                  <div className="bg-gray-50 px-8 pt-3">
+                  <div className="bg-gray-50 px-8 pt-3 print:px-4 print:pt-1.5">
                     <p className="rounded-lg border border-dashed border-gray-300 bg-white py-6 text-center text-xs text-gray-400">
                       No invoices assigned to this truck.
                     </p>
@@ -294,7 +294,7 @@ export default function PrintTruckItineraryPage() {
             {rows.length > 0 && (
               <tr className="print:break-inside-avoid">
                 <td className="p-0">
-                  <div className="bg-gray-50 px-8 pb-6 pt-3">
+                  <div className="bg-gray-50 px-8 pb-6 pt-3 print:px-4 print:pb-3 print:pt-1.5">
                     <div className="flex items-center justify-end gap-6 border-t-2 border-gray-300 pt-3 text-sm font-semibold text-gray-800">
                       <span>
                         Total: {totalBoxes || 0} box{totalBoxes === 1 ? "" : "es"}
@@ -308,8 +308,8 @@ export default function PrintTruckItineraryPage() {
 
             <tr className="print:break-inside-avoid">
               <td className="p-0">
-                <div className="border-t border-gray-100 bg-white px-8 py-6">
-                  <div className="grid grid-cols-3 gap-x-8 gap-y-10">
+                <div className="border-t border-gray-100 bg-white px-8 py-6 print:px-4 print:py-4">
+                  <div className="grid grid-cols-3 gap-x-8 gap-y-10 print:gap-y-6">
                     <div>
                       <div className="border-t border-gray-400 pt-1">
                         <p className="text-xs text-gray-500">Driver's Signature</p>

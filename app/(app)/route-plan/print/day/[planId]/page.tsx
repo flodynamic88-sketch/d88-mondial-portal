@@ -244,7 +244,7 @@ export default function PrintDayDeliveryRoutePage() {
           get sliced apart when a page break lands in the middle of it. */}
       <style>{`
         @media print {
-          @page { size: portrait; margin: 10mm; }
+          @page { size: portrait; margin: 6mm; }
         }
       `}</style>
 
@@ -256,7 +256,7 @@ export default function PrintDayDeliveryRoutePage() {
           <thead>
             <tr>
               <td className="p-0">
-                <div className="border-b-2 border-brand-600 bg-white px-8 py-7">
+                <div className="border-b-2 border-brand-600 bg-white px-8 py-7 print:px-4 print:py-3">
                   <div className="flex items-center justify-between gap-6">
                     <div>
                       <p className="text-xs font-semibold uppercase tracking-[0.25em] text-gray-400">
@@ -284,7 +284,7 @@ export default function PrintDayDeliveryRoutePage() {
             {orderedTrucks.length === 0 && (
               <tr>
                 <td className="p-0">
-                  <div className="bg-gray-50 px-8 py-7">
+                  <div className="bg-gray-50 px-8 py-7 print:px-4 print:py-3">
                     <p className="py-10 text-center text-sm text-gray-400">
                       No trucks on this route plan yet.
                     </p>
@@ -301,9 +301,9 @@ export default function PrintDayDeliveryRoutePage() {
               return (
                 <tr key={truck.id} className="print:break-inside-avoid">
                   <td className="p-0">
-                    <div className="bg-gray-50 px-8 pt-6">
+                    <div className="bg-gray-50 px-8 pt-6 print:px-4 print:pt-2">
                       <div className="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-card">
-                        <div className="flex items-center justify-between border-b border-gray-100 bg-brand-50/70 px-5 py-3">
+                        <div className="flex items-center justify-between border-b border-gray-100 bg-brand-50/70 px-5 py-3 print:px-3 print:py-1.5">
                           <span className="inline-flex items-center gap-2 rounded-full bg-brand-600 px-3 py-1 text-xs font-bold uppercase tracking-wide text-white">
                             {truckLabelById[truck.id] ?? "Truck"}
                           </span>
@@ -312,7 +312,7 @@ export default function PrintDayDeliveryRoutePage() {
                           </span>
                         </div>
 
-                        <div className="grid grid-cols-2 gap-4 px-5 py-4 sm:grid-cols-4">
+                        <div className="grid grid-cols-2 gap-4 px-5 py-4 sm:grid-cols-4 print:gap-2 print:px-3 print:py-2">
                           <div>
                             <p className="text-[10px] font-semibold uppercase tracking-wide text-gray-400">
                               Truck Details
@@ -359,7 +359,7 @@ export default function PrintDayDeliveryRoutePage() {
                           </div>
                         </div>
 
-                        <div className="border-t border-gray-100 px-5 py-4">
+                        <div className="border-t border-gray-100 px-5 py-4 print:px-3 print:py-2">
                           <p className="mb-2 text-[10px] font-semibold uppercase tracking-wide text-gray-400">
                             Stores
                           </p>
@@ -378,8 +378,8 @@ export default function PrintDayDeliveryRoutePage() {
                                 );
                                 return (
                                   <tr key={group.key} className="print:break-inside-avoid">
-                                    <td className="p-0 pb-2">
-                                      <div className="rounded-md border border-gray-100 p-2">
+                                    <td className="p-0 pb-2 print:pb-1">
+                                      <div className="rounded-md border border-gray-100 p-2 print:p-1.5">
                                         <div className="mb-1.5 flex items-start justify-between gap-3">
                                           <div>
                                             {group.dropNo !== null && (
@@ -454,7 +454,7 @@ export default function PrintDayDeliveryRoutePage() {
 
             <tr className="print:break-inside-avoid">
               <td className="p-0">
-                <div className="bg-white px-8 py-4">
+                <div className="bg-white px-8 py-4 print:px-4 print:py-2">
                   <p className="text-center text-[10px] text-gray-400">
                     Generated {new Date().toLocaleString()}
                   </p>
