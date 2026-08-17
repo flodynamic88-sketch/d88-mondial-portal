@@ -179,6 +179,57 @@ export interface RoutePlanInvoice {
   drop_no: number | null;
   /** Optional exact delivery address override for this invoice on this specific truck/route-plan assignment. Null = use invoices.branch_address as-is. */
   delivery_address: string | null;
+  /** FK to merchandiser_schedules -- the diser (merchandiser) selected for this drop. Null = none picked yet. */
+  merchandiser_schedule_id: string | null;
+  /** Snapshot of merchandiser_schedules.merchandiser_name at selection time, so the itinerary print stays stable even if the master row changes later. */
+  merchandiser_name_snapshot: string | null;
+  /** Snapshot of the merchandiser's contact number at selection time (or filled in later directly on this row). */
+  merchandiser_contact_snapshot: string | null;
+}
+
+/**
+ * Master list of merchandisers ("diser") per store, imported from the
+ * MERCHANDISER SCHEDULES AND PROPOSED DELIVERY SCHEDULE spreadsheet (DC sheet).
+ * Schedules are recurring-weekday patterns (no calendar dates) -- schedule_days
+ * holds 3-letter day codes (MON/TUE/.../SUN) and is_stationary means the
+ * merchandiser visits daily / has no fixed weekday pattern.
+ */
+export interface MerchandiserSchedule {
+  id: string;
+  plan: string | null;
+  portal_store_name: string | null;
+  nav_store_name: string | null;
+  banner: string | null;
+  store_code: string | null;
+  nav_code: string | null;
+  so_frequency: string | null;
+  merchandiser_name: string | null;
+  /** ASSIGNED | NO_CONSORTIUM | VACANT | FOR_POOLING */
+  merchandiser_status: string | null;
+  /** Left blank on import per business decision -- filled in later directly in the app. */
+  merchandiser_contact: string | null;
+  /** Original free-text schedule value from the source sheet (e.g. "Thu/Sun", "STATIONARY"). */
+  schedule_raw: string | null;
+  /** Normalized 3-letter weekday codes parsed from schedule_raw. Empty when is_stationary or unassigned. */
+  schedule_days: string[] | null;
+  /** True when schedule_raw was "STATIONARY" -- merchandiser has no fixed weekday pattern (daily/on-site). */
+  is_stationary: boolean;
+  visit_time_window: string | null;
+  day_off: string | null;
+  company: string | null;
+  delivery_window_time: string | null;
+  sales_officer_name: string | null;
+  sales_officer_contact: string | null;
+  area_head_name: string | null;
+  area_head_contact: string | null;
+  region: string | null;
+  address: string | null;
+  delivery_schedule_1: string | null;
+  delivery_schedule_2: string | null;
+  area: string | null;
+  location: string | null;
+  created_at: string | null;
+  updated_at: string | null;
 }
 
 export interface MondialConfirmation {
@@ -598,6 +649,12 @@ export interface Database {
         Row: RoutePlanInvoice;
         Insert: Partial<RoutePlanInvoice>;
         Update: Partial<RoutePlanInvoice>;
+        Relationships: [];
+      };
+      merchandiser_schedules: {
+        Row: MerchandiserSchedule;
+        Insert: Partial<MerchandiserSchedule>;
+        Update: Partial<MerchandiserSchedule>;
         Relationships: [];
       };
       mondial_confirmations: {

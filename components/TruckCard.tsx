@@ -16,6 +16,7 @@ import type {
   ReasonType,
   VTruckCts,
   FeeRate,
+  MerchandiserSchedule,
 } from "@/types/database";
 
 /** Human-readable zone label matching the fee schedule (NCR / NCR (DC) / etc). */
@@ -30,6 +31,56 @@ function zoneLabel(invoice: Invoice | null): string {
 
 const CUSTOM_DISCREPANCY = "__custom_discrepancy__";
 const CUSTOM_BACKLOAD = "__custom_backload__";
+
+/** Display label for a merchandiser_schedules row in the Diser picker's datalist. */
+function diserOptionLabel(m: MerchandiserSchedule): string {
+  const store = m.portal_store_name || m.nav_store_name || m.banner || "Store";
+  const name =
+    m.merchandiser_name ||
+    (m.merchandiser_status && m.merchandiser_status !== "ASSIGNED"
+      ? m.merchandiser_status.replace(/_/g, " ")
+      : "Unassigned");
+  return `${store} — ${name}`;
+}
+
+/** Loose best-effort match between a drop's store text (company name/address,
+ *  free text on the invoice) and the structured merchandiser_schedules store
+ *  list -- there's no FK between the two, so this is a substring match on
+ *  normalized (uppercase, alphanumeric-only) text, offered as an editable
+ *  suggestion rather than an automatic assignment. */
+function suggestMerchandiser(
+  storeName: string,
+  options: MerchandiserSchedule[]
+): MerchandiserSchedule | null {
+  const norm = (s: string) => s.toUpperCase().replace(/[^A-Z0-9]/g, "");
+  const target = norm(storeName);
+  if (!target) return null;
+  for (const m of options) {
+    const candidates = [m.portal_store_name, m.nav_store_name].filter(
+      (v): v is string => !!v
+    );
+    for (const c of candidates) {
+      const cn = norm(c);
+      if (cn && (target.includes(cn) || cn.includes(target))) {
+        return m;
+      }
+    }
+  }
+  return null;
+}
+
+const WEEKDAY_CODES = ["SUN", "MON", "TUE", "WED", "THU", "FRI", "SAT"];
+
+/** True when a matched merchandiser's recurring weekday schedule doesn't
+ *  include the route plan's actual date -- a soft warning only, since
+ *  schedules are recurring patterns kept by hand and can drift. */
+function scheduleMismatch(m: MerchandiserSchedule | undefined, routeDate: string): boolean {
+  if (!m || m.is_stationary) return false;
+  if (!m.schedule_days || m.schedule_days.length === 0) return false;
+  if (!routeDate) return false;
+  const day = WEEKDAY_CODES[new Date(`${routeDate}T00:00:00`).getDay()];
+  return !m.schedule_days.includes(day);
+}
 
 /** Slices an ISO timestamp down to the yyyy-mm-dd a <input type="date"> expects. */
 function toDateInputValue(iso: string | null): string {
@@ -184,6 +235,13 @@ export default function TruckCard({
   // assignment, offered as <datalist> suggestions on the per-invoice Delivery
   // Address override input below -- see handleDeliveryAddressChange.
   const [deliveryAddressOptions, setDeliveryAddressOptions] = useState<string[]>([]);
+  // Master merchandiser ("diser") list for the Diser picker below -- fetched
+  // once per mount since it's a shared reference table, not truck-specific.
+  const [merchandiserOptions, setMerchandiserOptions] = useState<MerchandiserSchedule[]>([]);
+  // Drop-group key (dropNo, or "unassigned") currently saving a Diser
+  // selection, so the picker for that specific drop can show "Saving…"
+  // without freezing every other drop's UI.
+  const [savingDiserGroupKey, setSavingDiserGroupKey] = useState<string | null>(null);
   const [customEntry, setCustomEntry] = useState<{
     rowId: string;
     type: ReasonType;
@@ -387,6 +445,105 @@ export default function TruckCard({
         }
       });
   }, []);
+
+  // Diser (merchandiser) master list -- see merchandiser_schedules
+  // (0069_merchandiser_schedules.sql). No FK to invoices/route_plan_invoices
+  // (source data only has free-text store names), so matching to a drop is a
+  // client-side best-effort suggestion, not a join -- see suggestMerchandiser.
+  useEffect(() => {
+    const supabase = createClient();
+    supabase
+      .from("merchandiser_schedules")
+      .select(
+        "id, portal_store_name, nav_store_name, banner, merchandiser_name, merchandiser_status, merchandiser_contact, schedule_days, is_stationary"
+      )
+      .then(({ data }) => {
+        if (data) setMerchandiserOptions(data as unknown as MerchandiserSchedule[]);
+      });
+  }, []);
+
+  /** Bulk-applies a Diser selection to every route_plan_invoices row sharing
+   *  this drop -- the picker lives at the drop-group header, not per invoice
+   *  row, so one pick should cover the whole drop in a single update instead
+   *  of the usual single-row .eq("id", rowId) pattern used elsewhere here. */
+  async function handleDiserSelect(
+    group: { dropNo: number | null; rows: AssignedInvoiceRow[] },
+    match: MerchandiserSchedule | null,
+    freeformName?: string
+  ) {
+    const groupKey = String(group.dropNo ?? "unassigned");
+    const rowIds = group.rows.map((r) => r.id);
+    if (rowIds.length === 0) return;
+    setSavingDiserGroupKey(groupKey);
+    setActionError(null);
+    try {
+      const supabase = createClient();
+      const payload = match
+        ? {
+            merchandiser_schedule_id: match.id,
+            merchandiser_name_snapshot: match.merchandiser_name,
+            merchandiser_contact_snapshot: match.merchandiser_contact,
+          }
+        : {
+            merchandiser_schedule_id: null,
+            merchandiser_name_snapshot: freeformName?.trim() || null,
+            merchandiser_contact_snapshot: null,
+          };
+      const { data, error } = await supabase
+        .from("route_plan_invoices")
+        .update(payload)
+        .in("id", rowIds)
+        .select("id");
+      if (error) {
+        setActionError("Failed to update diser for this drop.");
+      } else if (!data || data.length === 0) {
+        setActionError(
+          "Diser was not saved -- you may not have permission to edit it. Ask an Admin to check your account access."
+        );
+      }
+      setRefreshKey((k) => k + 1);
+    } catch {
+      setActionError("Could not update diser. Make sure a Supabase project is connected.");
+    } finally {
+      setSavingDiserGroupKey(null);
+    }
+  }
+
+  /** Saves a diser's contact number for a drop -- and, when that drop is
+   *  linked to a known merchandiser_schedules row (not a freeform name),
+   *  writes it back to the shared master record too, so the next drop that
+   *  picks the same merchandiser sees the contact immediately instead of
+   *  every planner re-typing it from scratch. */
+  async function handleDiserContactSave(
+    group: { dropNo: number | null; rows: AssignedInvoiceRow[] },
+    value: string
+  ) {
+    const trimmed = value.trim();
+    const rowIds = group.rows.map((r) => r.id);
+    if (rowIds.length === 0) return;
+    const merchandiserScheduleId = group.rows[0]?.merchandiser_schedule_id ?? null;
+    try {
+      const supabase = createClient();
+      await supabase
+        .from("route_plan_invoices")
+        .update({ merchandiser_contact_snapshot: trimmed || null })
+        .in("id", rowIds);
+      if (merchandiserScheduleId) {
+        await supabase
+          .from("merchandiser_schedules")
+          .update({ merchandiser_contact: trimmed || null })
+          .eq("id", merchandiserScheduleId);
+        setMerchandiserOptions((opts) =>
+          opts.map((m) =>
+            m.id === merchandiserScheduleId ? { ...m, merchandiser_contact: trimmed || null } : m
+          )
+        );
+      }
+      setRefreshKey((k) => k + 1);
+    } catch {
+      setActionError("Could not save diser contact number. Make sure a Supabase project is connected.");
+    }
+  }
 
   async function handleSaveTruckDetails() {
     setActionError(null);
@@ -1329,6 +1486,108 @@ export default function TruckCard({
                     <h4 className="text-xs font-semibold uppercase text-gray-500">
                       {group.dropNo === null ? "Unassigned (no drop set)" : `Drop ${group.dropNo}`}
                     </h4>
+                    {group.rows.length > 0 &&
+                      (() => {
+                        const firstRow = group.rows[0];
+                        const groupKey = String(group.dropNo ?? "unassigned");
+                        const currentMerchandiserId = firstRow.merchandiser_schedule_id;
+                        const currentMatch = currentMerchandiserId
+                          ? merchandiserOptions.find((m) => m.id === currentMerchandiserId)
+                          : undefined;
+                        const storeName =
+                          firstRow.invoice?.company_name_raw ?? firstRow.delivery_address ?? "";
+                        const suggested = !currentMerchandiserId
+                          ? suggestMerchandiser(storeName, merchandiserOptions)
+                          : undefined;
+                        const mismatch = scheduleMismatch(currentMatch, routeDate);
+                        const datalistId = `diser-options-${truck.id}-${groupKey}`;
+                        return (
+                          <div className="mb-2 mt-2 rounded border border-gray-200 bg-white/70 p-2 text-xs">
+                            <p className="mb-1 font-semibold uppercase tracking-wide text-gray-500">
+                              Diser (Merchandiser)
+                            </p>
+                            {canEditQtyBox ? (
+                              <>
+                                <input
+                                  type="text"
+                                  list={datalistId}
+                                  className="input-sm w-full min-w-[16rem]"
+                                  placeholder={
+                                    suggested
+                                      ? `Suggested: ${diserOptionLabel(suggested)}`
+                                      : "Search store or merchandiser name"
+                                  }
+                                  defaultValue={firstRow.merchandiser_name_snapshot ?? ""}
+                                  onBlur={(e) => {
+                                    const value = e.target.value.trim();
+                                    if (value === "") {
+                                      if (firstRow.merchandiser_name_snapshot) {
+                                        handleDiserSelect(group, null);
+                                      }
+                                      return;
+                                    }
+                                    const match = merchandiserOptions.find(
+                                      (m) => diserOptionLabel(m) === value
+                                    );
+                                    handleDiserSelect(group, match ?? null, match ? undefined : value);
+                                  }}
+                                  onKeyDown={(e) => {
+                                    if (e.key === "Enter") {
+                                      e.preventDefault();
+                                      e.currentTarget.blur();
+                                    }
+                                  }}
+                                />
+                                <datalist id={datalistId}>
+                                  {merchandiserOptions.map((m) => (
+                                    <option key={m.id} value={diserOptionLabel(m)} />
+                                  ))}
+                                </datalist>
+                                {suggested && !currentMerchandiserId && (
+                                  <button
+                                    type="button"
+                                    className="mt-1 block text-brand-600 hover:underline"
+                                    onClick={() => handleDiserSelect(group, suggested)}
+                                  >
+                                    Use suggested: {diserOptionLabel(suggested)}
+                                  </button>
+                                )}
+                                {savingDiserGroupKey === groupKey && (
+                                  <span className="mt-1 block text-gray-400">Saving…</span>
+                                )}
+                                <input
+                                  type="text"
+                                  className="input-sm mt-1 w-48"
+                                  placeholder="Diser contact number"
+                                  defaultValue={firstRow.merchandiser_contact_snapshot ?? ""}
+                                  onBlur={(e) => handleDiserContactSave(group, e.target.value)}
+                                  onKeyDown={(e) => {
+                                    if (e.key === "Enter") {
+                                      e.preventDefault();
+                                      e.currentTarget.blur();
+                                    }
+                                  }}
+                                />
+                                {mismatch && (
+                                  <p className="mt-1 text-amber-600">
+                                    ⚠ This merchandiser's usual schedule doesn't cover this route
+                                    date's weekday -- double-check before dispatch.
+                                  </p>
+                                )}
+                              </>
+                            ) : (
+                              firstRow.merchandiser_name_snapshot && (
+                                <p className="text-gray-700">
+                                  {firstRow.merchandiser_name_snapshot}
+                                  {firstRow.merchandiser_contact_snapshot
+                                    ? ` · ${firstRow.merchandiser_contact_snapshot}`
+                                    : ""}
+                                </p>
+                              )
+                            )}
+                          </div>
+                        );
+                      })()}
                     {canAddInvoices && (
                       <div className="mb-2 mt-2">
                         <DocumentLookup

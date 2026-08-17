@@ -209,6 +209,14 @@ export default function PrintTruckItineraryPage() {
                     )}
                     <p className="text-sm font-bold text-gray-900">{storeName}</p>
                     <p className="text-[11px] text-gray-500">{address}</p>
+                    {firstRow?.merchandiser_name_snapshot && (
+                      <p className="text-[11px] font-medium text-brand-600">
+                        Diser: {firstRow.merchandiser_name_snapshot}
+                        {firstRow.merchandiser_contact_snapshot
+                          ? ` · ${firstRow.merchandiser_contact_snapshot}`
+                          : ""}
+                      </p>
+                    )}
                   </div>
                   <p className="shrink-0 whitespace-nowrap text-[10px] text-gray-400">
                     {group.rows.length} invoice{group.rows.length === 1 ? "" : "s"}
