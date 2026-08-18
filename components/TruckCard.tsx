@@ -85,6 +85,19 @@ function scheduleMismatch(m: MerchandiserSchedule | undefined, routeDate: string
   return !m.schedule_days.includes(day);
 }
 
+/** Whether a merchandiser should be offered in the Diser picker for this
+ *  route plan's date. Stationary merchandisers (no fixed weekday pattern)
+ *  and rows with no recorded schedule_days are always shown, since there's
+ *  no known pattern to check them against -- only a merchandiser with an
+ *  actual recorded weekday pattern that excludes this date gets hidden. */
+function isScheduledForDate(m: MerchandiserSchedule, routeDate: string): boolean {
+  if (m.is_stationary) return true;
+  if (!m.schedule_days || m.schedule_days.length === 0) return true;
+  if (!routeDate) return true;
+  const day = WEEKDAY_CODES[new Date(`${routeDate}T00:00:00`).getDay()];
+  return m.schedule_days.includes(day);
+}
+
 /** Slices an ISO timestamp down to the yyyy-mm-dd a <input type="date"> expects. */
 function toDateInputValue(iso: string | null): string {
   if (!iso) return "";
@@ -1568,8 +1581,21 @@ export default function TruckCard({
                           : undefined;
                         const storeName =
                           firstRow.invoice?.company_name_raw ?? firstRow.delivery_address ?? "";
+                        // Only offer merchandisers whose recorded weekday pattern
+                        // covers this route plan's date -- someone not on duty
+                        // that day shouldn't show up in the search at all. The
+                        // one already assigned to this drop stays searchable even
+                        // if off-pattern, so an existing (possibly one-off)
+                        // assignment doesn't silently break when re-blurred.
+                        const scheduledOptions = merchandiserOptions.filter((m) =>
+                          isScheduledForDate(m, routeDate)
+                        );
+                        const searchableOptions =
+                          currentMatch && !isScheduledForDate(currentMatch, routeDate)
+                            ? [...scheduledOptions, currentMatch]
+                            : scheduledOptions;
                         const suggested = !currentMerchandiserId
-                          ? suggestMerchandiser(storeName, merchandiserOptions)
+                          ? suggestMerchandiser(storeName, scheduledOptions)
                           : undefined;
                         const mismatch = scheduleMismatch(currentMatch, routeDate);
                         const datalistId = `diser-options-${truck.id}-${groupKey}`;
@@ -1598,7 +1624,7 @@ export default function TruckCard({
                                       }
                                       return;
                                     }
-                                    const match = merchandiserOptions.find(
+                                    const match = searchableOptions.find(
                                       (m) => diserOptionLabel(m) === value
                                     );
                                     handleDiserSelect(group, match ?? null, match ? undefined : value);
@@ -1611,7 +1637,7 @@ export default function TruckCard({
                                   }}
                                 />
                                 <datalist id={datalistId}>
-                                  {merchandiserOptions.map((m) => (
+                                  {searchableOptions.map((m) => (
                                     <option key={m.id} value={diserOptionLabel(m)} />
                                   ))}
                                 </datalist>
