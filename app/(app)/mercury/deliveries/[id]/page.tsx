@@ -97,8 +97,13 @@ export default function DeliveryDetailPage() {
   const [newLineUnitPrice, setNewLineUnitPrice] = useState<number>(0);
   const [newLineExpirationDate, setNewLineExpirationDate] = useState("");
 
-  async function load() {
-    setLoading(true);
+  // silent=true skips the full-page "Loading…" state — used when refreshing
+  // after a line edit/add/remove, where content is already on screen and
+  // blanking it out on every autosave (e.g. every Qty Delivered keystroke's
+  // debounced save) just reads as a distracting flash. Only the very first
+  // load (and header Save, which the user explicitly triggers) shows it.
+  async function load(silent = false) {
+    if (!silent) setLoading(true);
     setError(null);
     const supabase = createClient();
 
@@ -339,7 +344,7 @@ export default function DeliveryDetailPage() {
     });
     setSavedLineId(lineId);
     setTimeout(() => setSavedLineId((cur) => (cur === lineId ? null : cur)), 1500);
-    load();
+    load(true);
   }
 
   async function handleAddItemLine() {
@@ -364,7 +369,7 @@ export default function DeliveryDetailPage() {
       }
       setNewItemId("");
       setNewItemQty(1);
-      await load();
+      await load(true);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Something went wrong while adding the item.");
     } finally {
@@ -383,7 +388,7 @@ export default function DeliveryDetailPage() {
       setError(error.message);
       return;
     }
-    load();
+    load(true);
   }
 
   // Add a normal billable line item to a Delivery invoice that was created
@@ -418,7 +423,7 @@ export default function DeliveryDetailPage() {
       setNewLineQty(1);
       setNewLineUnitPrice(0);
       setNewLineExpirationDate("");
-      await load();
+      await load(true);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Something went wrong while adding the item.");
     } finally {
