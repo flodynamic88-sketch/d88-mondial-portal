@@ -365,6 +365,12 @@ export interface VBilling {
   zone: ZoneType;
   is_dc: boolean;
   amount: number;
+  /** Set once this invoice has been rolled into a generated Mondial Billing
+   *  SOA -- see migration 0070. Null means still pending / eligible for the
+   *  next Generate. Once set it is never re-set, so a late invoice whose
+   *  delivered_at falls inside an already-billed period is simply picked up
+   *  by the next Generate run instead of retroactively joining the old SOA. */
+  billing_statement_id: string | null;
   company_name: string | null;
   branch_address: string | null;
   plan_date: string | null;
@@ -394,6 +400,33 @@ export interface VBilling {
 export interface VFinalBilling extends VBilling {
   confirmed: boolean;
   confirmed_at: string | null;
+}
+
+// See migration 0070 -- one row per Final Billing "Generate" click, grouping
+// every matched invoice into a single Mondial SOA for that period.
+export interface MondialBillingStatement {
+  id: string;
+  series_seq: number;
+  series_no: string;
+  period_start: string;
+  period_end: string;
+  generated_by: string | null;
+  generated_at: string;
+  created_at: string | null;
+  updated_at: string | null;
+}
+
+export interface VMondialBillingStatement {
+  id: string;
+  series_no: string;
+  period_start: string;
+  period_end: string;
+  generated_by: string | null;
+  generated_by_name: string | null;
+  generated_at: string;
+  line_count: number;
+  total_amount: number;
+  total_fee: number;
 }
 
 export interface VDeliveryVarianceLog {
@@ -717,6 +750,12 @@ export interface Database {
         Update: Partial<TruckingBillingConvoyWaybill>;
         Relationships: [];
       };
+      mondial_billing_statements: {
+        Row: MondialBillingStatement;
+        Insert: Partial<MondialBillingStatement> & { period_start: string; period_end: string };
+        Update: Partial<MondialBillingStatement>;
+        Relationships: [];
+      };
     };
     Views: {
       v_fulfillment_summary: { Row: VFulfillmentSummary; Relationships: [] };
@@ -733,7 +772,13 @@ export interface Database {
       v_trucking_billing_candidates: { Row: VTruckingBillingCandidate; Relationships: [] };
       v_trucking_rates: { Row: TruckingRate; Relationships: [] };
       v_invoices_with_assignment: { Row: Invoice & { is_assigned: boolean }; Relationships: [] };
+      v_mondial_billing_statements: { Row: VMondialBillingStatement; Relationships: [] };
     };
-    Functions: Record<string, never>;
+    Functions: {
+      generate_mondial_billing_statement: {
+        Args: { p_period_start: string; p_period_end: string };
+        Returns: string;
+      };
+    };
   };
 }
