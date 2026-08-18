@@ -153,6 +153,11 @@ export default function PrintTruckItineraryPage() {
       <style>{`
         @media print {
           @page { size: portrait; margin: 6mm; }
+          * {
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
+            color-adjust: exact !important;
+          }
         }
       `}</style>
 
@@ -247,13 +252,13 @@ export default function PrintTruckItineraryPage() {
                             <th className="px-2 py-2 text-left font-semibold uppercase tracking-wide">
                               Merchandiser
                             </th>
-                            <th className="w-16 px-2 py-2 text-center font-semibold uppercase tracking-wide">
-                              # of Boxes
+                            <th className="w-20 whitespace-nowrap px-2 py-2 text-center font-semibold uppercase tracking-wide">
+                              Planned Boxes
                             </th>
-                            <th className="w-16 px-2 py-2 text-center font-semibold uppercase tracking-wide">
+                            <th className="w-20 whitespace-nowrap px-2 py-2 text-center font-semibold uppercase tracking-wide">
                               Actual Boxes
                             </th>
-                            <th className="w-14 px-2 py-2 text-center font-semibold uppercase tracking-wide">
+                            <th className="w-16 whitespace-nowrap px-2 py-2 text-center font-semibold uppercase tracking-wide">
                               Cut-Off
                             </th>
                           </tr>
@@ -278,10 +283,12 @@ export default function PrintTruckItineraryPage() {
                             return (
                               <tr
                                 key={group.key}
-                                className={idx % 2 === 1 ? "bg-gray-50" : "bg-white"}
+                                className={idx % 2 === 1 ? "bg-brand-50/60" : "bg-white"}
                               >
-                                <td className="border-t border-gray-200 px-2 py-1.5 text-gray-500">
-                                  {idx + 1}
+                                <td className="border-t border-gray-200 px-2 py-1.5">
+                                  <span className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-brand-700 text-[10px] font-bold text-white">
+                                    {idx + 1}
+                                  </span>
                                 </td>
                                 <td className="border-t border-gray-200 px-2 py-1.5 font-semibold text-gray-900">
                                   {storeName}
@@ -292,7 +299,7 @@ export default function PrintTruckItineraryPage() {
                                 <td className="border-t border-gray-200 px-2 py-1.5 text-gray-500">
                                   {merchandiser}
                                 </td>
-                                <td className="border-t border-gray-200 px-2 py-1.5 text-center font-bold text-gray-900">
+                                <td className="border-t border-gray-200 px-2 py-1.5 text-center font-bold text-brand-700">
                                   {plannedBoxes}
                                 </td>
                                 <td className="border-t border-gray-200 px-2 py-1.5 text-center text-gray-300">
@@ -306,19 +313,19 @@ export default function PrintTruckItineraryPage() {
                           })}
                         </tbody>
                         <tfoot>
-                          <tr className="bg-gray-100 font-bold text-gray-900">
+                          <tr className="bg-brand-700 font-bold text-white">
                             <td
                               colSpan={4}
-                              className="border-t-2 border-gray-300 px-2 py-2 text-right text-[10px] uppercase tracking-wide"
+                              className="border-t-2 border-brand-900 px-2 py-2 text-right text-[10px] uppercase tracking-wide"
                             >
                               Total
                             </td>
-                            <td className="border-t-2 border-gray-300 px-2 py-2 text-center">
+                            <td className="border-t-2 border-brand-900 px-2 py-2 text-center">
                               {totalPlannedBoxes}
                             </td>
                             <td
                               colSpan={2}
-                              className="border-t-2 border-gray-300 px-2 py-2 text-center text-[10px] font-normal text-gray-500"
+                              className="border-t-2 border-brand-900 px-2 py-2 text-center text-[10px] font-normal text-brand-100"
                             >
                               {rows.length} invoice{rows.length === 1 ? "" : "s"}
                             </td>
@@ -334,10 +341,10 @@ export default function PrintTruckItineraryPage() {
             {rows.length > 0 && (
               <tr>
                 <td className="p-0">
-                  <div className="bg-gray-50 px-8 pt-4 print:px-4 print:pt-3">
-                    <p className="text-xs font-bold uppercase tracking-wide text-gray-700">
+                  <div className="bg-gray-50 px-8 pt-5 print:px-4 print:pt-3">
+                    <span className="inline-block rounded-full bg-brand-700 px-3 py-1 text-[10px] font-bold uppercase tracking-wide text-white">
                       Consolidated Itemized Invoice Breakdown
-                    </p>
+                    </span>
                   </div>
                 </td>
               </tr>
@@ -351,16 +358,18 @@ export default function PrintTruckItineraryPage() {
                 <tr key={group.key} className="print:break-inside-avoid">
                   <td className="p-0">
                     <div className="bg-gray-50 px-8 pt-3 print:px-4 print:pt-1.5">
-                      <div className="rounded-lg border border-gray-200 bg-white p-3 text-xs shadow-card">
-                        <div className="mb-2 flex items-start justify-between gap-3">
-                          <div>
+                      <div className="overflow-hidden rounded-lg border border-gray-200 bg-white text-xs shadow-card">
+                        <div className="flex items-start justify-between gap-3 border-l-4 border-brand-600 bg-brand-50/50 p-3">
+                          <div className="flex items-start gap-2">
                             {group.dropNo !== null && (
-                              <p className="text-[10px] font-semibold uppercase tracking-wide text-brand-600">
-                                Drop {group.dropNo}
-                              </p>
+                              <span className="mt-0.5 inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-brand-700 text-[11px] font-bold text-white">
+                                {group.dropNo}
+                              </span>
                             )}
-                            <p className="text-sm font-bold text-gray-900">{storeName}</p>
-                            <p className="text-[11px] text-gray-500">{address}</p>
+                            <div>
+                              <p className="text-sm font-bold text-gray-900">{storeName}</p>
+                              <p className="text-[11px] text-gray-500">{address}</p>
+                            </div>
                           </div>
                           <div className="shrink-0 whitespace-nowrap text-right">
                             <p className="text-[10px] text-gray-400">
@@ -375,7 +384,7 @@ export default function PrintTruckItineraryPage() {
                             </p>
                           </div>
                         </div>
-                        <div className="flex flex-wrap gap-2">
+                        <div className="flex flex-wrap gap-2 p-3">
                           {group.rows.map((row) => (
                             <div
                               key={row.id}
@@ -419,8 +428,13 @@ export default function PrintTruckItineraryPage() {
               <tr className="print:break-inside-avoid">
                 <td className="p-0">
                   <div className="bg-gray-50 px-8 pb-6 pt-3 print:px-4 print:pb-3 print:pt-1.5">
-                    <div className="flex items-center justify-end gap-6 border-t-2 border-gray-300 pt-3 text-sm font-semibold text-gray-800">
-                      <span>{formatMoney(totalAmount)}</span>
+                    <div className="flex items-center justify-end gap-3 border-t-2 border-brand-700 pt-3">
+                      <span className="text-xs font-semibold uppercase tracking-wide text-gray-500">
+                        Total Invoice Amount
+                      </span>
+                      <span className="text-base font-bold text-brand-700">
+                        {formatMoney(totalAmount)}
+                      </span>
                     </div>
                   </div>
                 </td>
