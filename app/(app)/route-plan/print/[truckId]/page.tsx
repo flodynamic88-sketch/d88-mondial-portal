@@ -96,6 +96,14 @@ export default function PrintTruckItineraryPage() {
     () => rows.reduce((sum, r) => sum + (r.invoice?.amount ?? 0), 0),
     [rows]
   );
+  // Planned box count per the route plan (qty_box entered when building the
+  // plan) -- shown as a reference figure in the summary table. The "Actual
+  // Boxes" column stays blank on print; that's filled in by hand once the
+  // truck is actually loaded.
+  const totalPlannedBoxes = useMemo(
+    () => rows.reduce((sum, r) => sum + (r.qty_box ?? 0), 0),
+    [rows]
+  );
   // Group rows by drop_no so every invoice sharing a drop (e.g. 4 receipts
   // under Drop #1) prints together, store name and address shown once per
   // group, mirroring the Drop-card grouping already shown on-screen in Route
@@ -187,27 +195,153 @@ export default function PrintTruckItineraryPage() {
             <tr className="print:break-inside-avoid">
               <td className="p-0">
                 <div className="bg-gray-50 px-8 pt-6 print:px-4 print:pt-3">
-                  <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+                  <div className="grid grid-cols-2 gap-3 sm:grid-cols-5">
                     <div className="rounded-lg border border-gray-200 bg-white p-3">
-                      <p className="text-xs uppercase tracking-wide text-gray-500">Carrier</p>
-                      <p className="mt-1 font-semibold">{truck.carrier ?? "—"}</p>
+                      <p className="text-[10px] uppercase tracking-wide text-gray-500">Carrier</p>
+                      <p className="mt-1 text-sm font-semibold">{truck.carrier ?? "—"}</p>
                     </div>
                     <div className="rounded-lg border border-gray-200 bg-white p-3">
-                      <p className="text-xs uppercase tracking-wide text-gray-500">Plate Number</p>
-                      <p className="mt-1 font-semibold">{truck.plate_number ?? "—"}</p>
+                      <p className="text-[10px] uppercase tracking-wide text-gray-500">Plate Number</p>
+                      <p className="mt-1 text-sm font-semibold">{truck.plate_number ?? "—"}</p>
                     </div>
                     <div className="rounded-lg border border-gray-200 bg-white p-3">
-                      <p className="text-xs uppercase tracking-wide text-gray-500">Driver</p>
-                      <p className="mt-1 font-semibold">{truck.driver_name ?? "—"}</p>
+                      <p className="text-[10px] uppercase tracking-wide text-gray-500">Driver</p>
+                      <p className="mt-1 text-sm font-semibold">{truck.driver_name ?? "—"}</p>
                     </div>
                     <div className="rounded-lg border border-gray-200 bg-white p-3">
-                      <p className="text-xs uppercase tracking-wide text-gray-500">Helpers</p>
-                      <p className="mt-1 font-semibold">{helpers || "—"}</p>
+                      <p className="text-[10px] uppercase tracking-wide text-gray-500">Helpers</p>
+                      <p className="mt-1 text-sm font-semibold">{helpers || "—"}</p>
+                    </div>
+                    <div className="rounded-lg border border-gray-200 bg-white p-3">
+                      <p className="text-[10px] uppercase tracking-wide text-gray-500">Total Invoices</p>
+                      <p className="mt-1 text-sm font-semibold">{rows.length}</p>
                     </div>
                   </div>
                 </div>
               </td>
             </tr>
+
+            {/* Summary table -- one row per drop/store, mirroring the
+                carrier's own itinerary sheet: Store, Address and Merchandiser
+                read straight off the route plan, Planned Boxes is the
+                qty_box already entered when the plan was built, and Actual
+                Boxes / Cut-Off are left blank for the warehouse crew to fill
+                in by hand once the truck is actually loaded. */}
+            {rows.length > 0 && (
+              <tr className="print:break-inside-avoid">
+                <td className="p-0">
+                  <div className="bg-gray-50 px-8 pt-4 print:px-4 print:pt-2">
+                    <div className="overflow-hidden rounded-xl border border-gray-200 shadow-card">
+                      <table className="w-full border-collapse text-[11px]">
+                        <thead>
+                          <tr className="bg-brand-700 text-white">
+                            <th className="w-7 px-2 py-2 text-left font-semibold uppercase tracking-wide">
+                              #
+                            </th>
+                            <th className="px-2 py-2 text-left font-semibold uppercase tracking-wide">
+                              Store
+                            </th>
+                            <th className="px-2 py-2 text-left font-semibold uppercase tracking-wide">
+                              Address
+                            </th>
+                            <th className="px-2 py-2 text-left font-semibold uppercase tracking-wide">
+                              Merchandiser
+                            </th>
+                            <th className="w-16 px-2 py-2 text-center font-semibold uppercase tracking-wide">
+                              # of Boxes
+                            </th>
+                            <th className="w-16 px-2 py-2 text-center font-semibold uppercase tracking-wide">
+                              Actual Boxes
+                            </th>
+                            <th className="w-14 px-2 py-2 text-center font-semibold uppercase tracking-wide">
+                              Cut-Off
+                            </th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {dropGroups.map((group, idx) => {
+                            const firstRow = group.rows[0];
+                            const storeName = firstRow?.invoice?.company_name_raw ?? "—";
+                            const address =
+                              firstRow?.delivery_address || firstRow?.invoice?.branch_address || "—";
+                            const merchandiser = firstRow?.merchandiser_name_snapshot
+                              ? `${firstRow.merchandiser_name_snapshot}${
+                                  firstRow.merchandiser_contact_snapshot
+                                    ? ` · ${firstRow.merchandiser_contact_snapshot}`
+                                    : ""
+                                }`
+                              : "—";
+                            const plannedBoxes = group.rows.reduce(
+                              (sum, r) => sum + (r.qty_box ?? 0),
+                              0
+                            );
+                            return (
+                              <tr
+                                key={group.key}
+                                className={idx % 2 === 1 ? "bg-gray-50" : "bg-white"}
+                              >
+                                <td className="border-t border-gray-200 px-2 py-1.5 text-gray-500">
+                                  {idx + 1}
+                                </td>
+                                <td className="border-t border-gray-200 px-2 py-1.5 font-semibold text-gray-900">
+                                  {storeName}
+                                </td>
+                                <td className="border-t border-gray-200 px-2 py-1.5 text-gray-500">
+                                  {address}
+                                </td>
+                                <td className="border-t border-gray-200 px-2 py-1.5 text-gray-500">
+                                  {merchandiser}
+                                </td>
+                                <td className="border-t border-gray-200 px-2 py-1.5 text-center font-bold text-gray-900">
+                                  {plannedBoxes}
+                                </td>
+                                <td className="border-t border-gray-200 px-2 py-1.5 text-center text-gray-300">
+                                  &nbsp;
+                                </td>
+                                <td className="border-t border-gray-200 px-2 py-1.5 text-center text-gray-300">
+                                  &nbsp;
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                        <tfoot>
+                          <tr className="bg-gray-100 font-bold text-gray-900">
+                            <td
+                              colSpan={4}
+                              className="border-t-2 border-gray-300 px-2 py-2 text-right text-[10px] uppercase tracking-wide"
+                            >
+                              Total
+                            </td>
+                            <td className="border-t-2 border-gray-300 px-2 py-2 text-center">
+                              {totalPlannedBoxes}
+                            </td>
+                            <td
+                              colSpan={2}
+                              className="border-t-2 border-gray-300 px-2 py-2 text-center text-[10px] font-normal text-gray-500"
+                            >
+                              {rows.length} invoice{rows.length === 1 ? "" : "s"}
+                            </td>
+                          </tr>
+                        </tfoot>
+                      </table>
+                    </div>
+                  </div>
+                </td>
+              </tr>
+            )}
+
+            {rows.length > 0 && (
+              <tr>
+                <td className="p-0">
+                  <div className="bg-gray-50 px-8 pt-4 print:px-4 print:pt-3">
+                    <p className="text-xs font-bold uppercase tracking-wide text-gray-700">
+                      Consolidated Itemized Invoice Breakdown
+                    </p>
+                  </div>
+                </td>
+              </tr>
+            )}
 
             {dropGroups.map((group) => {
               const firstRow = group.rows[0];
@@ -227,18 +361,17 @@ export default function PrintTruckItineraryPage() {
                             )}
                             <p className="text-sm font-bold text-gray-900">{storeName}</p>
                             <p className="text-[11px] text-gray-500">{address}</p>
-                            {firstRow?.merchandiser_name_snapshot && (
-                              <p className="text-[11px] font-medium text-brand-600">
-                                Merchandiser: {firstRow.merchandiser_name_snapshot}
-                                {firstRow.merchandiser_contact_snapshot
-                                  ? ` · ${firstRow.merchandiser_contact_snapshot}`
-                                  : ""}
-                              </p>
-                            )}
                           </div>
                           <div className="shrink-0 whitespace-nowrap text-right">
                             <p className="text-[10px] text-gray-400">
                               {group.rows.length} invoice{group.rows.length === 1 ? "" : "s"}
+                            </p>
+                            {/* Blank on purpose -- filled in by hand once the
+                                boxes for this whole drop are counted on the
+                                truck, not computed from the planned qty_box. */}
+                            <p className="whitespace-nowrap text-[10px] font-bold text-gray-800">
+                              Total Box Qty:{" "}
+                              <span className="inline-block w-8 border-b border-gray-400">&nbsp;</span>
                             </p>
                           </div>
                         </div>
