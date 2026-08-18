@@ -77,7 +77,7 @@ export default function DeliveriesPage() {
         const { data, error } = await supabase
           .from("route_plan_invoices")
           .select(
-            "*, invoice:invoices(*), reason:delivery_reasons(*), truck:route_plan_trucks(*, route_plan:route_plans(*))"
+            "*, invoice:invoices(*), reason:delivery_reasons(*), truck:route_plan_trucks(id, route_plan_id, plate_number, carrier, is_convoy, main_truck_id, dispatched_at, created_at, driver_name, helper1_name, helper2_name, destination, contact_number, is_negotiated_rate, route_plan:route_plans(*))"
           )
           .not("reason_id", "is", null)
           .order("created_at", { ascending: false });
