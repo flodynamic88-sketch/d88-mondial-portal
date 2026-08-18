@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { createClient } from "@/lib/mercury/supabase/client";
-import type { DeliveryHeaderFull, PoLine, PurchaseOrder } from "@/lib/mercury/types";
+import type { DeliveryHeaderFull, Item, PoLine, PurchaseOrder } from "@/lib/mercury/types";
 import { useRole } from "@/lib/mercury/RoleContext";
 
 function peso(n: number | null | undefined) {
@@ -43,16 +43,23 @@ export default function PurchaseOrderDetailPage() {
   const [header, setHeader] = useState<PoHeaderJoined | null>(null);
   const [lines, setLines] = useState<PoLine[]>([]);
   const [linkedDelivery, setLinkedDelivery] = useState<DeliveryHeaderFull | null>(null);
+  const [items, setItems] = useState<Item[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
-  async function load() {
-    setLoading(true);
+  const [newLineItemId, setNewLineItemId] = useState("");
+  const [newLineQty, setNewLineQty] = useState<number>(1);
+  const [newLineUnitPrice, setNewLineUnitPrice] = useState<number>(0);
+
+  // silent=true skips the full-page "Loading…" state — used after adding/
+  // removing a line item, where the header/table are already on screen.
+  async function load(silent = false) {
+    if (!silent) setLoading(true);
     setError(null);
     const supabase = createClient();
 
-    const [headerRes, linesRes] = await Promise.all([
+    const [headerRes, linesRes, itemsRes] = await Promise.all([
       supabase
         .schema("flo").from("purchase_orders")
         .select("*, clients(id, client_code, client_name), branches(id, branch_code, branch_name)")
@@ -63,12 +70,14 @@ export default function PurchaseOrderDetailPage() {
         .select("*, items(id, item_code, item_description, unit_price)")
         .eq("po_id", id)
         .order("created_at"),
+      supabase.schema("flo").from("items").select("*").eq("status", "Active").order("item_code").range(0, 9999),
     ]);
 
     if (headerRes.error) setError(headerRes.error.message);
     const headerData = (headerRes.data as unknown as PoHeaderJoined) || null;
     setHeader(headerData);
     setLines((linesRes.data as unknown as PoLine[]) || []);
+    setItems((itemsRes.data as Item[]) || []);
 
     if (headerData?.status === "Used") {
       const { data: delivery } = await supabase
@@ -90,6 +99,50 @@ export default function PurchaseOrderDetailPage() {
   }, [id]);
 
   const totalAmount = useMemo(() => lines.reduce((s, l) => s + (l.amount || 0), 0), [lines]);
+
+  const availableItems = useMemo(() => {
+    if (!header?.client_id) return items;
+    return items.filter((i) => i.client_id === header.client_id || !i.client_id);
+  }, [header, items]);
+
+  async function handleAddLine() {
+    if (readOnly || !header || header.status !== "Open" || !newLineItemId || newLineQty <= 0) return;
+    setSaving(true);
+    setError(null);
+    const supabase = createClient();
+    const item = availableItems.find((i) => i.id === newLineItemId);
+    const { error } = await supabase.schema("flo").from("po_lines").insert({
+      po_id: id,
+      item_id: newLineItemId,
+      item_description: item?.item_description || "",
+      qty: newLineQty,
+      unit_price: newLineUnitPrice,
+    });
+    setSaving(false);
+    if (error) {
+      setError(error.message);
+      return;
+    }
+    setNewLineItemId("");
+    setNewLineQty(1);
+    setNewLineUnitPrice(0);
+    await load(true);
+  }
+
+  async function handleRemoveLine(lineId: string) {
+    if (readOnly || !header || header.status !== "Open") return;
+    if (!confirm("Remove this line item from the P.O.?")) return;
+    setSaving(true);
+    setError(null);
+    const supabase = createClient();
+    const { error } = await supabase.schema("flo").from("po_lines").delete().eq("id", lineId);
+    setSaving(false);
+    if (error) {
+      setError(error.message);
+      return;
+    }
+    await load(true);
+  }
 
   async function handleCancel() {
     if (readOnly || !header) return;
@@ -225,6 +278,7 @@ export default function PurchaseOrderDetailPage() {
                 <th>Qty</th>
                 <th>Unit Price (VAT-incl.)</th>
                 <th>Amount</th>
+                {!readOnly && header.status === "Open" && <th className="w-16"></th>}
               </tr>
             </thead>
             <tbody>
@@ -236,6 +290,18 @@ export default function PurchaseOrderDetailPage() {
                   <td>{l.qty}</td>
                   <td>{peso(l.unit_price)}</td>
                   <td>{peso(l.amount)}</td>
+                  {!readOnly && header.status === "Open" && (
+                    <td>
+                      <button
+                        type="button"
+                        className="text-red-600 hover:underline text-xs font-medium"
+                        onClick={() => handleRemoveLine(l.id)}
+                        disabled={saving}
+                      >
+                        Remove
+                      </button>
+                    </td>
+                  )}
                 </tr>
               ))}
             </tbody>
@@ -245,6 +311,70 @@ export default function PurchaseOrderDetailPage() {
           Total Amount: {peso(totalAmount)}
         </div>
       </div>
+
+      {!readOnly && header.status === "Open" && (
+        <div className="card p-5 space-y-4">
+          <div>
+            <h2 className="text-sm font-semibold text-gray-700">Add Line Item</h2>
+            <p className="text-xs text-gray-500">
+              Add more items to this P.O. while it&apos;s still Open (not yet loaded into a
+              Delivery).
+            </p>
+          </div>
+          <div className="flex flex-wrap items-end gap-3">
+            <div className="w-56">
+              <label className="label">Item</label>
+              <select
+                className="input"
+                value={newLineItemId}
+                onChange={(e) => {
+                  const itemId = e.target.value;
+                  setNewLineItemId(itemId);
+                  const item = availableItems.find((i) => i.id === itemId);
+                  setNewLineUnitPrice(item?.unit_price || 0);
+                }}
+              >
+                <option value="">— Select Item —</option>
+                {availableItems.map((i) => (
+                  <option key={i.id} value={i.id}>
+                    {i.item_code} — {i.item_description}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="w-24">
+              <label className="label">Qty</label>
+              <input
+                type="number"
+                step="0.01"
+                min="0"
+                className="input"
+                value={newLineQty}
+                onChange={(e) => setNewLineQty(Number(e.target.value))}
+              />
+            </div>
+            <div className="w-32">
+              <label className="label">Unit Price</label>
+              <input
+                type="number"
+                step="0.01"
+                min="0"
+                className="input"
+                value={newLineUnitPrice}
+                onChange={(e) => setNewLineUnitPrice(Number(e.target.value))}
+              />
+            </div>
+            <button
+              type="button"
+              className="btn-primary"
+              onClick={handleAddLine}
+              disabled={saving || !newLineItemId || newLineQty <= 0}
+            >
+              Add Item
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
