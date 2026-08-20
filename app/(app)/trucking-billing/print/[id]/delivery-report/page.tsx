@@ -146,17 +146,31 @@ export default function PrintDeliveryReportPage() {
                 </tr>
               )}
             </tbody>
-            <tfoot>
+          </table>
+          {/* Deliberately outside the <table> above, not a <tfoot> -- a
+             tfoot's default `table-footer-group` display role makes
+             browsers reprint it at the bottom of every paginated page, so
+             the Total would repeat on page 1, 2, 3... instead of showing
+             once at the very end of the report as requested. This plain
+             row sits after the table and simply flows onto the last page
+             wherever the item rows end. */}
+          <table className="w-full border-collapse text-xs">
+            <tbody>
               <tr className="border-t-2 border-gray-400 text-center font-bold">
-                <td className="border border-gray-300 px-1.5 py-1.5" colSpan={4}>
+                <td className="border border-gray-300 px-1.5 py-1.5" style={{ width: "68.4%" }}>
                   Total
                 </td>
-                <td className="border border-gray-300 px-1.5 py-1.5">{totalBoxes || "—"}</td>
-                <td className="border border-gray-300 px-1.5 py-1.5 text-right">
+                <td className="border border-gray-300 px-1.5 py-1.5" style={{ width: "12.7%" }}>
+                  {totalBoxes || "—"}
+                </td>
+                <td
+                  className="border border-gray-300 px-1.5 py-1.5 text-right"
+                  style={{ width: "18.9%" }}
+                >
                   {formatMoney(totalDeclaredValue)}
                 </td>
               </tr>
-            </tfoot>
+            </tbody>
           </table>
         </div>
 
