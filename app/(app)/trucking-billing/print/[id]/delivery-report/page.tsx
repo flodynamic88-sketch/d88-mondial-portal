@@ -98,7 +98,21 @@ export default function PrintDeliveryReportPage() {
              across as many pages as it needs (thead repeats via the shared
              print CSS's `display: table-header-group`), and the true totals
              still show once, clearly, in the footer row below. */}
-          <table className="w-full border-collapse text-xs">
+          <table className="w-full table-fixed border-collapse text-xs">
+            {/* Shared colgroup (identical widths + column count repeated on
+               the standalone Total table below) is what actually keeps the
+               two tables' cell boundaries lined up -- without it, each
+               table auto-sizes its own columns from its own content, so
+               the Total row's cells (short text) never land under the
+               items table's cells (long Account Name / Branch text). */}
+            <colgroup>
+              <col style={{ width: "10%" }} />
+              <col style={{ width: "11%" }} />
+              <col style={{ width: "20%" }} />
+              <col style={{ width: "31%" }} />
+              <col style={{ width: "10%" }} />
+              <col style={{ width: "18%" }} />
+            </colgroup>
             <thead>
               <tr className="border border-gray-400 bg-gray-100 text-center uppercase text-gray-600">
                 <th className="border border-gray-400 px-1.5 py-1.5">Sched / Area</th>
@@ -154,19 +168,22 @@ export default function PrintDeliveryReportPage() {
              once at the very end of the report as requested. This plain
              row sits after the table and simply flows onto the last page
              wherever the item rows end. */}
-          <table className="w-full border-collapse text-xs">
+          <table className="w-full table-fixed border-collapse text-xs">
+            <colgroup>
+              <col style={{ width: "10%" }} />
+              <col style={{ width: "11%" }} />
+              <col style={{ width: "20%" }} />
+              <col style={{ width: "31%" }} />
+              <col style={{ width: "10%" }} />
+              <col style={{ width: "18%" }} />
+            </colgroup>
             <tbody>
               <tr className="border-t-2 border-gray-400 text-center font-bold">
-                <td className="border border-gray-300 px-1.5 py-1.5" style={{ width: "68.4%" }}>
+                <td className="border border-gray-300 px-1.5 py-1.5" colSpan={4}>
                   Total
                 </td>
-                <td className="border border-gray-300 px-1.5 py-1.5" style={{ width: "12.7%" }}>
-                  {totalBoxes || "—"}
-                </td>
-                <td
-                  className="border border-gray-300 px-1.5 py-1.5 text-right"
-                  style={{ width: "18.9%" }}
-                >
+                <td className="border border-gray-300 px-1.5 py-1.5">{totalBoxes || "—"}</td>
+                <td className="border border-gray-300 px-1.5 py-1.5 text-right">
                   {formatMoney(totalDeclaredValue)}
                 </td>
               </tr>
