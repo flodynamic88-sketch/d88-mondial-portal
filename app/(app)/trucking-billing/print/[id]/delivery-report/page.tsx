@@ -88,29 +88,34 @@ export default function PrintDeliveryReportPage() {
         </p>
 
         <div className="mt-3">
-          <table className="w-full border-collapse text-[10px]">
+          {/* No rowSpan-merged cells here on purpose: a <td rowSpan> that
+             stretches across every item row can't be split by the browser's
+             print engine, so the whole table gets pinned to one page and
+             the print dialog's "shrink to fit" squeezes everything down to
+             fit, which is why long trucks used to come out unreadably tiny.
+             Repeating the Area value per row and showing each item's own
+             box count instead lets the table flow and page-break normally
+             across as many pages as it needs (thead repeats via the shared
+             print CSS's `display: table-header-group`), and the true totals
+             still show once, clearly, in the footer row below. */}
+          <table className="w-full border-collapse text-xs">
             <thead>
               <tr className="border border-gray-400 bg-gray-100 text-center uppercase text-gray-600">
-                <th className="border border-gray-400 px-1 py-1">Sched / Area</th>
-                <th className="border border-gray-400 px-1 py-1">Inv. / DR / CN</th>
-                <th className="border border-gray-400 px-1 py-1">Account Name</th>
-                <th className="border border-gray-400 px-1 py-1">Branch</th>
-                <th className="border border-gray-400 px-1 py-1">Boxes</th>
-                <th className="border border-gray-400 px-1 py-1">Price</th>
+                <th className="border border-gray-400 px-1.5 py-1.5">Sched / Area</th>
+                <th className="border border-gray-400 px-1.5 py-1.5">Inv. / DR / CN</th>
+                <th className="border border-gray-400 px-1.5 py-1.5">Account Name</th>
+                <th className="border border-gray-400 px-1.5 py-1.5">Branch</th>
+                <th className="border border-gray-400 px-1.5 py-1.5">Boxes</th>
+                <th className="border border-gray-400 px-1.5 py-1.5">Price</th>
               </tr>
             </thead>
             <tbody>
               {items.map((row, idx) => (
                 <tr key={row.route_plan_invoice_id ?? idx} className="text-center">
-                  {idx === 0 && (
-                    <td
-                      className="border border-gray-300 px-1 py-1 align-middle font-medium"
-                      rowSpan={items.length}
-                    >
-                      {statement.area ?? "—"}
-                    </td>
-                  )}
-                  <td className="border border-gray-300 px-1 py-1 font-medium">
+                  <td className="border border-gray-300 px-1.5 py-1.5 align-middle font-medium">
+                    {statement.area ?? "—"}
+                  </td>
+                  <td className="border border-gray-300 px-1.5 py-1.5 font-medium">
                     {row.document_no}
                     {row.is_backload && (
                       <span className="ml-1 font-bold text-red-600">(BACKLOAD)</span>
@@ -119,21 +124,16 @@ export default function PrintDeliveryReportPage() {
                       <span className="ml-1 font-bold text-blue-600">(REDELIVER)</span>
                     )}
                   </td>
-                  <td className="border border-gray-300 px-1 py-1 text-left">
+                  <td className="border border-gray-300 px-1.5 py-1.5 text-left">
                     {row.company_name_raw ?? "—"}
                   </td>
-                  <td className="border border-gray-300 px-1 py-1 text-left">
+                  <td className="border border-gray-300 px-1.5 py-1.5 text-left">
                     {row.branch_address ?? "—"}
                   </td>
-                  {idx === 0 && (
-                    <td
-                      className="border border-gray-300 px-1 py-1 align-middle font-bold"
-                      rowSpan={items.length}
-                    >
-                      {totalBoxes || "—"}
-                    </td>
-                  )}
-                  <td className="border border-gray-300 px-1 py-1 text-right">
+                  <td className="border border-gray-300 px-1.5 py-1.5 align-middle">
+                    {row.qty_box ?? "—"}
+                  </td>
+                  <td className="border border-gray-300 px-1.5 py-1.5 text-right">
                     {formatMoney(row.declared_value)}
                   </td>
                 </tr>
@@ -148,10 +148,11 @@ export default function PrintDeliveryReportPage() {
             </tbody>
             <tfoot>
               <tr className="border-t-2 border-gray-400 text-center font-bold">
-                <td className="border border-gray-300 px-1 py-1" colSpan={5}>
+                <td className="border border-gray-300 px-1.5 py-1.5" colSpan={4}>
                   Total
                 </td>
-                <td className="border border-gray-300 px-1 py-1 text-right">
+                <td className="border border-gray-300 px-1.5 py-1.5">{totalBoxes || "—"}</td>
+                <td className="border border-gray-300 px-1.5 py-1.5 text-right">
                   {formatMoney(totalDeclaredValue)}
                 </td>
               </tr>
