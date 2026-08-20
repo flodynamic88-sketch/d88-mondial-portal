@@ -126,8 +126,20 @@ export default function PrintDeliveryReportPage() {
             <tbody>
               {items.map((row, idx) => (
                 <tr key={row.route_plan_invoice_id ?? idx} className="text-center">
-                  <td className="border border-gray-300 px-1.5 py-1.5 align-middle break-words font-medium">
-                    {statement.area ?? "—"}
+                  {/* Same fake-merge as the Boxes column below -- one area
+                     applies to the whole truck, not per receipt, so this
+                     reads as a single continuous merged box (no real
+                     rowSpan, so pagination across pages still works). */}
+                  <td
+                    className={[
+                      "border-x border-gray-300 px-1.5 py-1.5 align-middle break-words font-medium",
+                      idx === 0 ? "border-t" : "",
+                      idx === items.length - 1 ? "border-b" : "",
+                    ]
+                      .filter(Boolean)
+                      .join(" ")}
+                  >
+                    {idx === Math.floor((items.length - 1) / 2) ? statement.area ?? "—" : ""}
                   </td>
                   {/* break-words + the BACKLOAD/REDELIVER tag on its own
                      block line -- with table-fixed's narrow, rigid columns
