@@ -108,10 +108,10 @@ export default function PrintDeliveryReportPage() {
             <colgroup>
               <col style={{ width: "10%" }} />
               <col style={{ width: "11%" }} />
-              <col style={{ width: "20%" }} />
-              <col style={{ width: "31%" }} />
-              <col style={{ width: "10%" }} />
-              <col style={{ width: "18%" }} />
+              <col style={{ width: "24%" }} />
+              <col style={{ width: "35%" }} />
+              <col style={{ width: "8%" }} />
+              <col style={{ width: "12%" }} />
             </colgroup>
             <thead>
               <tr className="border border-gray-400 bg-gray-100 text-center uppercase text-gray-600">
@@ -120,7 +120,7 @@ export default function PrintDeliveryReportPage() {
                 <th className="border border-gray-400 px-1.5 py-1.5">Account Name</th>
                 <th className="border border-gray-400 px-1.5 py-1.5">Branch</th>
                 <th className="border border-gray-400 px-1.5 py-1.5">Boxes</th>
-                <th className="border border-gray-400 px-1.5 py-1.5">Price</th>
+                <th className="border border-gray-400 px-1.5 py-1.5">Amount</th>
               </tr>
             </thead>
             <tbody>
@@ -144,8 +144,14 @@ export default function PrintDeliveryReportPage() {
                   <td className="border border-gray-300 px-1.5 py-1.5 text-left">
                     {row.branch_address ?? "—"}
                   </td>
+                  {/* Shows the truck's single compressed Boxes total on the
+                     first row only (blank on the rest) instead of a real
+                     rowSpan -- a rowSpan across every item row is exactly
+                     what used to pin the whole table to one page (see note
+                     above), so this fakes the old "merged" look without
+                     bringing that bug back. */}
                   <td className="border border-gray-300 px-1.5 py-1.5 align-middle">
-                    {row.qty_box ?? "—"}
+                    {idx === 0 ? totalBoxes || "—" : ""}
                   </td>
                   <td className="border border-gray-300 px-1.5 py-1.5 text-right">
                     {formatMoney(row.declared_value)}
@@ -172,10 +178,10 @@ export default function PrintDeliveryReportPage() {
             <colgroup>
               <col style={{ width: "10%" }} />
               <col style={{ width: "11%" }} />
-              <col style={{ width: "20%" }} />
-              <col style={{ width: "31%" }} />
-              <col style={{ width: "10%" }} />
-              <col style={{ width: "18%" }} />
+              <col style={{ width: "24%" }} />
+              <col style={{ width: "35%" }} />
+              <col style={{ width: "8%" }} />
+              <col style={{ width: "12%" }} />
             </colgroup>
             <tbody>
               <tr className="border-t-2 border-gray-400 text-center font-bold">
