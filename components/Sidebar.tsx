@@ -82,7 +82,7 @@ const NAV_ITEMS: NavItem[] = [
   {
     href: "/trucking-billing",
     label: "Trucking Billing",
-    roles: ["ADMIN", "LOGISTICS_OFFICER", "GENERAL_MANAGER"],
+    roles: ["ADMIN", "LOGISTICS_OFFICER", "LOGISTICS_ASSOCIATE", "GENERAL_MANAGER"],
   },
   {
     href: "/final-billing",
