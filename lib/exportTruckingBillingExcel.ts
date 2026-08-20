@@ -1,6 +1,7 @@
 import type ExcelJSType from "exceljs";
 import { createClient } from "@/lib/supabase/client";
 import type { VTruckingBillingStatement, VTruckingBillingStatementItem } from "@/types/database";
+import { normalizeAndJoinAccountNames } from "@/lib/truckingBillingPrint";
 
 function thinBorder(): Partial<ExcelJSType.Borders> {
   return {
@@ -277,9 +278,11 @@ export async function exportTruckingBillingExcel(statementIds: string[]) {
     // redeliver), matching the print pages' computedTotalBoxes.
     const totalBoxes =
       statement.total_boxes_override ?? items.reduce((sum, x) => sum + (x.qty_box ?? 0), 0);
-    const accountsLabel = Array.from(
-      new Set(items.map((x) => x.company_name_raw).filter(Boolean))
-    ).join(", ");
+    // Same normalized-key dedupe as the print page's accountsLabel -- an
+    // exact-match Set still let punctuation-only typo variants of the same
+    // store name ("ROBINSONS SUPERMARKET CORP." vs "...CORP,.") show up as
+    // separate entries in this comma-joined summary.
+    const accountsLabel = normalizeAndJoinAccountNames(items);
     // Raw fraction (not multiplied by 100) so the "0.00%" number format
     // renders it the same way JMD's own sheet does.
     const ctsFraction =

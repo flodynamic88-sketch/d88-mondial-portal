@@ -106,9 +106,9 @@ export default function PrintDeliveryReportPage() {
                the Total row's cells (short text) never land under the
                items table's cells (long Account Name / Branch text). */}
             <colgroup>
+              <col style={{ width: "12%" }} />
               <col style={{ width: "10%" }} />
-              <col style={{ width: "11%" }} />
-              <col style={{ width: "24%" }} />
+              <col style={{ width: "23%" }} />
               <col style={{ width: "35%" }} />
               <col style={{ width: "8%" }} />
               <col style={{ width: "12%" }} />
@@ -126,32 +126,53 @@ export default function PrintDeliveryReportPage() {
             <tbody>
               {items.map((row, idx) => (
                 <tr key={row.route_plan_invoice_id ?? idx} className="text-center">
-                  <td className="border border-gray-300 px-1.5 py-1.5 align-middle font-medium">
+                  <td className="border border-gray-300 px-1.5 py-1.5 align-middle break-words font-medium">
                     {statement.area ?? "—"}
                   </td>
-                  <td className="border border-gray-300 px-1.5 py-1.5 font-medium">
+                  {/* break-words + the BACKLOAD/REDELIVER tag on its own
+                     block line -- with table-fixed's narrow, rigid columns
+                     a long "document_no(BACKLOAD)" run with no space
+                     between the text node and the tag <span> has no wrap
+                     point, so it overflowed the cell and visually
+                     overlapped the Account Name column next to it. Forcing
+                     the tag onto its own line removes the need for a wrap
+                     point there at all. */}
+                  <td className="border border-gray-300 px-1.5 py-1.5 break-words font-medium">
                     {row.document_no}
                     {row.is_backload && (
-                      <span className="ml-1 font-bold text-red-600">(BACKLOAD)</span>
+                      <span className="mt-0.5 block font-bold text-red-600">(BACKLOAD)</span>
                     )}
                     {row.is_redeliver && (
-                      <span className="ml-1 font-bold text-blue-600">(REDELIVER)</span>
+                      <span className="mt-0.5 block font-bold text-blue-600">(REDELIVER)</span>
                     )}
                   </td>
-                  <td className="border border-gray-300 px-1.5 py-1.5 text-left">
+                  <td className="border border-gray-300 px-1.5 py-1.5 break-words text-left">
                     {row.company_name_raw ?? "—"}
                   </td>
-                  <td className="border border-gray-300 px-1.5 py-1.5 text-left">
+                  <td className="border border-gray-300 px-1.5 py-1.5 break-words text-left">
                     {row.branch_address ?? "—"}
                   </td>
-                  {/* Shows the truck's single compressed Boxes total on the
-                     first row only (blank on the rest) instead of a real
-                     rowSpan -- a rowSpan across every item row is exactly
-                     what used to pin the whole table to one page (see note
-                     above), so this fakes the old "merged" look without
-                     bringing that bug back. */}
-                  <td className="border border-gray-300 px-1.5 py-1.5 align-middle">
-                    {idx === 0 ? totalBoxes || "—" : ""}
+                  {/* Fakes a merged "Boxes" cell spanning every item row
+                     without an actual <td rowSpan> -- a real rowSpan across
+                     every row is exactly what used to pin the whole table
+                     to one page (see note above), since the print engine
+                     can't split a spanning cell across a page break. This
+                     keeps the vertical border between rows but drops the
+                     horizontal border between them (only the first row
+                     keeps its top edge, only the last keeps its bottom
+                     edge), so it reads as one continuous box, and the
+                     truck's total is placed once near the middle of that
+                     box instead of repeating per receipt. */}
+                  <td
+                    className={[
+                      "border-x border-gray-300 px-1.5 py-1.5 align-middle",
+                      idx === 0 ? "border-t" : "",
+                      idx === items.length - 1 ? "border-b" : "",
+                    ]
+                      .filter(Boolean)
+                      .join(" ")}
+                  >
+                    {idx === Math.floor((items.length - 1) / 2) ? totalBoxes || "—" : ""}
                   </td>
                   <td className="border border-gray-300 px-1.5 py-1.5 text-right">
                     {formatMoney(row.declared_value)}
@@ -176,9 +197,9 @@ export default function PrintDeliveryReportPage() {
              wherever the item rows end. */}
           <table className="w-full table-fixed border-collapse text-xs">
             <colgroup>
+              <col style={{ width: "12%" }} />
               <col style={{ width: "10%" }} />
-              <col style={{ width: "11%" }} />
-              <col style={{ width: "24%" }} />
+              <col style={{ width: "23%" }} />
               <col style={{ width: "35%" }} />
               <col style={{ width: "8%" }} />
               <col style={{ width: "12%" }} />

@@ -80,6 +80,30 @@ export function combinedDriverName(
   return [main, ...convoyDrivers].filter(Boolean).join(" / ");
 }
 
+// Dedupe company names on a normalized key (uppercased, trailing
+// ./, and extra whitespace stripped) so encoder-typo variants of the same
+// store ("ROBINSONS SUPERMARKET CORP." vs "ROBINSONS SUPERMARKET CORP,.")
+// collapse into one entry instead of listing the same store twice. The
+// first raw (original-case, trimmed) spelling seen for a given key is what
+// actually gets displayed.
+export function normalizeAndJoinAccountNames(
+  items: Pick<VTruckingBillingStatementItem, "company_name_raw">[]
+) {
+  const seen = new Map<string, string>();
+  for (const item of items) {
+    const raw = item.company_name_raw?.trim();
+    if (!raw) continue;
+    const key = raw
+      .toUpperCase()
+      .replace(/[.,]+$/g, "")
+      .replace(/\s+/g, " ")
+      .trim();
+    if (!seen.has(key)) seen.set(key, raw);
+  }
+  const names = Array.from(seen.values());
+  return names.length > 0 ? names.join(", ") : "—";
+}
+
 /** Shared data loader for both the Billing Statement and Delivery Report printable pages. */
 export function useTruckingBillingPrintData(id: string) {
   const [statement, setStatement] = useState<VTruckingBillingStatement | null>(null);
@@ -167,12 +191,14 @@ export function useTruckingBillingPrintData(id: string) {
   // across all receipts on this truck, combined into one line -- distinct
   // company names, comma-joined, matching how the sample sheet lists a
   // single combined "ACCOUNT" per truck-day.
-  const accountsLabel = useMemo(() => {
-    const names = Array.from(
-      new Set(items.map((r) => r.company_name_raw).filter(Boolean) as string[])
-    );
-    return names.length > 0 ? names.join(", ") : "—";
-  }, [items]);
+  //
+  // Encoders don't always type a store's name identically ("ROBINSONS
+  // SUPERMARKET CORP." vs "ROBINSONS SUPERMARKET CORP,." vs trailing/extra
+  // spaces), so a plain Set dedupe still let the same store show up twice
+  // in this line with only a punctuation difference. Dedupe on a
+  // normalized key (case-insensitive, trailing punctuation/space
+  // stripped) instead, while still displaying the first raw spelling seen.
+  const accountsLabel = useMemo(() => normalizeAndJoinAccountNames(items), [items]);
 
   // "DELIVERY DATE" on the billing summary row / the Delivery Report's own
   // "DATE:" field -- the actual route/delivery date, distinct from the
