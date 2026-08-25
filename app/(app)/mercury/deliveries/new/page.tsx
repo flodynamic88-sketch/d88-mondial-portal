@@ -304,6 +304,81 @@ export default function NewDeliveryPage() {
       }
     }
 
+    // Guard against re-invoicing items already fully accounted for under the
+    // same P.O. — e.g. staff typing a P.O. # by hand (once a P.O. is loaded
+    // once it's marked "Used" and disappears from the Load-from-PO dropdown,
+    // so a later invoice against the same P.O. is always typed manually) and
+    // adding a line straight from the printed P.O. paperwork instead of
+    // what's actually on *this* invoice. Confirmed root cause of the
+    // Healthwellness "Cleanse" stock variance — item kept getting re-added
+    // to a second invoice under the same P.O. even though it was already
+    // fully invoiced on an earlier one. This only warns (staff can still
+    // proceed) since a P.O. legitimately spanning more than its original
+    // qty does happen occasionally.
+    if (poNumber.trim()) {
+      const trimmedPo = poNumber.trim();
+      const { data: matchingPo } = await supabase
+        .schema("flo").from("purchase_orders")
+        .select("id")
+        .eq("po_number", trimmedPo)
+        .maybeSingle();
+
+      if (matchingPo) {
+        const { data: priorHeadersRaw } = await supabase
+          .schema("flo").from("delivery_headers")
+          .select("id, status")
+          .eq("po_number", trimmedPo);
+
+        const priorHeaderIds = (priorHeadersRaw || [])
+          .filter((h) => !["Cancelled", "Returned"].includes(h.status || ""))
+          .map((h) => h.id);
+
+        if (priorHeaderIds.length > 0) {
+          const [{ data: poLinesForCheck }, { data: priorLines }] = await Promise.all([
+            supabase.schema("flo").from("po_lines").select("item_id, qty").eq("po_id", matchingPo.id),
+            supabase
+              .schema("flo").from("delivery_lines")
+              .select("item_id, qty")
+              .in("delivery_header_id", priorHeaderIds),
+          ]);
+
+          const poQtyByItem = new Map<string, number>();
+          for (const l of poLinesForCheck || []) {
+            if (l.item_id) poQtyByItem.set(l.item_id, (poQtyByItem.get(l.item_id) || 0) + Number(l.qty));
+          }
+          const alreadyInvoiced = new Map<string, number>();
+          for (const l of priorLines || []) {
+            if (l.item_id) alreadyInvoiced.set(l.item_id, (alreadyInvoiced.get(l.item_id) || 0) + Number(l.qty));
+          }
+
+          const overages: string[] = [];
+          for (const l of lines) {
+            const poQty = poQtyByItem.get(l.item_id);
+            if (poQty === undefined) continue;
+            const before = alreadyInvoiced.get(l.item_id) || 0;
+            const after = before + Number(l.qty);
+            if (after > poQty) {
+              overages.push(
+                `${l.item_description}: P.O. qty ${poQty}, na-invoice na sa ibang delivery ${before}, plus itong invoice ${l.qty} = ${after} (lampas ng ${(after - poQty).toFixed(2)})`
+              );
+            }
+          }
+
+          if (overages.length > 0) {
+            const proceed = confirm(
+              `Babala: lampas na sa laman ng P.O. ${trimmedPo} ang mga sumusunod na item — baka kopya lang ito mula sa P.O. paperwork at hindi talaga laman ng invoice na ito:\n\n${overages.join(
+                "\n"
+              )}\n\nSigurado ka bang gusto mo pa ring i-save?`
+            );
+            if (!proceed) {
+              setSaving(false);
+              return;
+            }
+          }
+        }
+      }
+    }
+
     const { data: header, error: headerErr } = await supabase
       .schema("flo").from("delivery_headers")
       .insert({
