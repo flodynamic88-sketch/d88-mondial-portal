@@ -71,6 +71,11 @@ export default function StockMovementHistoryPage() {
   const [editDirection, setEditDirection] = useState<"IN" | "OUT">("IN");
   const [editAbsQty, setEditAbsQty] = useState("");
 
+  const [addingItemId, setAddingItemId] = useState<string | null>(null);
+  const [addDirection, setAddDirection] = useState<"IN" | "OUT">("IN");
+  const [addAbsQty, setAddAbsQty] = useState("");
+  const [addDate, setAddDate] = useState("");
+
   useEffect(() => {
     const supabase = createClient();
     supabase
@@ -189,6 +194,50 @@ export default function StockMovementHistoryPage() {
       setError(delErr.message);
       return;
     }
+    loadData();
+  }
+
+  function startAdd(itemId: string) {
+    setAddingItemId(itemId);
+    setAddDirection("IN");
+    setAddAbsQty("");
+    const today = new Date();
+    setAddDate(
+      `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-${String(
+        today.getDate()
+      ).padStart(2, "0")}`
+    );
+  }
+
+  function cancelAdd() {
+    setAddingItemId(null);
+    setAddAbsQty("");
+  }
+
+  async function saveAdd(itemId: string) {
+    const abs = Number(addAbsQty);
+    if (!Number.isFinite(abs) || abs <= 0) {
+      setError("Invalid na quantity.");
+      return;
+    }
+    if (!addDate) {
+      setError("Pumili ng petsa.");
+      return;
+    }
+    const newQty = addDirection === "IN" ? abs : -abs;
+    setSavingId(itemId);
+    const supabase = createClient();
+    const { error: addErr } = await supabase.schema("flo").rpc("add_manual_stock_movement", {
+      p_item_id: itemId,
+      p_qty: newQty,
+      p_movement_date: addDate,
+    });
+    setSavingId(null);
+    if (addErr) {
+      setError(addErr.message);
+      return;
+    }
+    setAddingItemId(null);
     loadData();
   }
 
@@ -432,6 +481,72 @@ export default function StockMovementHistoryPage() {
                             </tr>
                           );
                         })}
+                        {canManageMovements && (
+                          <tr className="hover:bg-gray-50">
+                            {addingItemId === item.item_id ? (
+                              <>
+                                <td>
+                                  <input
+                                    type="date"
+                                    className="input !py-1 !text-xs w-36"
+                                    value={addDate}
+                                    onChange={(e) => setAddDate(e.target.value)}
+                                  />
+                                </td>
+                                <td className="text-xs text-gray-400">Correction</td>
+                                <td colSpan={2} className="text-xs text-gray-400">
+                                  Manual entry
+                                </td>
+                                <td colSpan={2} className="text-right">
+                                  <div className="flex items-center justify-end gap-1">
+                                    <select
+                                      className="input !py-1 !text-xs w-20"
+                                      value={addDirection}
+                                      onChange={(e) => setAddDirection(e.target.value as "IN" | "OUT")}
+                                    >
+                                      <option value="IN">IN</option>
+                                      <option value="OUT">OUT</option>
+                                    </select>
+                                    <input
+                                      type="number"
+                                      className="input !py-1 !text-xs w-24 text-right"
+                                      value={addAbsQty}
+                                      onChange={(e) => setAddAbsQty(e.target.value)}
+                                      autoFocus
+                                    />
+                                  </div>
+                                </td>
+                                <td className="text-right whitespace-nowrap">
+                                  <div className="flex items-center justify-end gap-1">
+                                    <button
+                                      className="text-xs font-medium text-brand-dark hover:underline disabled:opacity-50"
+                                      onClick={() => saveAdd(item.item_id)}
+                                      disabled={savingId === item.item_id}
+                                    >
+                                      Save
+                                    </button>
+                                    <button
+                                      className="text-xs text-gray-500 hover:underline"
+                                      onClick={cancelAdd}
+                                      disabled={savingId === item.item_id}
+                                    >
+                                      Cancel
+                                    </button>
+                                  </div>
+                                </td>
+                              </>
+                            ) : (
+                              <td colSpan={7} className="text-left">
+                                <button
+                                  className="text-xs font-medium text-brand-dark hover:underline"
+                                  onClick={() => startAdd(item.item_id)}
+                                >
+                                  + Add Entry
+                                </button>
+                              </td>
+                            )}
+                          </tr>
+                        )}
                         <tr className="bg-gray-50 font-semibold border-t-2 border-gray-300">
                           <td colSpan={canManageMovements ? 7 : 6}>Ending Inventory</td>
                           <td className="text-right">{qty(item.ending_balance)}</td>
