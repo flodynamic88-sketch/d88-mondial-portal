@@ -1222,278 +1222,55 @@ export default function TruckCard({
 
   return (
     <>
-      <tr className={`border-t border-gray-100 align-top ${isConvoy ? "bg-gray-50/60" : ""}`}>
-        <td className="py-2 pl-4 pr-3 text-xs text-gray-700">
-          {editingDetails ? (
-            isCustomCarrierEdit ? (
-              <div className="flex flex-col gap-1">
-                <input
-                  type="text"
-                  className="input w-24 text-xs"
-                  value={detailsDraft.carrier}
-                  onChange={(e) => setDetailsDraft((d) => ({ ...d, carrier: e.target.value }))}
-                  placeholder="Carrier"
-                  autoFocus
-                />
-                <button
-                  type="button"
-                  className="text-left text-[10px] text-brand-600 underline"
-                  onClick={() => {
-                    setIsCustomCarrierEdit(false);
-                    setDetailsDraft((d) => ({ ...d, carrier: "" }));
-                  }}
-                >
-                  Choose from list
-                </button>
-              </div>
-            ) : (
-              <select
-                className="input w-24 text-xs"
-                value={detailsDraft.carrier}
-                onChange={(e) => {
-                  if (e.target.value === CUSTOM_CARRIER) {
-                    setIsCustomCarrierEdit(true);
-                    setDetailsDraft((d) => ({ ...d, carrier: "" }));
-                  } else {
-                    setDetailsDraft((d) => ({ ...d, carrier: e.target.value }));
-                  }
-                }}
-              >
-                <option value="">— Select —</option>
-                {carrierOptions.map((c) => (
-                  <option key={c} value={c}>
-                    {c}
-                  </option>
-                ))}
-                <option value={CUSTOM_CARRIER}>+ Type new carrier…</option>
-              </select>
-            )
-          ) : (
-            truck.carrier ?? "—"
-          )}
-        </td>
-        <td className="py-2 pr-3">
-          <button
-            type="button"
-            onClick={() => onToggleExpand(truck.id)}
-            className="mr-1 text-gray-400 hover:text-gray-600"
-            title={expanded ? "Collapse" : "Expand"}
-          >
-            {expanded ? "▾" : "▸"}
-          </button>
-          <span
-            className={
-              hasDiscrepancyOrBackload
-                ? "text-sm font-semibold text-red-600"
-                : hasRedeliveredBackload
-                  ? "text-sm font-semibold text-blue-600"
-                  : isConvoy
-                    ? "text-sm text-gray-700"
-                    : "text-sm font-semibold text-gray-800"
-            }
-            title={
-              hasDiscrepancyOrBackload
-                ? "This truck has a reported discrepancy/backload"
-                : hasRedeliveredBackload
-                  ? "This truck is redelivering a previously reported discrepancy/backload"
-                  : undefined
-            }
-          >
-            {truckLabel}
-            {hasDiscrepancyOrBackload && " ⚠"}
-            {!hasDiscrepancyOrBackload && hasRedeliveredBackload && " ↻"}
-          </span>
-          {editingDetails ? (
-            <input
-              type="text"
-              className="input mt-1 ml-4 w-28 text-xs"
-              value={detailsDraft.plate_number}
-              onChange={(e) => setDetailsDraft((d) => ({ ...d, plate_number: e.target.value }))}
-              placeholder="Plate #"
-            />
-          ) : (
-            truck.plate_number && (
-              <p className="pl-4 text-xs text-gray-500">{truck.plate_number}</p>
-            )
-          )}
-        </td>
-        <td className="py-2 pr-3 text-xs text-gray-700">
-          {editingDetails ? (
-            <input
-              type="text"
-              className="input w-28 text-xs"
-              value={detailsDraft.driver_name}
-              onChange={(e) => setDetailsDraft((d) => ({ ...d, driver_name: e.target.value }))}
-              placeholder="Driver"
-            />
-          ) : (
-            truck.driver_name ?? "—"
-          )}
-        </td>
-        <td className="py-2 pr-3 text-xs text-gray-700">
-          {editingDetails ? (
-            <div className="flex flex-col gap-1">
-              <input
-                type="text"
-                className="input w-28 text-xs"
-                value={detailsDraft.helper1_name}
-                onChange={(e) => setDetailsDraft((d) => ({ ...d, helper1_name: e.target.value }))}
-                placeholder="Helper 1"
-              />
-              <input
-                type="text"
-                className="input w-28 text-xs"
-                value={detailsDraft.helper2_name}
-                onChange={(e) => setDetailsDraft((d) => ({ ...d, helper2_name: e.target.value }))}
-                placeholder="Helper 2"
-              />
-            </div>
-          ) : (
-            [truck.helper1_name, truck.helper2_name].filter(Boolean).join(", ") || "—"
-          )}
-        </td>
-        <td className="py-2 pr-3 text-xs text-gray-700">
-          {isConvoy ? (
-            <span className="text-gray-400">Included in main</span>
-          ) : editingDetails && canSeeTruckRate ? (
-            <div className="flex flex-col gap-1">
-              <select
-                className="input w-32 text-xs"
-                value={detailsDraft.destination}
-                onChange={(e) => setDetailsDraft((d) => ({ ...d, destination: e.target.value }))}
-              >
-                <option value="">— Select —</option>
-                {destinationOptions.map((d) => (
-                  <option key={d.destination} value={d.destination}>
-                    {d.destination}
-                  </option>
-                ))}
-              </select>
-              <label className="flex items-center gap-1 text-[10px] text-gray-500">
-                <input
-                  type="checkbox"
-                  checked={detailsDraft.is_negotiated_rate}
-                  onChange={(e) =>
-                    setDetailsDraft((d) => ({ ...d, is_negotiated_rate: e.target.checked }))
-                  }
-                />
-                Negotiated rate
-              </label>
-            </div>
-          ) : (
-            <>
-              {truck.destination ?? "—"}
-              {canSeeArea && truck.area && (
-                <p className="text-xs text-gray-400">{truck.area}</p>
-              )}
-              {canSeeTruckRate && truck.is_negotiated_rate && (
-                <p className="text-[10px] font-medium text-amber-600">Negotiated rate</p>
-              )}
-            </>
-          )}
-        </td>
-        <td className="py-2 pr-3 text-xs text-gray-700">
-          {isConvoy ? (
-            <span className="text-gray-400">Included in main</span>
-          ) : canSeeTruckRate ? (
-            editingDetails && (!detailsDraft.destination.trim() || detailsDraft.is_negotiated_rate) ? (
-              <input
-                type="number"
-                step="0.01"
-                min="0"
-                className="input no-spinner w-24 text-xs"
-                value={detailsDraft.truck_rate}
-                onChange={(e) => setDetailsDraft((d) => ({ ...d, truck_rate: e.target.value }))}
-                placeholder="0.00"
-              />
-            ) : (
-              <div className="flex flex-col">
-                <span>
-                  {/* While editing, preview the rate the trigger will derive
-                      for whichever destination is currently selected in the
-                      draft (previewTruckRate) rather than the truck's
-                      last-saved rate (truck.truck_rate) -- otherwise picking
-                      a new destination shows the OLD destination's rate
-                      until Save is clicked, which reads as a mismatch. */}
-                  {((editingDetails ? previewTruckRate : truck.truck_rate) ?? 0).toLocaleString(
-                    undefined,
-                    { minimumFractionDigits: 2, maximumFractionDigits: 2 }
-                  )}
-                </span>
-                {/* Once a destination is set, truck_rate is always derived
-                    server-side from trucking_rates (convoy_rate instead of
-                    rate whenever this truck has convoy trucks attached) --
-                    see enforce_truck_rate_edit() in 0033_trucking_rates.sql.
-                    Manual entry only applies to legacy rows with no
-                    destination, so we hide the input here to match
-                    AddTruckForm's behavior and avoid implying the typed
-                    value would stick. */}
-                {editingDetails && (
-                  <span className="text-[10px] text-gray-400">
-                    {detailsDraft.is_negotiated_rate ? "Negotiated" : "Auto (destination)"}
-                  </span>
-                )}
-              </div>
-            )
-          ) : (
-            "—"
-          )}
-        </td>
-        <td className="py-2 pr-3 text-xs text-gray-700">
-          {isConvoy ? (
-            <span className="text-gray-400">Included in main</span>
-          ) : cts && cts.total_invoice_amount !== null && cts.total_invoice_amount !== undefined ? (
-            cts.total_invoice_amount.toLocaleString(undefined, {
-              minimumFractionDigits: 2,
-              maximumFractionDigits: 2,
-            })
-          ) : (
-            "—"
-          )}
-        </td>
-        <td className="py-2 pr-3">
-          {cts ? (
-            <span
-              className={`whitespace-nowrap ${
-                cts.cts_pass === null || cts.cts_pass === undefined
-                  ? "badge-neutral"
-                  : cts.cts_pass
-                    ? "badge-success"
-                    : "badge-danger"
-              }`}
-            >
-              {canSeeTruckRate && cts.cts_pct !== null && cts.cts_pct !== undefined
-                ? `${cts.cts_pct}% · `
-                : ""}
-              {cts.cts_pass === null || cts.cts_pass === undefined
-                ? "No data"
-                : cts.cts_pass
-                  ? "Passed"
-                  : "Not Passed"}
-            </span>
-          ) : (
-            <span className="text-xs text-gray-400">—</span>
-          )}
-        </td>
-        <td className="py-2 pr-3">
-          {truck.dispatched_at ? (
-            <span className="whitespace-nowrap text-xs font-medium text-green-600">
-              Dispatched {new Date(truck.dispatched_at).toLocaleDateString()}
-            </span>
-          ) : canDispatch ? (
+      <div className={`card ${isConvoy ? "ml-6 bg-gray-50/60" : ""}`}>
+        <div className="flex flex-wrap items-start justify-between gap-3 border-b border-gray-100 pb-3">
+          <div className="flex items-start gap-1">
             <button
               type="button"
-              className="btn-primary px-2 py-1 text-xs"
-              onClick={handleDispatch}
-              disabled={dispatching}
+              onClick={() => onToggleExpand(truck.id)}
+              className="mr-1 mt-0.5 text-gray-400 hover:text-gray-600"
+              title={expanded ? "Collapse" : "Expand"}
             >
-              {dispatching ? "…" : "Dispatch"}
+              {expanded ? "▾" : "▸"}
             </button>
-          ) : (
-            <span className="text-xs text-gray-400">Not yet</span>
-          )}
-        </td>
-        <td className="py-2 pl-3 pr-4">
+            <div>
+              <span
+                className={
+                  hasDiscrepancyOrBackload
+                    ? "text-sm font-semibold text-red-600"
+                    : hasRedeliveredBackload
+                      ? "text-sm font-semibold text-blue-600"
+                      : isConvoy
+                        ? "text-sm text-gray-700"
+                        : "text-sm font-semibold text-gray-800"
+                }
+                title={
+                  hasDiscrepancyOrBackload
+                    ? "This truck has a reported discrepancy/backload"
+                    : hasRedeliveredBackload
+                      ? "This truck is redelivering a previously reported discrepancy/backload"
+                      : undefined
+                }
+              >
+                {truckLabel}
+                {hasDiscrepancyOrBackload && " ⚠"}
+                {!hasDiscrepancyOrBackload && hasRedeliveredBackload && " ↻"}
+              </span>
+              {editingDetails ? (
+                <input
+                  type="text"
+                  className="input mt-1 w-28 text-xs"
+                  value={detailsDraft.plate_number}
+                  onChange={(e) => setDetailsDraft((d) => ({ ...d, plate_number: e.target.value }))}
+                  placeholder="Plate #"
+                />
+              ) : (
+                truck.plate_number && (
+                  <p className="text-xs text-gray-500">{truck.plate_number}</p>
+                )
+              )}
+            </div>
+          </div>
           <div className="flex flex-wrap items-center gap-2">
             <a
               href={`/route-plan/print/${truck.id}`}
@@ -1546,12 +1323,270 @@ export default function TruckCard({
               </button>
             )}
           </div>
-        </td>
-      </tr>
+        </div>
+
+        <div className="mt-3 grid grid-cols-2 gap-x-4 gap-y-3 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
+          <div>
+            <p className="label mb-0.5 text-[10px]">Carrier</p>
+            <div className="text-xs text-gray-700">
+              {editingDetails ? (
+                isCustomCarrierEdit ? (
+                  <div className="flex flex-col gap-1">
+                    <input
+                      type="text"
+                      className="input w-full text-xs"
+                      value={detailsDraft.carrier}
+                      onChange={(e) => setDetailsDraft((d) => ({ ...d, carrier: e.target.value }))}
+                      placeholder="Carrier"
+                      autoFocus
+                    />
+                    <button
+                      type="button"
+                      className="text-left text-[10px] text-brand-600 underline"
+                      onClick={() => {
+                        setIsCustomCarrierEdit(false);
+                        setDetailsDraft((d) => ({ ...d, carrier: "" }));
+                      }}
+                    >
+                      Choose from list
+                    </button>
+                  </div>
+                ) : (
+                  <select
+                    className="input w-full text-xs"
+                    value={detailsDraft.carrier}
+                    onChange={(e) => {
+                      if (e.target.value === CUSTOM_CARRIER) {
+                        setIsCustomCarrierEdit(true);
+                        setDetailsDraft((d) => ({ ...d, carrier: "" }));
+                      } else {
+                        setDetailsDraft((d) => ({ ...d, carrier: e.target.value }));
+                      }
+                    }}
+                  >
+                    <option value="">— Select —</option>
+                    {carrierOptions.map((c) => (
+                      <option key={c} value={c}>
+                        {c}
+                      </option>
+                    ))}
+                    <option value={CUSTOM_CARRIER}>+ Type new carrier…</option>
+                  </select>
+                )
+              ) : (
+                truck.carrier ?? "—"
+              )}
+            </div>
+          </div>
+
+          <div>
+            <p className="label mb-0.5 text-[10px]">Driver</p>
+            <div className="text-xs text-gray-700">
+              {editingDetails ? (
+                <input
+                  type="text"
+                  className="input w-full text-xs"
+                  value={detailsDraft.driver_name}
+                  onChange={(e) => setDetailsDraft((d) => ({ ...d, driver_name: e.target.value }))}
+                  placeholder="Driver"
+                />
+              ) : (
+                truck.driver_name ?? "—"
+              )}
+            </div>
+          </div>
+
+          <div>
+            <p className="label mb-0.5 text-[10px]">Helpers</p>
+            <div className="text-xs text-gray-700">
+              {editingDetails ? (
+                <div className="flex flex-col gap-1">
+                  <input
+                    type="text"
+                    className="input w-full text-xs"
+                    value={detailsDraft.helper1_name}
+                    onChange={(e) => setDetailsDraft((d) => ({ ...d, helper1_name: e.target.value }))}
+                    placeholder="Helper 1"
+                  />
+                  <input
+                    type="text"
+                    className="input w-full text-xs"
+                    value={detailsDraft.helper2_name}
+                    onChange={(e) => setDetailsDraft((d) => ({ ...d, helper2_name: e.target.value }))}
+                    placeholder="Helper 2"
+                  />
+                </div>
+              ) : (
+                [truck.helper1_name, truck.helper2_name].filter(Boolean).join(", ") || "—"
+              )}
+            </div>
+          </div>
+
+          <div>
+            <p className="label mb-0.5 text-[10px]">Destination</p>
+            <div className="text-xs text-gray-700">
+              {isConvoy ? (
+                <span className="text-gray-400">Included in main</span>
+              ) : editingDetails && canSeeTruckRate ? (
+                <div className="flex flex-col gap-1">
+                  <select
+                    className="input w-full text-xs"
+                    value={detailsDraft.destination}
+                    onChange={(e) => setDetailsDraft((d) => ({ ...d, destination: e.target.value }))}
+                  >
+                    <option value="">— Select —</option>
+                    {destinationOptions.map((d) => (
+                      <option key={d.destination} value={d.destination}>
+                        {d.destination}
+                      </option>
+                    ))}
+                  </select>
+                  <label className="flex items-center gap-1 text-[10px] text-gray-500">
+                    <input
+                      type="checkbox"
+                      checked={detailsDraft.is_negotiated_rate}
+                      onChange={(e) =>
+                        setDetailsDraft((d) => ({ ...d, is_negotiated_rate: e.target.checked }))
+                      }
+                    />
+                    Negotiated rate
+                  </label>
+                </div>
+              ) : (
+                <>
+                  {truck.destination ?? "—"}
+                  {canSeeArea && truck.area && (
+                    <p className="text-xs text-gray-400">{truck.area}</p>
+                  )}
+                  {canSeeTruckRate && truck.is_negotiated_rate && (
+                    <p className="text-[10px] font-medium text-amber-600">Negotiated rate</p>
+                  )}
+                </>
+              )}
+            </div>
+          </div>
+
+          <div>
+            <p className="label mb-0.5 text-[10px]">Rate</p>
+            <div className="text-xs text-gray-700">
+              {isConvoy ? (
+                <span className="text-gray-400">Included in main</span>
+              ) : canSeeTruckRate ? (
+                editingDetails && (!detailsDraft.destination.trim() || detailsDraft.is_negotiated_rate) ? (
+                  <input
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    className="input no-spinner w-full text-xs"
+                    value={detailsDraft.truck_rate}
+                    onChange={(e) => setDetailsDraft((d) => ({ ...d, truck_rate: e.target.value }))}
+                    placeholder="0.00"
+                  />
+                ) : (
+                  <div className="flex flex-col">
+                    <span>
+                      {/* While editing, preview the rate the trigger will derive
+                          for whichever destination is currently selected in the
+                          draft (previewTruckRate) rather than the truck's
+                          last-saved rate (truck.truck_rate) -- otherwise picking
+                          a new destination shows the OLD destination's rate
+                          until Save is clicked, which reads as a mismatch. */}
+                      {((editingDetails ? previewTruckRate : truck.truck_rate) ?? 0).toLocaleString(
+                        undefined,
+                        { minimumFractionDigits: 2, maximumFractionDigits: 2 }
+                      )}
+                    </span>
+                    {/* Once a destination is set, truck_rate is always derived
+                        server-side from trucking_rates (convoy_rate instead of
+                        rate whenever this truck has convoy trucks attached) --
+                        see enforce_truck_rate_edit() in 0033_trucking_rates.sql.
+                        Manual entry only applies to legacy rows with no
+                        destination, so we hide the input here to match
+                        AddTruckForm's behavior and avoid implying the typed
+                        value would stick. */}
+                    {editingDetails && (
+                      <span className="text-[10px] text-gray-400">
+                        {detailsDraft.is_negotiated_rate ? "Negotiated" : "Auto (destination)"}
+                      </span>
+                    )}
+                  </div>
+                )
+              ) : (
+                "—"
+              )}
+            </div>
+          </div>
+
+          <div>
+            <p className="label mb-0.5 text-[10px]">Total Invoice</p>
+            <div className="text-xs text-gray-700">
+              {isConvoy ? (
+                <span className="text-gray-400">Included in main</span>
+              ) : cts && cts.total_invoice_amount !== null && cts.total_invoice_amount !== undefined ? (
+                cts.total_invoice_amount.toLocaleString(undefined, {
+                  minimumFractionDigits: 2,
+                  maximumFractionDigits: 2,
+                })
+              ) : (
+                "—"
+              )}
+            </div>
+          </div>
+
+          <div>
+            <p className="label mb-0.5 text-[10px]">CTS</p>
+            <div>
+              {cts ? (
+                <span
+                  className={`whitespace-nowrap ${
+                    cts.cts_pass === null || cts.cts_pass === undefined
+                      ? "badge-neutral"
+                      : cts.cts_pass
+                        ? "badge-success"
+                        : "badge-danger"
+                  }`}
+                >
+                  {canSeeTruckRate && cts.cts_pct !== null && cts.cts_pct !== undefined
+                    ? `${cts.cts_pct}% · `
+                    : ""}
+                  {cts.cts_pass === null || cts.cts_pass === undefined
+                    ? "No data"
+                    : cts.cts_pass
+                      ? "Passed"
+                      : "Not Passed"}
+                </span>
+              ) : (
+                <span className="text-xs text-gray-400">—</span>
+              )}
+            </div>
+          </div>
+
+          <div>
+            <p className="label mb-0.5 text-[10px]">Status</p>
+            <div>
+              {truck.dispatched_at ? (
+                <span className="whitespace-nowrap text-xs font-medium text-green-600">
+                  Dispatched {new Date(truck.dispatched_at).toLocaleDateString()}
+                </span>
+              ) : canDispatch ? (
+                <button
+                  type="button"
+                  className="btn-primary px-2 py-1 text-xs"
+                  onClick={handleDispatch}
+                  disabled={dispatching}
+                >
+                  {dispatching ? "…" : "Dispatch"}
+                </button>
+              ) : (
+                <span className="text-xs text-gray-400">Not yet</span>
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
 
       {expanded && (
-        <tr className="bg-gray-50/50">
-          <td colSpan={9} className="px-4 pb-4 pt-1">
+        <div className={`card mt-2 ${isConvoy ? "ml-6 bg-gray-50/60" : "bg-gray-50/50"}`}>
             {actionError && <p className="mb-2 text-sm text-red-600">{actionError}</p>}
 
             <div className="flex items-center justify-between">
@@ -1698,35 +1733,23 @@ export default function TruckCard({
                     {group.rows.length === 0 ? (
                       <p className="mt-1 text-sm text-gray-400">No invoices in this drop yet.</p>
                     ) : (
-                      <div className="mt-1 table-scroll-container">
-                        <table className="min-w-full divide-y divide-gray-200 text-sm">
-                          <thead>
-                            <tr className="text-left text-xs font-semibold uppercase text-gray-500">
-                              <th className="py-2 pr-4">Drop No.</th>
-                              <th className="py-2 pr-4">Document No.</th>
-                              <th className="py-2 pr-4">Company / Branch</th>
-                              <th className="py-2 pr-4">Qty/Box</th>
-                              <th className="py-2 pr-4">Amount</th>
-                              <th className="py-2 pr-4">Rate %</th>
-                              <th className="py-2 pr-4">Status</th>
-                              <th className="py-2 pr-4">Actions</th>
-                            </tr>
-                          </thead>
-                          <tbody className="divide-y divide-gray-100">
-                            {group.rows.map((row) => {
+                      <div className="mt-1 space-y-2">
+                        {group.rows.map((row) => {
                   const isRedeliveredInvoice =
                     !row.reason_id &&
                     !!row.invoice_id &&
                     redeliveredInvoiceIds.has(row.invoice_id);
                   return (
-                  <tr key={row.id}>
-                    <td className="py-2 pr-4">
+                  <div key={row.id} className="rounded-lg border border-gray-200 bg-white p-3">
+                    <div className="grid grid-cols-2 gap-x-3 gap-y-3 sm:grid-cols-3 lg:grid-cols-4">
+                    <div>
+                      <p className="label mb-0.5 text-[10px]">Drop No.</p>
                       {canEditQtyBox ? (
                         <input
                           type="number"
                           step="1"
                           min="1"
-                          className="input no-spinner w-16 text-center"
+                          className="input no-spinner w-20 text-center"
                           defaultValue={row.drop_no ?? ""}
                           onBlur={(e) => handleDropNoChange(row.id, e.target.value)}
                           onKeyDown={(e) => {
@@ -1737,30 +1760,36 @@ export default function TruckCard({
                           }}
                         />
                       ) : (
-                        <span className="text-center text-gray-700">{row.drop_no ?? "—"}</span>
+                        <span className="text-xs text-gray-700">{row.drop_no ?? "—"}</span>
                       )}
-                    </td>
-                    <td
-                      className={
-                        row.reason_id
-                          ? "py-2 pr-4 font-medium text-red-600"
-                          : isRedeliveredInvoice
-                            ? "py-2 pr-4 font-medium text-blue-600"
-                            : "py-2 pr-4 font-medium text-gray-800"
-                      }
-                      title={
-                        row.reason_id
-                          ? "This invoice has a reported discrepancy/backload"
-                          : isRedeliveredInvoice
-                            ? "This invoice is the redelivery of a previously reported backload"
-                            : undefined
-                      }
+                    </div>
+                    <div
+                      className="col-span-1"
                     >
-                      {row.invoice?.document_no ?? "—"}
-                      {isRedeliveredInvoice && " ↻"}
-                    </td>
-                    <td className="py-2 pr-4">
-                      <p>{row.invoice?.company_name_raw ?? "—"}</p>
+                      <p className="label mb-0.5 text-[10px]">Document No.</p>
+                      <p
+                        className={
+                          row.reason_id
+                            ? "text-xs font-medium text-red-600"
+                            : isRedeliveredInvoice
+                              ? "text-xs font-medium text-blue-600"
+                              : "text-xs font-medium text-gray-800"
+                        }
+                        title={
+                          row.reason_id
+                            ? "This invoice has a reported discrepancy/backload"
+                            : isRedeliveredInvoice
+                              ? "This invoice is the redelivery of a previously reported backload"
+                              : undefined
+                        }
+                      >
+                        {row.invoice?.document_no ?? "—"}
+                        {isRedeliveredInvoice && " ↻"}
+                      </p>
+                    </div>
+                    <div className="col-span-2">
+                      <p className="label mb-0.5 text-[10px]">Company / Branch</p>
+                      <p className="text-xs text-gray-700">{row.invoice?.company_name_raw ?? "—"}</p>
                       <p className="text-xs text-gray-400">{row.invoice?.branch_address ?? "—"}</p>
                       {canEditQtyBox ? (
                         <input
@@ -1785,8 +1814,9 @@ export default function TruckCard({
                           </p>
                         )
                       )}
-                    </td>
-                    <td className="py-2 pr-4">
+                    </div>
+                    <div>
+                      <p className="label mb-0.5 text-[10px]">Qty/Box</p>
                       {canEditQtyBox ? (
                         <input
                           type="number"
@@ -1803,18 +1833,22 @@ export default function TruckCard({
                           }}
                         />
                       ) : (
-                        <span className="text-center text-gray-700">{row.qty_box ?? "—"}</span>
+                        <span className="text-xs text-gray-700">{row.qty_box ?? "—"}</span>
                       )}
-                    </td>
-                    <td className="py-2 pr-4">
-                      {(row.invoice?.amount ?? 0).toLocaleString(undefined, {
-                        minimumFractionDigits: 2,
-                        maximumFractionDigits: 2,
-                      })}
-                    </td>
-                    <td className="py-2 pr-4">
+                    </div>
+                    <div>
+                      <p className="label mb-0.5 text-[10px]">Amount</p>
+                      <p className="text-xs text-gray-700">
+                        {(row.invoice?.amount ?? 0).toLocaleString(undefined, {
+                          minimumFractionDigits: 2,
+                          maximumFractionDigits: 2,
+                        })}
+                      </p>
+                    </div>
+                    <div>
+                      <p className="label mb-0.5 text-[10px]">Rate %</p>
                       {canSeeTruckRate ? (
-                        <div className="flex w-28 flex-col items-center gap-0.5">
+                        <div className="flex flex-col items-start gap-0.5">
                           <div className="flex items-center gap-1">
                             <input
                               key={`${row.id}-${row.service_rate_pct ?? "empty"}`}
@@ -1828,7 +1862,7 @@ export default function TruckCard({
                             />
                             <span className="text-xs text-gray-400">%</span>
                           </div>
-                          <span className="max-w-full whitespace-normal break-words text-center text-[10px] leading-tight text-gray-400">
+                          <span className="max-w-full whitespace-normal break-words text-[10px] leading-tight text-gray-400">
                             {zoneLabel(row.invoice)}
                             {expectedRateFor(row.invoice) !== null &&
                               expectedRateFor(row.invoice) !== row.service_rate_pct && (
@@ -1848,10 +1882,11 @@ export default function TruckCard({
                           </span>
                         </div>
                       ) : (
-                        <span className="text-gray-400">—</span>
+                        <span className="text-xs text-gray-400">—</span>
                       )}
-                    </td>
-                    <td className="py-2 pr-4">
+                    </div>
+                    <div>
+                      <p className="label mb-0.5 text-[10px]">Status</p>
                       <div className="flex flex-col items-start gap-1">
                         {row.delivered_at && (
                           <span className="badge-success">
@@ -1911,8 +1946,9 @@ export default function TruckCard({
                           <span className="badge-neutral">Pending</span>
                         )}
                       </div>
-                    </td>
-                    <td className="py-2 pr-4">
+                    </div>
+                    <div className="col-span-2 sm:col-span-3 lg:col-span-4">
+                      <p className="label mb-0.5 text-[10px]">Actions</p>
                       {row.superseded_at ? (
                         <div className="flex flex-col gap-1">
                           <p className="text-xs text-gray-400">
@@ -2212,12 +2248,11 @@ export default function TruckCard({
                         )}
                       </div>
                       )}
-                    </td>
-                  </tr>
+                    </div>
+                    </div>
+                  </div>
                   );
                 })}
-                          </tbody>
-                        </table>
                       </div>
                     )}
                   </div>
@@ -2261,8 +2296,7 @@ export default function TruckCard({
                 )}
               </div>
             )}
-          </td>
-        </tr>
+        </div>
       )}
 
       {!isConvoy &&

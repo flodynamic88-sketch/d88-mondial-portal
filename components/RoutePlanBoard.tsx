@@ -1012,40 +1012,22 @@ export default function RoutePlanBoard() {
               )}
 
               {!loadingTrucks && !trucksError && mainTrucks.length > 0 && (
-                <div className="card overflow-x-auto p-0">
-                  <table className="min-w-full divide-y divide-gray-100 text-sm">
-                    <thead>
-                      <tr className="text-left text-xs font-semibold uppercase text-gray-500">
-                        <th className="py-2 pl-4 pr-3">Carrier</th>
-                        <th className="py-2 pr-3">Truck</th>
-                        <th className="py-2 pr-3">Driver</th>
-                        <th className="py-2 pr-3">Helpers</th>
-                        <th className="py-2 pr-3">Destination</th>
-                        <th className="py-2 pr-3">Rate</th>
-                        <th className="py-2 pr-3">Total Invoice</th>
-                        <th className="py-2 pr-3">CTS</th>
-                        <th className="py-2 pr-3">Status</th>
-                        <th className="py-2 pl-3 pr-4">Actions</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {mainTrucks.map((truck, index) => (
-                        <TruckCard
-                          key={truck.id}
-                          truck={truck}
-                          truckLabel={`Truck ${index + 1}`}
-                          convoys={convoysByMain[truck.id] ?? []}
-                          deliveryReasons={deliveryReasons}
-                          routePlanId={selectedPlan.id}
-                          routeDate={selectedPlan.route_date}
-                          onRefreshTrucks={loadTrucks}
-                          onRefreshReasons={loadReasons}
-                          expandedTruckId={expandedTruckId}
-                          onToggleExpand={toggleExpandTruck}
-                        />
-                      ))}
-                    </tbody>
-                  </table>
+                <div className="space-y-3">
+                  {mainTrucks.map((truck, index) => (
+                    <TruckCard
+                      key={truck.id}
+                      truck={truck}
+                      truckLabel={`Truck ${index + 1}`}
+                      convoys={convoysByMain[truck.id] ?? []}
+                      deliveryReasons={deliveryReasons}
+                      routePlanId={selectedPlan.id}
+                      routeDate={selectedPlan.route_date}
+                      onRefreshTrucks={loadTrucks}
+                      onRefreshReasons={loadReasons}
+                      expandedTruckId={expandedTruckId}
+                      onToggleExpand={toggleExpandTruck}
+                    />
+                  ))}
                 </div>
               )}
             </>
