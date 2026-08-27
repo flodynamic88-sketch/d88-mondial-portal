@@ -22,6 +22,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/mercury/supabase/client";
+import { useAuth } from "@/components/AuthProvider";
 import type { Client, Item, InventoryReportRow, StockMovementRow } from "@/lib/mercury/types";
 
 const CURRENT_YEAR = new Date().getFullYear();
@@ -49,6 +50,9 @@ function lastDayOfMonth(year: number, month: number) {
 export default function StockMovementHistoryPage() {
   const router = useRouter();
   const now = new Date();
+  const profile = useAuth();
+  const role = profile?.role;
+  const canManageMovements = role === "ADMIN" || role === "FLO_ASSOCIATE";
 
   const [clients, setClients] = useState<Client[]>([]);
   const [items, setItems] = useState<Item[]>([]);
@@ -56,11 +60,16 @@ export default function StockMovementHistoryPage() {
   const [ledgerRows, setLedgerRows] = useState<StockMovementRow[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [savingId, setSavingId] = useState<string | null>(null);
 
   const [clientId, setClientId] = useState("");
   const [itemId, setItemId] = useState("");
   const [year, setYear] = useState(now.getFullYear());
   const [month, setMonth] = useState(now.getMonth() + 1);
+
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editDirection, setEditDirection] = useState<"IN" | "OUT">("IN");
+  const [editAbsQty, setEditAbsQty] = useState("");
 
   useEffect(() => {
     const supabase = createClient();
@@ -86,7 +95,7 @@ export default function StockMovementHistoryPage() {
     lastDayOfMonth(year, month)
   ).padStart(2, "0")}`;
 
-  useEffect(() => {
+  function loadData() {
     if (!clientId) {
       setReportRows([]);
       setLedgerRows([]);
@@ -109,6 +118,7 @@ export default function StockMovementHistoryPage() {
         .gte("movement_date", dateFrom)
         .lte("movement_date", dateTo)
         .order("item_code", { ascending: true })
+        .order("document_date", { ascending: true })
         .order("created_at", { ascending: true }),
     ]).then(([reportRes, ledgerRes]) => {
       if (reportRes.error) setError(reportRes.error.message);
@@ -124,7 +134,63 @@ export default function StockMovementHistoryPage() {
       setLedgerRows(ledger);
       setLoading(false);
     });
+  }
+
+  useEffect(() => {
+    loadData();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [clientId, itemId, dateFrom, dateTo]);
+
+  function startEdit(r: StockMovementRow) {
+    setEditingId(r.movement_id);
+    setEditDirection(r.direction);
+    setEditAbsQty(String(r.abs_qty));
+  }
+
+  function cancelEdit() {
+    setEditingId(null);
+    setEditAbsQty("");
+  }
+
+  async function saveEdit(movementId: string) {
+    const abs = Number(editAbsQty);
+    if (!Number.isFinite(abs) || abs <= 0) {
+      setError("Invalid na quantity.");
+      return;
+    }
+    const newQty = editDirection === "IN" ? abs : -abs;
+    setSavingId(movementId);
+    const supabase = createClient();
+    const { error: updErr } = await supabase
+      .schema("flo").from("stock_movements")
+      .update({ qty: newQty })
+      .eq("id", movementId);
+    setSavingId(null);
+    if (updErr) {
+      setError(updErr.message);
+      return;
+    }
+    setEditingId(null);
+    loadData();
+  }
+
+  async function handleDelete(movementId: string) {
+    if (!window.confirm("Sigurado ka bang i-delete ang movement row na ito? Ia-adjust agad ang current stock ng item.")) {
+      return;
+    }
+    setSavingId(movementId);
+    const supabase = createClient();
+    const { error: delErr } = await supabase
+      .schema("flo").from("stock_movements")
+      .delete()
+      .eq("id", movementId);
+    setSavingId(null);
+    if (delErr) {
+      setError(delErr.message);
+      return;
+    }
+    loadData();
+  }
 
   const ledgerByItem = useMemo(() => {
     const map = new Map<string, StockMovementRow[]>();
@@ -277,30 +343,97 @@ export default function StockMovementHistoryPage() {
                           <th className="text-right">IN</th>
                           <th className="text-right">OUT</th>
                           <th className="text-right">Balance</th>
+                          {canManageMovements && <th className="text-right">Actions</th>}
                         </tr>
                       </thead>
                       <tbody>
                         <tr className="bg-gray-50 font-medium">
-                          <td colSpan={6}>Beginning Inventory</td>
+                          <td colSpan={canManageMovements ? 7 : 6}>Beginning Inventory</td>
                           <td className="text-right">{qty(item.beginning_balance)}</td>
                         </tr>
-                        {movements.map((r) => (
-                          <tr key={r.movement_id} className="hover:bg-gray-50">
-                            <td>{formatDate(r.document_date || r.movement_date)}</td>
-                            <td>{r.document_number || "—"}</td>
-                            <td>{r.party_or_reason || r.movement_type}</td>
-                            <td>{r.expiration_date ? formatDate(r.expiration_date) : "—"}</td>
-                            <td className="text-right text-green-700">
-                              {r.direction === "IN" ? `+${qty(r.abs_qty)}` : ""}
-                            </td>
-                            <td className="text-right text-red-700">
-                              {r.direction === "OUT" ? `-${qty(r.abs_qty)}` : ""}
-                            </td>
-                            <td className="text-right">{qty(r.running_balance)}</td>
-                          </tr>
-                        ))}
+                        {movements.map((r) => {
+                          const isEditing = editingId === r.movement_id;
+                          const isSaving = savingId === r.movement_id;
+                          return (
+                            <tr key={r.movement_id} className="hover:bg-gray-50">
+                              <td>{formatDate(r.document_date || r.movement_date)}</td>
+                              <td>{r.document_number || "—"}</td>
+                              <td>{r.party_or_reason || r.movement_type}</td>
+                              <td>{r.expiration_date ? formatDate(r.expiration_date) : "—"}</td>
+                              {isEditing ? (
+                                <td colSpan={2} className="text-right">
+                                  <div className="flex items-center justify-end gap-1">
+                                    <select
+                                      className="input !py-1 !text-xs w-20"
+                                      value={editDirection}
+                                      onChange={(e) => setEditDirection(e.target.value as "IN" | "OUT")}
+                                    >
+                                      <option value="IN">IN</option>
+                                      <option value="OUT">OUT</option>
+                                    </select>
+                                    <input
+                                      type="number"
+                                      className="input !py-1 !text-xs w-24 text-right"
+                                      value={editAbsQty}
+                                      onChange={(e) => setEditAbsQty(e.target.value)}
+                                      autoFocus
+                                    />
+                                  </div>
+                                </td>
+                              ) : (
+                                <>
+                                  <td className="text-right text-green-700">
+                                    {r.direction === "IN" ? `+${qty(r.abs_qty)}` : ""}
+                                  </td>
+                                  <td className="text-right text-red-700">
+                                    {r.direction === "OUT" ? `-${qty(r.abs_qty)}` : ""}
+                                  </td>
+                                </>
+                              )}
+                              <td className="text-right">{qty(r.running_balance)}</td>
+                              {canManageMovements && (
+                                <td className="text-right whitespace-nowrap">
+                                  {isEditing ? (
+                                    <div className="flex items-center justify-end gap-1">
+                                      <button
+                                        className="text-xs font-medium text-brand-dark hover:underline disabled:opacity-50"
+                                        onClick={() => saveEdit(r.movement_id)}
+                                        disabled={isSaving}
+                                      >
+                                        Save
+                                      </button>
+                                      <button
+                                        className="text-xs text-gray-500 hover:underline"
+                                        onClick={cancelEdit}
+                                        disabled={isSaving}
+                                      >
+                                        Cancel
+                                      </button>
+                                    </div>
+                                  ) : (
+                                    <div className="flex items-center justify-end gap-2">
+                                      <button
+                                        className="text-xs font-medium text-brand-dark hover:underline"
+                                        onClick={() => startEdit(r)}
+                                      >
+                                        Edit
+                                      </button>
+                                      <button
+                                        className="text-xs font-medium text-red-600 hover:underline disabled:opacity-50"
+                                        onClick={() => handleDelete(r.movement_id)}
+                                        disabled={isSaving}
+                                      >
+                                        Delete
+                                      </button>
+                                    </div>
+                                  )}
+                                </td>
+                              )}
+                            </tr>
+                          );
+                        })}
                         <tr className="bg-gray-50 font-semibold border-t-2 border-gray-300">
-                          <td colSpan={6}>Ending Inventory</td>
+                          <td colSpan={canManageMovements ? 7 : 6}>Ending Inventory</td>
                           <td className="text-right">{qty(item.ending_balance)}</td>
                         </tr>
                       </tbody>

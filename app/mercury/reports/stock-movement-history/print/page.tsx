@@ -88,6 +88,7 @@ function StockMovementHistoryContent() {
           .gte("movement_date", dateFrom)
           .lte("movement_date", dateTo)
           .order("item_code", { ascending: true })
+          .order("document_date", { ascending: true })
           .order("created_at", { ascending: true }),
       ]);
 
