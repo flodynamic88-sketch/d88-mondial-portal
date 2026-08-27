@@ -16,13 +16,25 @@
 -- same convention, this adds a single security definer RPC that performs
 -- both writes atomically server-side.
 --
--- The new row is always movement_type = 'Correction' with no
--- reference_type/reference_id, exactly like the manual corrections
--- already supported by flo.v_stock_movement_ledger (migration 0075/0077)
--- -- so document_number = 'Correction', document_date/movement_date fall
--- back to created_at's date, and party_or_reason is already derived
--- correctly from the qty sign by the view's existing CASE logic. No view
--- change needed.
+-- The new row is always movement_type = 'Correction', exactly like the
+-- manual corrections already supported by flo.v_stock_movement_ledger
+-- (migration 0075/0077) -- so document_number = 'Correction',
+-- document_date/movement_date fall back to created_at's date, and
+-- party_or_reason is already derived correctly from the qty sign by the
+-- view's existing CASE logic. No view change needed.
+--
+-- reference_type/reference_id on flo.stock_movements are both NOT NULL
+-- with no default (confirmed live via information_schema.columns after
+-- this function's first live test run failed with "null value in column
+-- reference_type ... violates not-null constraint") -- there is no bare
+-- Correction row with null reference_type/reference_id in production.
+-- Existing manual corrections instead tag reference_type =
+-- 'manual_correction' with an arbitrary reference_id uuid (there's no FK
+-- on reference_id -- flo.v_stock_movement_ledger only left-joins it
+-- against delivery_lines/stock_receipt_lines by reference_type, so any
+-- other reference_type value including this one simply matches neither
+-- join and all the joined columns stay null, same end result as if it
+-- were nullable). This function follows that exact existing convention.
 --
 -- created_at is set explicitly from the caller's chosen date (noon
 -- Asia/Manila, to avoid UTC-conversion date-shift at midnight) rather than
@@ -60,11 +72,15 @@ begin
     raise exception 'p_movement_date is required';
   end if;
 
-  insert into flo.stock_movements (item_id, movement_type, qty, created_at)
+  insert into flo.stock_movements (
+    item_id, movement_type, qty, reference_type, reference_id, created_at
+  )
   values (
     p_item_id,
     'Correction',
     p_qty,
+    'manual_correction',
+    gen_random_uuid(),
     (p_movement_date::text || ' 12:00:00')::timestamp at time zone 'Asia/Manila'
   )
   returning * into v_row;
