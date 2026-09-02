@@ -16,6 +16,9 @@ const BILLING_STATUS_OPTIONS = ["Unpaid", "Billed", "For Checking", "Partially P
 // Statuses that a "Generate Billing Statement" click should NOT downgrade —
 // if an invoice is already further along than "Billed", leave it as-is.
 const DO_NOT_DOWNGRADE_TO_BILLED = ["Partially Paid", "Paid", "Disputed"];
+// The 3 sub-clients billed via the Mondial88-format Statement of Account
+// (see migration 0079 + app/mercury/billing/soa-mondial/page.tsx).
+const MONDIAL_SOA_CLIENT_CODES = ["C-0002", "C-0003", "C-0004"];
 
 function peso(n: number | null | undefined) {
   return new Intl.NumberFormat("en-PH", {
@@ -192,6 +195,23 @@ export default function BillingPage() {
     router.push(`/mercury/billing/statement?ids=${ids.join(",")}`);
   }
 
+  function handlePrintMondialSoa() {
+    if (selected.size === 0) return;
+    if (selectedClientIds.length > 1) {
+      setError("Isang client lang ang pwede sa bawat Statement of Account. Pumili ng mga invoice na iisang client lang.");
+      return;
+    }
+    const clientObj = clients.find((c) => c.id === selectedClientIds[0]);
+    if (!clientObj || !MONDIAL_SOA_CLIENT_CODES.includes(clientObj.client_code)) {
+      setError(
+        "Available lang ang Statement of Account (Mondial88 format) na ito para kina Adesteck, Rodzon Marketing, at Healthwellnesslifestyle."
+      );
+      return;
+    }
+    const ids = Array.from(selected);
+    router.push(`/mercury/billing/soa-mondial?ids=${ids.join(",")}`);
+  }
+
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
@@ -310,6 +330,13 @@ export default function BillingPage() {
               disabled={selected.size === 0}
             >
               Generate Billing Statement
+            </button>
+            <button
+              className="btn-secondary"
+              onClick={handlePrintMondialSoa}
+              disabled={selected.size === 0}
+            >
+              Generate SOA (Mondial88)
             </button>
           </div>
         </div>
