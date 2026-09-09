@@ -7,6 +7,7 @@ import { useAuth } from "@/components/AuthProvider";
 import { useToast } from "@/components/Toast";
 import { exportFinalBillingExcel } from "@/lib/exportFinalBillingExcel";
 import { getAppSetting, setAppSetting, FINAL_BILLING_REPORT_EMAIL_KEY } from "@/lib/appSettings";
+import { fetchAllRows } from "@/lib/fetchAllRows";
 import type { InvoiceCategory, VFinalBilling, VMondialBillingStatement, ZoneType } from "@/types/database";
 
 const ZONE_LABELS: Record<ZoneType, string> = {
@@ -573,13 +574,20 @@ function ForBillingTab() {
       const rangeStart = `${startDate}T00:00:00`;
       const rangeEnd = `${endDate}T23:59:59.999`;
 
-      const { data, error } = await supabase
-        .from("v_final_billing")
-        .select("*")
-        .is("billing_statement_id", null)
-        .gte("delivered_at", rangeStart)
-        .lte("delivered_at", rangeEnd)
-        .order("delivered_at", { ascending: true });
+      // Unranged .select() gets silently truncated by PostgREST past its
+      // server-side row cap -- page through with fetchAllRows() so a busy
+      // period's later invoices can't be dropped from the SOA before it's
+      // even generated (see lib/fetchAllRows.ts).
+      const { data, error } = await fetchAllRows<VFinalBilling>((from, to) =>
+        supabase
+          .from("v_final_billing")
+          .select("*")
+          .is("billing_statement_id", null)
+          .gte("delivered_at", rangeStart)
+          .lte("delivered_at", rangeEnd)
+          .order("delivered_at", { ascending: true })
+          .range(from, to)
+      );
 
       if (error) {
         setErrorMsg("Could not load pending invoices. Connect a Supabase project to see live data.");
@@ -770,10 +778,13 @@ function BilledTab() {
     setErrorMsg(null);
     try {
       const supabase = createClient();
-      const { data, error } = await supabase
-        .from("v_mondial_billing_statements")
-        .select("*")
-        .order("generated_at", { ascending: false });
+      const { data, error } = await fetchAllRows<VMondialBillingStatement>((from, to) =>
+        supabase
+          .from("v_mondial_billing_statements")
+          .select("*")
+          .order("generated_at", { ascending: false })
+          .range(from, to)
+      );
       if (error) {
         setErrorMsg("Could not load billing statements. Connect a Supabase project to see live data.");
         setStatements([]);
@@ -803,11 +814,14 @@ function BilledTab() {
     setLoadingDetailId(stmt.id);
     try {
       const supabase = createClient();
-      const { data, error } = await supabase
-        .from("v_final_billing")
-        .select("*")
-        .eq("billing_statement_id", stmt.id)
-        .order("delivered_at", { ascending: true });
+      const { data, error } = await fetchAllRows<VFinalBilling>((from, to) =>
+        supabase
+          .from("v_final_billing")
+          .select("*")
+          .eq("billing_statement_id", stmt.id)
+          .order("delivered_at", { ascending: true })
+          .range(from, to)
+      );
       if (!error) {
         setDetailRows((prev) => ({ ...prev, [stmt.id]: data ?? [] }));
       }

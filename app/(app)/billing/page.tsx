@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import RequireRole from "@/components/RequireRole";
 import { exportToExcel } from "@/lib/exportExcel";
+import { fetchAllRows } from "@/lib/fetchAllRows";
 import type { InvoiceCategory, VBilling } from "@/types/database";
 
 const TABS: { value: InvoiceCategory; label: string }[] = [
@@ -32,11 +33,18 @@ function BillingTable({ category }: { category: InvoiceCategory }) {
       setErrorMsg(null);
       try {
         const supabase = createClient();
-        const { data, error } = await supabase
-          .from("v_billing")
-          .select("*")
-          .eq("category", category)
-          .order("delivered_at", { ascending: true });
+        // Unranged .select() on v_billing gets silently truncated by
+        // PostgREST past its server-side row cap -- page through with
+        // fetchAllRows() so a busy category's newest invoices can't
+        // disappear from this list (see lib/fetchAllRows.ts).
+        const { data, error } = await fetchAllRows<VBilling>((from, to) =>
+          supabase
+            .from("v_billing")
+            .select("*")
+            .eq("category", category)
+            .order("delivered_at", { ascending: true })
+            .range(from, to)
+        );
 
         if (cancelled) return;
 

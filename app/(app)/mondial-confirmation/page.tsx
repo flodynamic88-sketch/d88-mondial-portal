@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import RequireRole from "@/components/RequireRole";
 import { exportToExcel } from "@/lib/exportExcel";
+import { fetchAllRows } from "@/lib/fetchAllRows";
 import type { VBilling, MondialConfirmation, InvoiceCategory } from "@/types/database";
 
 interface MergedRow extends VBilling {
@@ -48,12 +49,25 @@ export default function MondialConfirmationPage() {
     setErrorMsg(null);
     try {
       const supabase = createClient();
+      // Both queries are unranged over tables that now hold well over 1000
+      // rows -- PostgREST silently truncates a bare .select() at its
+      // server-configured max instead of erroring, so this must page
+      // through with fetchAllRows() or the newest invoices/confirmations
+      // vanish from view with no error shown anywhere (see lib/fetchAllRows.ts).
       const [
         { data: billing, error: billingErr },
         { data: confirmations, error: confirmErr },
       ] = await Promise.all([
-        supabase.from("v_billing").select("*").order("delivered_at", { ascending: true }),
-        supabase.from("mondial_confirmations").select("*"),
+        fetchAllRows<VBilling>((from, to) =>
+          supabase
+            .from("v_billing")
+            .select("*")
+            .order("delivered_at", { ascending: true })
+            .range(from, to)
+        ),
+        fetchAllRows<MondialConfirmation>((from, to) =>
+          supabase.from("mondial_confirmations").select("*").range(from, to)
+        ),
       ]);
 
       if (billingErr || confirmErr) {
