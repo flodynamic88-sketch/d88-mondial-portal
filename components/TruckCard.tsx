@@ -2068,8 +2068,8 @@ export default function TruckCard({
                                         })
                                       }
                                     />
-                                    Charge to Mondial — Mondial&apos;s fault, auto-double-bill on
-                                    redelivery
+                                    Charge to Mondial — Mondial&apos;s fault (label only; this
+                                    attempt bills either way unless marked D88 Error)
                                   </label>
                                   <label className="flex items-center gap-1">
                                     <input
@@ -2086,7 +2086,7 @@ export default function TruckCard({
                                         })
                                       }
                                     />
-                                    D88 Error — our own mistake
+                                    D88 Error — our own mistake, not billed
                                   </label>
                                 </div>
                               )}
@@ -2223,7 +2223,8 @@ export default function TruckCard({
                                       })
                                     }
                                   />
-                                  Charge to Mondial — Mondial&apos;s fault, auto-double-bill on redelivery
+                                  Charge to Mondial — Mondial&apos;s fault (label only; this attempt
+                                  bills either way unless marked D88 Error)
                                 </label>
                                 <label className="flex items-center gap-1">
                                   <input
@@ -2240,7 +2241,7 @@ export default function TruckCard({
                                       })
                                     }
                                   />
-                                  D88 Error — our own mistake
+                                  D88 Error — our own mistake, not billed
                                 </label>
                               </div>
                             )}

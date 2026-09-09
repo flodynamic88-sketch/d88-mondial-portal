@@ -34,12 +34,17 @@ function formatMonth(value: string | null) {
 
 // Every row that reaches v_final_billing has already been confirmed by the
 // Mondial Team, so the Remarks column is normally this fixed note -- except
-// for the automatic "Charge to Mondial" backload line (see migration 0028 +
-// 0039), where it explains why this document_no is billed a second time.
+// for a backload attempt line (see migration 0028 + 0039 + 0080), where it
+// explains why this document_no is billed more than once. Every superseded
+// backload attempt bills (0080), not just ones flagged Mondial's fault, so
+// reason_label alone (not is_mondial_fault_charge) is what marks a row as a
+// backload line here.
 const CONFIRMED_REMARKS = "Validated from Invoicing";
 function remarksFor(row: VFinalBilling): string {
-  if (row.is_mondial_fault_charge) {
-    return `Charged to Mondial — backload: ${row.reason_label ?? "reason not set"}`;
+  if (row.reason_label) {
+    return row.is_mondial_fault_charge
+      ? `Charged to Mondial — backload: ${row.reason_label}`
+      : `Backload attempt: ${row.reason_label}`;
   }
   return CONFIRMED_REMARKS;
 }

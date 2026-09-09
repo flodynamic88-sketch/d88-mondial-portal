@@ -127,8 +127,10 @@ export default function MondialConfirmationPage() {
           "Service Fee": row.service_fee ?? 0,
           Delivered: row.delivered_at ? new Date(row.delivered_at).toLocaleDateString() : "",
           Status: row.confirmed ? "Confirmed" : "Unconfirmed",
-          Remarks: row.is_mondial_fault_charge
-            ? `Charged to Mondial — backload: ${row.reason_label ?? "reason not set"}`
+          Remarks: row.reason_label
+            ? row.is_mondial_fault_charge
+              ? `Charged to Mondial — backload: ${row.reason_label}`
+              : `Backload attempt: ${row.reason_label}`
             : "",
         })),
       },
@@ -234,9 +236,11 @@ export default function MondialConfirmationPage() {
                       )}
                     </td>
                     <td className="py-2 pr-4">
-                      {row.is_mondial_fault_charge ? (
+                      {row.reason_label ? (
                         <span className="badge-warning">
-                          Charged to Mondial — backload: {row.reason_label ?? "reason not set"}
+                          {row.is_mondial_fault_charge
+                            ? `Charged to Mondial — backload: ${row.reason_label}`
+                            : `Backload attempt: ${row.reason_label}`}
                         </span>
                       ) : (
                         <span className="text-gray-400">—</span>

@@ -77,8 +77,10 @@ function BillingTable({ category }: { category: InvoiceCategory }) {
           "Rate %": row.service_rate_pct ?? "",
           "Service Fee": row.service_fee ?? 0,
           Delivered: row.delivered_at ? new Date(row.delivered_at).toLocaleDateString() : "",
-          Remarks: row.is_mondial_fault_charge
-            ? `Charged to Mondial — backload: ${row.reason_label ?? "reason not set"}`
+          Remarks: row.reason_label
+            ? row.is_mondial_fault_charge
+              ? `Charged to Mondial — backload: ${row.reason_label}`
+              : `Backload attempt: ${row.reason_label}`
             : "",
         })),
       },
@@ -136,9 +138,11 @@ function BillingTable({ category }: { category: InvoiceCategory }) {
                     {row.delivered_at ? new Date(row.delivered_at).toLocaleDateString() : "—"}
                   </td>
                   <td className="py-2 pr-4">
-                    {row.is_mondial_fault_charge ? (
+                    {row.reason_label ? (
                       <span className="badge-warning">
-                        Charged to Mondial — backload: {row.reason_label ?? "reason not set"}
+                        {row.is_mondial_fault_charge
+                          ? `Charged to Mondial — backload: ${row.reason_label}`
+                          : `Backload attempt: ${row.reason_label}`}
                       </span>
                     ) : (
                       <span className="text-gray-400">—</span>
