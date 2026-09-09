@@ -1047,9 +1047,21 @@ export default function TruckCard({
     setActionError(null);
     try {
       const supabase = createClient();
+      // If the newly-picked reason is a Backload, the invoice was NOT
+      // actually delivered -- clear any delivered_at already on this row so
+      // a mistaken/earlier delivery-date entry can't linger and later
+      // produce a phantom "delivered" billing line once this row is
+      // superseded/rescheduled (see migration 0082). Discrepancy reasons
+      // mean it WAS delivered, so delivered_at is left untouched for those.
+      const isBackload = reasonId
+        ? deliveryReasons.find((r) => r.id === reasonId)?.type === "BACKLOAD"
+        : false;
       const { error } = await supabase
         .from("route_plan_invoices")
-        .update({ reason_id: reasonId || null })
+        .update({
+          reason_id: reasonId || null,
+          ...(isBackload ? { delivered_at: null } : {}),
+        })
         .eq("id", rowId);
 
       if (error) {
