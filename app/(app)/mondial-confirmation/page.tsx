@@ -24,6 +24,16 @@ function formatMoney(value: number) {
   });
 }
 
+// mondial_confirmations is now keyed by (invoice_id, delivered_at), not
+// invoice_id alone (see migration 0081) -- a repeated backload attempt is
+// its own v_billing line with its own delivered_at (rpi.superseded_at), so
+// it needs its own confirmation instead of silently inheriting whatever the
+// invoice's other line(s) were already confirmed as. This key must match
+// that same pairing on both read (confirmByLine) and write (handleToggle).
+function confirmationKey(invoiceId: string, deliveredAt: string | null) {
+  return `${invoiceId}|${deliveredAt ?? ""}`;
+}
+
 export default function MondialConfirmationPage() {
   const [activeTab, setActiveTab] = useState<InvoiceCategory>("CONSIGNMENT");
   const [confirmedBy, setConfirmedBy] = useState("");
@@ -52,13 +62,13 @@ export default function MondialConfirmationPage() {
         return;
       }
 
-      const confirmByInvoice = new Map<string, MondialConfirmation>();
+      const confirmByLine = new Map<string, MondialConfirmation>();
       (confirmations ?? []).forEach((c) => {
-        if (c.invoice_id) confirmByInvoice.set(c.invoice_id, c);
+        if (c.invoice_id) confirmByLine.set(confirmationKey(c.invoice_id, c.delivered_at), c);
       });
 
       const merged: MergedRow[] = (billing ?? []).map((b) => {
-        const c = confirmByInvoice.get(b.invoice_id);
+        const c = confirmByLine.get(confirmationKey(b.invoice_id, b.delivered_at));
         return {
           ...b,
           confirmed: c?.confirmed ?? false,
@@ -80,7 +90,7 @@ export default function MondialConfirmationPage() {
   }, [load]);
 
   async function handleToggle(row: MergedRow) {
-    setBusyId(row.invoice_id);
+    setBusyId(confirmationKey(row.invoice_id, row.delivered_at));
     setActionError(null);
     try {
       const supabase = createClient();
@@ -88,11 +98,12 @@ export default function MondialConfirmationPage() {
       const { error } = await supabase.from("mondial_confirmations").upsert(
         {
           invoice_id: row.invoice_id,
+          delivered_at: row.delivered_at,
           confirmed: nextConfirmed,
           confirmed_at: nextConfirmed ? new Date().toISOString() : null,
           confirmed_by: confirmedBy.trim() || null,
         },
-        { onConflict: "invoice_id" }
+        { onConflict: "invoice_id,delivered_at" }
       );
 
       if (error) {
@@ -251,9 +262,9 @@ export default function MondialConfirmationPage() {
                         type="button"
                         className={row.confirmed ? "tab-button tab-button-inactive" : "btn-primary"}
                         onClick={() => handleToggle(row)}
-                        disabled={busyId === row.invoice_id}
+                        disabled={busyId === confirmationKey(row.invoice_id, row.delivered_at)}
                       >
-                        {busyId === row.invoice_id
+                        {busyId === confirmationKey(row.invoice_id, row.delivered_at)
                           ? "Saving…"
                           : row.confirmed
                             ? "Un-confirm"

@@ -235,6 +235,13 @@ export interface MerchandiserSchedule {
 export interface MondialConfirmation {
   id: string;
   invoice_id: string | null;
+  /** The specific v_billing line this confirmation covers -- matches that
+   *  line's own delivered_at (rpi.delivered_at / rpi.superseded_at /
+   *  actual_delivery_date depending on branch). Paired with invoice_id as
+   *  the real unique key, so a backload line on an already-confirmed
+   *  invoice needs its own explicit confirmation instead of silently
+   *  inheriting the invoice's old one. See migration 0081. */
+  delivered_at: string | null;
   confirmed: boolean;
   confirmed_at: string | null;
   confirmed_by: string | null;
@@ -365,11 +372,14 @@ export interface VBilling {
   zone: ZoneType;
   is_dc: boolean;
   amount: number;
-  /** Set once this invoice has been rolled into a generated Mondial Billing
-   *  SOA -- see migration 0070. Null means still pending / eligible for the
-   *  next Generate. Once set it is never re-set, so a late invoice whose
-   *  delivered_at falls inside an already-billed period is simply picked up
-   *  by the next Generate run instead of retroactively joining the old SOA. */
+  /** Set once THIS SPECIFIC LINE (invoice_id + delivered_at) has been rolled
+   *  into a generated Mondial Billing SOA -- see migration 0070, re-keyed
+   *  per-line in 0081 (via mondial_billing_lines) so that a backload line no
+   *  longer inherits its invoice's other lines' billed status. Null means
+   *  still pending / eligible for the next Generate. Once set it is never
+   *  re-set, so a late invoice whose delivered_at falls inside an
+   *  already-billed period is simply picked up by the next Generate run
+   *  instead of retroactively joining the old SOA. */
   billing_statement_id: string | null;
   company_name: string | null;
   branch_address: string | null;
