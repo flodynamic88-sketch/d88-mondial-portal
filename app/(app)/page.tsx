@@ -255,11 +255,11 @@ async function getMtdCtsSummary(): Promise<MtdCtsSummary> {
 
     const { data: ctsRows } = await supabase
       .from("v_truck_cts")
-      .select("route_plan_id, truck_rate, total_invoice_amount, cts_pass");
+      .select("route_plan_id, truck_rate_for_cts, total_invoice_amount, cts_pass");
     const rows = (
       (ctsRows ?? []) as {
         route_plan_id: string | null;
-        truck_rate: number | null;
+        truck_rate_for_cts: number | null;
         total_invoice_amount: number | null;
         cts_pass: boolean | null;
       }[]
@@ -271,9 +271,12 @@ async function getMtdCtsSummary(): Promise<MtdCtsSummary> {
     let passCount = 0;
     let totalCount = 0;
     for (const row of rows) {
-      if (row.truck_rate !== null && row.total_invoice_amount !== null) {
+      // truck_rate_for_cts coalesces an in-house truck's null rate to 0, so
+      // its delivered invoice amount still lands in sumAmount instead of
+      // being dropped from the weighted average entirely.
+      if (row.truck_rate_for_cts !== null && row.total_invoice_amount !== null) {
         sawCost = true;
-        sumRate += row.truck_rate;
+        sumRate += row.truck_rate_for_cts;
         sumAmount += row.total_invoice_amount;
       }
       if (row.cts_pass !== null && row.cts_pass !== undefined) {

@@ -359,6 +359,12 @@ export interface VTruckCts {
   route_plan_id: string | null;
   plate_number: string | null;
   truck_rate: number | null;
+  /** Same value as truck_rate but with a null (in-house, no rate) coalesced
+   * to 0 -- use this (not truck_rate) when pooling/averaging CTS cost across
+   * multiple trucks, so an in-house truck contributes 0 cost instead of
+   * being silently dropped from the aggregate. Masked the same as
+   * truck_rate for non-Admin/Logistics-Officer roles. */
+  truck_rate_for_cts: number | null;
   total_invoice_amount: number | null;
   cts_pct: number | null;
   /** true = passing (<=5%), false = over threshold (flag red), null = no data yet */
