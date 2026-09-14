@@ -517,6 +517,15 @@ export interface VTransmittal {
   document_ranges: string | null;
 }
 
+/** Distinct (category, store name, address) reference list, deduplicated
+ *  from invoices -- see migration 0086. CONSIGNMENT/OUTRIGHT/MERCURY_DRUG
+ *  only (FLO_PRINCIPAL excluded, separate billing system). */
+export interface VInvoiceStoreReference {
+  category: InvoiceCategory;
+  store_name: string;
+  branch_address: string | null;
+}
+
 export interface VTransmittalItem {
   id: string;
   transmittal_id: string;

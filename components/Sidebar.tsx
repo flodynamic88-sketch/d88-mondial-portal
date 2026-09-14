@@ -89,6 +89,25 @@ const NAV_ITEMS: NavItem[] = [
     label: "Final Billing",
     roles: ["ADMIN", "GENERAL_MANAGER"],
   },
+  {
+    href: "/store-reference",
+    label: "Store Reference",
+    // Read-only lookup: store name + address per category (Consignment/
+    // Outright/Flo Mercury), deduplicated from invoices. invoices is already
+    // broadly readable ("invoices select" = to authenticated using (true),
+    // migration 0003), so this is open to every operational role.
+    // FLO_ASSOCIATE excluded -- Mercury-only access, see note above.
+    roles: [
+      "ADMIN",
+      "LOGISTICS_OFFICER",
+      "JMD_PLANNER",
+      "MONDIAL_TEAM",
+      "LOGISTICS_ASSOCIATE",
+      "GENERAL_MANAGER",
+      "INVOICING_TEAM",
+      "JMD_ADMIN",
+    ],
+  },
   { href: "/admin/users", label: "User Management", roles: ["ADMIN"] },
 ];
 
