@@ -163,6 +163,10 @@ export default function TruckCard({
   // display path).
   const canSeeTruckRate =
     role === "ADMIN" || role === "LOGISTICS_OFFICER" || role === "JMD_ADMIN";
+  // In-house flag -- stricter than canSeeTruckRate: JMD_ADMIN can view the
+  // truck rate but must never see or set is_inhouse (that's the whole point
+  // of 0084_hide_inhouse_truck_from_jmd.sql). Matches the trigger's gate.
+  const canSetInhouse = role === "ADMIN" || role === "LOGISTICS_OFFICER";
   const canDispatch = role === "ADMIN" || role === "JMD_PLANNER" || role === "LOGISTICS_OFFICER";
   const canUpdateDelivery =
     role === "ADMIN" || role === "LOGISTICS_OFFICER" || role === "LOGISTICS_ASSOCIATE";
@@ -243,6 +247,7 @@ export default function TruckCard({
     truck_rate: truck.truck_rate !== null && truck.truck_rate !== undefined ? String(truck.truck_rate) : "",
     destination: truck.destination ?? "",
     is_negotiated_rate: truck.is_negotiated_rate ?? false,
+    is_inhouse: truck.is_inhouse ?? false,
   });
   const [destinationOptions, setDestinationOptions] = useState<
     { destination: string; area: string; rate: number | null; convoy_rate: number | null }[]
@@ -406,6 +411,7 @@ export default function TruckCard({
           truck.truck_rate !== null && truck.truck_rate !== undefined ? String(truck.truck_rate) : "",
         destination: truck.destination ?? "",
         is_negotiated_rate: truck.is_negotiated_rate ?? false,
+        is_inhouse: truck.is_inhouse ?? false,
       });
       setIsCustomCarrierEdit(false);
     }
@@ -659,6 +665,11 @@ export default function TruckCard({
             ? {}
             : { destination: detailsDraft.destination.trim() || null }),
           ...(isConvoy || !canSeeTruckRate ? {} : { is_negotiated_rate: negotiated }),
+          // In-house flag: ADMIN/LOGISTICS_OFFICER only (canSetInhouse is
+          // stricter than canSeeTruckRate -- excludes JMD_ADMIN entirely, see
+          // enforce_truck_rate_edit() in 0084_hide_inhouse_truck_from_jmd.sql),
+          // and never applies to convoy trucks (main truck's flag governs).
+          ...(isConvoy || !canSetInhouse ? {} : { is_inhouse: detailsDraft.is_inhouse }),
         })
         .eq("id", truck.id);
       if (error) {
@@ -689,6 +700,7 @@ export default function TruckCard({
         truck.truck_rate !== null && truck.truck_rate !== undefined ? String(truck.truck_rate) : "",
       destination: truck.destination ?? "",
       is_negotiated_rate: truck.is_negotiated_rate ?? false,
+      is_inhouse: truck.is_inhouse ?? false,
     });
     setIsCustomCarrierEdit(false);
     setEditingDetails(false);
@@ -1463,6 +1475,18 @@ export default function TruckCard({
                     />
                     Negotiated rate
                   </label>
+                  {canSetInhouse && (
+                    <label className="flex items-center gap-1 text-[10px] text-gray-500">
+                      <input
+                        type="checkbox"
+                        checked={detailsDraft.is_inhouse}
+                        onChange={(e) =>
+                          setDetailsDraft((d) => ({ ...d, is_inhouse: e.target.checked }))
+                        }
+                      />
+                      In-house (hides deliveries from JMD)
+                    </label>
+                  )}
                 </div>
               ) : (
                 <>
@@ -1472,6 +1496,9 @@ export default function TruckCard({
                   )}
                   {canSeeTruckRate && truck.is_negotiated_rate && (
                     <p className="text-[10px] font-medium text-amber-600">Negotiated rate</p>
+                  )}
+                  {role !== "JMD_PLANNER" && role !== "JMD_ADMIN" && truck.is_inhouse && (
+                    <p className="text-[10px] font-medium text-blue-600">In-house</p>
                   )}
                 </>
               )}

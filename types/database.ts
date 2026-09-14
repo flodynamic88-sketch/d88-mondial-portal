@@ -144,6 +144,8 @@ export interface RoutePlanTruck {
   is_negotiated_rate: boolean;
   /** Looked up from trucking_rates.area via destination. View-only; masked to ADMIN/LOGISTICS_OFFICER/LOGISTICS_ASSOCIATE. */
   area?: string | null;
+  /** True when this is a D88-owned in-house truck rather than an external carrier. ADMIN/LOGISTICS_OFFICER only. Masked to false for JMD_PLANNER/JMD_ADMIN, and route_plan_invoices rows linked to such a truck are hidden from those roles entirely -- see 0084_hide_inhouse_truck_from_jmd.sql. */
+  is_inhouse: boolean;
 }
 
 export interface TruckingRate {

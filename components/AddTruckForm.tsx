@@ -39,6 +39,7 @@ export default function AddTruckForm({
   const [destinations, setDestinations] = useState<DestinationOption[]>([]);
   const [truckRate, setTruckRate] = useState("");
   const [isNegotiatedRate, setIsNegotiatedRate] = useState(false);
+  const [isInhouse, setIsInhouse] = useState(false);
   const [driverName, setDriverName] = useState("");
   const [helper1Name, setHelper1Name] = useState("");
   const [helper2Name, setHelper2Name] = useState("");
@@ -125,6 +126,9 @@ export default function AddTruckForm({
         // the manually-typed truck_rate above is used as-is -- see
         // enforce_truck_rate_edit() in 0040_negotiated_truck_rate.sql.
         is_negotiated_rate: canSetTruckRate ? isNegotiatedRate : false,
+        // In-house flag: same gate as truck_rate/destination/negotiated rate --
+        // see enforce_truck_rate_edit() in 0084_hide_inhouse_truck_from_jmd.sql.
+        is_inhouse: canSetTruckRate ? isInhouse : false,
         is_convoy: Boolean(mainTruckId),
         main_truck_id: mainTruckId ?? null,
         driver_name: driverName.trim() || null,
@@ -143,6 +147,7 @@ export default function AddTruckForm({
       setDestination("");
       setTruckRate("");
       setIsNegotiatedRate(false);
+      setIsInhouse(false);
       setDriverName("");
       setHelper1Name("");
       setHelper2Name("");
@@ -242,6 +247,14 @@ export default function AddTruckForm({
               onChange={(e) => setIsNegotiatedRate(e.target.checked)}
             />
             Negotiated rate (override the rate card)
+          </label>
+          <label className="mt-1 flex items-center gap-2 text-xs text-gray-600">
+            <input
+              type="checkbox"
+              checked={isInhouse}
+              onChange={(e) => setIsInhouse(e.target.checked)}
+            />
+            In-house (D88 truck — hides deliveries from JMD)
           </label>
         </div>
       )}
