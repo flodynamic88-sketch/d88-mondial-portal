@@ -21,8 +21,20 @@ import type { UserProfile } from "@/types/database";
  * max-width content padding) that would otherwise break print layouts.
  *
  * Since this layout does NOT sit under `(app)/mercury/layout.tsx`, it does
- * its own defense-in-depth ADMIN check here (same logic, straight from
- * Mondial's user_profiles table) rather than inheriting one.
+ * its own defense-in-depth role check here (same roles as
+ * `(app)/mercury/layout.tsx` -- ADMIN, FLO_ASSOCIATE, LOGISTICS_OFFICER --
+ * straight from Mondial's user_profiles table) rather than inheriting one.
+ *
+ * This was left ADMIN-only when FLO_ASSOCIATE (migration 0052) and later
+ * LOGISTICS_OFFICER (migration 0085) were opened up to the rest of Mercury,
+ * which silently redirected both of them to "/" on every print/export
+ * action (Billing Statement, SOA, Booklet Summary, all Reports prints,
+ * Delivery/Dispatch/Incident/Stock Request/Count Sheet/Bin Tag prints) even
+ * though the on-screen pages themselves loaded fine. Fixed here; the two
+ * FLO_ASSOCIATE-excluded routes (Billing prints, Booklet Summary print)
+ * re-guard themselves in their own nested layout.tsx, same pattern as
+ * app/(app)/mercury/billing/layout.tsx and
+ * app/(app)/mercury/booklet-summary/layout.tsx.
  */
 export default async function MercuryPrintLayout({ children }: { children: React.ReactNode }) {
   const supabase = createClient();
@@ -41,7 +53,12 @@ export default async function MercuryPrintLayout({ children }: { children: React
     .eq("id", user.id)
     .maybeSingle<UserProfile>();
 
-  if (!profile || profile.role !== "ADMIN") {
+  if (
+    !profile ||
+    (profile.role !== "ADMIN" &&
+      profile.role !== "FLO_ASSOCIATE" &&
+      profile.role !== "LOGISTICS_OFFICER")
+  ) {
     redirect("/");
   }
 
