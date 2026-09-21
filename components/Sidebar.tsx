@@ -80,6 +80,14 @@ const NAV_ITEMS: NavItem[] = [
     roles: ["ADMIN", "LOGISTICS_ASSOCIATE", "GENERAL_MANAGER", "INVOICING_TEAM"],
   },
   {
+    href: "/jmd-transmittal",
+    label: "JMD Transmittal",
+    // Proof-of-handoff print for invoices forwarded to JMD before release --
+    // same roles as Encode Invoices' edit access (the people who actually
+    // hand documents to JMD), not JMD's own view-only roles.
+    roles: ["ADMIN", "LOGISTICS_OFFICER", "LOGISTICS_ASSOCIATE"],
+  },
+  {
     href: "/trucking-billing",
     label: "Trucking Billing",
     roles: ["ADMIN", "LOGISTICS_OFFICER", "LOGISTICS_ASSOCIATE", "GENERAL_MANAGER"],
