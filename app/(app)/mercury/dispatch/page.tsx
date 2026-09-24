@@ -27,6 +27,7 @@ import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/mercury/supabase/client";
 import type { Client, DeliveryHeaderFull } from "@/lib/mercury/types";
 import { deliveryStatusBadgeClass, transactionTypeBadgeClass } from "@/lib/mercury/statusColors";
+import { useRole } from "@/lib/mercury/RoleContext";
 
 const STATUS_TABS = [
   { value: "", label: "All" },
@@ -49,6 +50,8 @@ function formatDateTime(d: string | null | undefined) {
 
 export default function DispatchPage() {
   const router = useRouter();
+  const role = useRole();
+  const readOnly = role === "general_manager";
   const [rows, setRows] = useState<DeliveryHeaderFull[]>([]);
   const [dispatchedAt, setDispatchedAt] = useState<Map<string, string>>(new Map());
   const [clients, setClients] = useState<Client[]>([]);
@@ -166,7 +169,7 @@ export default function DispatchPage() {
   }
 
   async function markDispatched() {
-    if (selectedCount === 0) return;
+    if (readOnly || selectedCount === 0) return;
     if (!confirm(`Mark ${selectedCount} delivery(ies) as dispatched? They'll drop off this list.`))
       return;
     setMarking(true);
@@ -186,7 +189,7 @@ export default function DispatchPage() {
   }
 
   async function unDispatch() {
-    if (selectedCount === 0) return;
+    if (readOnly || selectedCount === 0) return;
     if (
       !confirm(
         `Un-dispatch ${selectedCount} delivery(ies)? They'll move back to the "For Dispatch" list.`
@@ -221,14 +224,16 @@ export default function DispatchPage() {
         </div>
         {view === "pending" && (
           <div className="flex gap-2">
-            <button
-              type="button"
-              className="btn-secondary disabled:opacity-40 disabled:cursor-not-allowed"
-              disabled={selectedCount === 0 || marking}
-              onClick={markDispatched}
-            >
-              {marking ? "Marking…" : `Mark as Dispatched${selectedCount > 0 ? ` (${selectedCount})` : ""}`}
-            </button>
+            {!readOnly && (
+              <button
+                type="button"
+                className="btn-secondary disabled:opacity-40 disabled:cursor-not-allowed"
+                disabled={selectedCount === 0 || marking}
+                onClick={markDispatched}
+              >
+                {marking ? "Marking…" : `Mark as Dispatched${selectedCount > 0 ? ` (${selectedCount})` : ""}`}
+              </button>
+            )}
             <button
               type="button"
               className="btn-primary disabled:opacity-40 disabled:cursor-not-allowed"
@@ -239,7 +244,7 @@ export default function DispatchPage() {
             </button>
           </div>
         )}
-        {view === "dispatched" && (
+        {view === "dispatched" && !readOnly && (
           <div className="flex gap-2">
             <button
               type="button"

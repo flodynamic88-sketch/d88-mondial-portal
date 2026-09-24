@@ -12,6 +12,7 @@ import type {
   Item,
 } from "@/lib/mercury/types";
 import { BAD_ORDER_STATUSES } from "@/lib/mercury/types";
+import { useRole } from "@/lib/mercury/RoleContext";
 
 function nextBoNumber(existing: BadOrderHeader[]): string {
   const today = new Date();
@@ -63,6 +64,13 @@ function newLine(): LineRow {
 
 export default function NewBadOrderPage() {
   const router = useRouter();
+  const role = useRole();
+
+  useEffect(() => {
+    if (role === "general_manager") {
+      router.replace("/mercury/bad-orders");
+    }
+  }, [role, router]);
 
   const [clients, setClients] = useState<Client[]>([]);
   const [branches, setBranches] = useState<Branch[]>([]);

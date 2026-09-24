@@ -17,7 +17,8 @@ export type UserRole =
   | "GENERAL_MANAGER"
   | "INVOICING_TEAM"
   | "JMD_ADMIN"
-  | "FLO_ASSOCIATE";
+  | "FLO_ASSOCIATE"
+  | "MERCURY_ASSOCIATE";
 
 export interface UserProfile {
   id: string;

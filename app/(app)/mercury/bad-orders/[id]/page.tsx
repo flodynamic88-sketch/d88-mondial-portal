@@ -15,6 +15,7 @@ import type {
   Item,
 } from "@/lib/mercury/types";
 import { BAD_ORDER_STATUSES } from "@/lib/mercury/types";
+import { useRole } from "@/lib/mercury/RoleContext";
 
 function peso(n: number | null | undefined) {
   return new Intl.NumberFormat("en-PH", {
@@ -54,6 +55,8 @@ export default function BadOrderDetailPage() {
   const params = useParams<{ id: string }>();
   const router = useRouter();
   const id = params.id;
+  const role = useRole();
+  const readOnly = role === "general_manager";
 
   const [clients, setClients] = useState<Client[]>([]);
   const [branches, setBranches] = useState<Branch[]>([]);
@@ -135,6 +138,7 @@ export default function BadOrderDetailPage() {
   const totalAmount = useMemo(() => lines.reduce((s, l) => s + (l.amount || 0), 0), [lines]);
 
   async function handleSaveHeader() {
+    if (readOnly) return;
     setSaving(true);
     setError(null);
     const supabase = createClient();
@@ -159,6 +163,7 @@ export default function BadOrderDetailPage() {
   }
 
   async function saveAttachments(urls: string[]) {
+    if (readOnly) return;
     const supabase = createClient();
     const { error } = await supabase
       .schema("flo").from("bad_order_headers")
@@ -173,6 +178,7 @@ export default function BadOrderDetailPage() {
   }
 
   async function handleDeleteHeader() {
+    if (readOnly) return;
     if (!confirm("Delete this whole Bad Order (BO# and all its lines)? This cannot be undone.")) return;
     const supabase = createClient();
     const { error } = await supabase.schema("flo").from("bad_order_headers").delete().eq("id", id);
@@ -193,6 +199,7 @@ export default function BadOrderDetailPage() {
   }
 
   async function handleSaveLine(lineId: string) {
+    if (readOnly) return;
     const edit = lineEdits[lineId];
     if (!edit) return;
     setSaving(true);
@@ -211,6 +218,7 @@ export default function BadOrderDetailPage() {
   }
 
   async function handleDeleteLine(lineId: string) {
+    if (readOnly) return;
     if (!confirm("Remove this line?")) return;
     const supabase = createClient();
     const { error } = await supabase.schema("flo").from("bad_order_lines").delete().eq("id", lineId);
@@ -238,6 +246,7 @@ export default function BadOrderDetailPage() {
   }
 
   async function handleAddLine() {
+    if (readOnly) return;
     if (!newLine.item_code.trim() || !newLine.item_description.trim() || !newLine.qty) {
       setError("Please fill in item code, description, and qty for the new line.");
       return;
@@ -276,7 +285,10 @@ export default function BadOrderDetailPage() {
     <div className="space-y-6 max-w-6xl">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div>
-          <h1 className="text-xl font-semibold text-gray-900">{record.bo_number}</h1>
+          <h1 className="text-xl font-semibold text-gray-900">
+            {record.bo_number}
+            {readOnly && <span className="ml-2 text-gray-400 text-sm font-normal">&middot; View only</span>}
+          </h1>
           <span
             className={`inline-block mt-1 rounded-full px-2 py-0.5 text-xs font-medium ${statusBadgeClass(
               (form.status as string) || record.status
@@ -289,9 +301,11 @@ export default function BadOrderDetailPage() {
           <Link href="/mercury/bad-orders" className="btn-secondary">
             Back to List
           </Link>
-          <button type="button" className="btn-secondary text-red-600" onClick={handleDeleteHeader}>
-            Delete BO#
-          </button>
+          {!readOnly && (
+            <button type="button" className="btn-secondary text-red-600" onClick={handleDeleteHeader}>
+              Delete BO#
+            </button>
+          )}
         </div>
       </div>
 
@@ -310,6 +324,7 @@ export default function BadOrderDetailPage() {
               className="input"
               value={(form.bo_number as string) || ""}
               onChange={(e) => set("bo_number", e.target.value)}
+              readOnly={readOnly}
             />
           </div>
           <div>
@@ -319,6 +334,7 @@ export default function BadOrderDetailPage() {
               className="input"
               value={(form.date_backload as string) || ""}
               onChange={(e) => set("date_backload", e.target.value)}
+              readOnly={readOnly}
             />
           </div>
           <div>
@@ -327,6 +343,7 @@ export default function BadOrderDetailPage() {
               className="input"
               value={(form.status as BadOrderStatus) || "Stored in Warehouse"}
               onChange={(e) => set("status", e.target.value)}
+              disabled={readOnly}
             >
               {BAD_ORDER_STATUSES.map((s) => (
                 <option key={s} value={s}>
@@ -344,6 +361,7 @@ export default function BadOrderDetailPage() {
                 set("client_id", e.target.value);
                 set("branch_id", "");
               }}
+              disabled={readOnly}
             >
               <option value="">— None —</option>
               {clients.map((c) => (
@@ -359,6 +377,7 @@ export default function BadOrderDetailPage() {
               className="input"
               value={(form.branch_id as string) || ""}
               onChange={(e) => set("branch_id", e.target.value)}
+              disabled={readOnly}
             >
               <option value="">— None —</option>
               {availableBranches.map((b) => (
@@ -376,6 +395,7 @@ export default function BadOrderDetailPage() {
             rows={2}
             value={(form.notes as string) || ""}
             onChange={(e) => set("notes", e.target.value)}
+            readOnly={readOnly}
           />
         </div>
         <div>
@@ -384,11 +404,14 @@ export default function BadOrderDetailPage() {
             urls={(form.attachment_urls as string[]) || record?.attachment_urls || []}
             pathPrefix={`bad-orders/${id}`}
             onChange={saveAttachments}
+            readOnly={readOnly}
           />
         </div>
-        <button type="button" className="btn-primary" disabled={saving} onClick={handleSaveHeader}>
-          {saving ? "Saving…" : "Save Header"}
-        </button>
+        {!readOnly && (
+          <button type="button" className="btn-primary" disabled={saving} onClick={handleSaveHeader}>
+            {saving ? "Saving…" : "Save Header"}
+          </button>
+        )}
       </div>
 
       <div className="card p-5 space-y-4">
@@ -410,7 +433,7 @@ export default function BadOrderDetailPage() {
                 <th className="text-right">Unit Price</th>
                 <th className="text-right">Amount</th>
                 <th>Expiration</th>
-                <th></th>
+                {!readOnly && <th></th>}
               </tr>
             </thead>
             <tbody>
@@ -421,6 +444,7 @@ export default function BadOrderDetailPage() {
                       className="input"
                       value={(lineValue(l, "item_code") as string) || ""}
                       onChange={(e) => updateLineEdit(l.id, { item_code: e.target.value })}
+                      readOnly={readOnly}
                     />
                   </td>
                   <td>
@@ -428,6 +452,7 @@ export default function BadOrderDetailPage() {
                       className="input"
                       value={(lineValue(l, "item_description") as string) || ""}
                       onChange={(e) => updateLineEdit(l.id, { item_description: e.target.value })}
+                      readOnly={readOnly}
                     />
                   </td>
                   <td>
@@ -437,6 +462,7 @@ export default function BadOrderDetailPage() {
                       className="input text-right"
                       value={(lineValue(l, "qty") as number) ?? ""}
                       onChange={(e) => updateLineEdit(l.id, { qty: Number(e.target.value) })}
+                      readOnly={readOnly}
                     />
                   </td>
                   <td>
@@ -444,6 +470,7 @@ export default function BadOrderDetailPage() {
                       className="input"
                       value={(lineValue(l, "unit") as string) || ""}
                       onChange={(e) => updateLineEdit(l.id, { unit: e.target.value })}
+                      readOnly={readOnly}
                     />
                   </td>
                   <td>
@@ -453,6 +480,7 @@ export default function BadOrderDetailPage() {
                       className="input text-right"
                       value={(lineValue(l, "unit_price") as number) ?? ""}
                       onChange={(e) => updateLineEdit(l.id, { unit_price: Number(e.target.value) })}
+                      readOnly={readOnly}
                     />
                   </td>
                   <td>
@@ -462,6 +490,7 @@ export default function BadOrderDetailPage() {
                       className="input text-right"
                       value={(lineValue(l, "amount") as number) ?? ""}
                       onChange={(e) => updateLineEdit(l.id, { amount: Number(e.target.value) })}
+                      readOnly={readOnly}
                     />
                   </td>
                   <td>
@@ -470,110 +499,115 @@ export default function BadOrderDetailPage() {
                       className="input"
                       value={(lineValue(l, "expiration_date") as string) || ""}
                       onChange={(e) => updateLineEdit(l.id, { expiration_date: e.target.value })}
+                      readOnly={readOnly}
                     />
                   </td>
-                  <td className="whitespace-nowrap">
-                    <button
-                      type="button"
-                      className="text-brand-dark hover:underline text-xs font-medium mr-2"
-                      disabled={!lineEdits[l.id] || saving}
-                      onClick={() => handleSaveLine(l.id)}
-                    >
-                      Save
-                    </button>
-                    <button
-                      type="button"
-                      className="text-red-500 hover:underline text-xs"
-                      onClick={() => handleDeleteLine(l.id)}
-                    >
-                      Remove
-                    </button>
-                  </td>
+                  {!readOnly && (
+                    <td className="whitespace-nowrap">
+                      <button
+                        type="button"
+                        className="text-brand-dark hover:underline text-xs font-medium mr-2"
+                        disabled={!lineEdits[l.id] || saving}
+                        onClick={() => handleSaveLine(l.id)}
+                      >
+                        Save
+                      </button>
+                      <button
+                        type="button"
+                        className="text-red-500 hover:underline text-xs"
+                        onClick={() => handleDeleteLine(l.id)}
+                      >
+                        Remove
+                      </button>
+                    </td>
+                  )}
                 </tr>
               ))}
 
               {/* Add-line row */}
-              <tr className="bg-gray-50">
-                <td>
-                  <select
-                    className="input"
-                    value={newLine.item_id}
-                    onChange={(e) => handleNewLineItemSelect(e.target.value)}
-                    disabled={!form.client_id}
-                  >
-                    <option value="">— Select item —</option>
-                    {availableItems.map((i) => (
-                      <option key={i.id} value={i.id}>
-                        {i.item_code} — {i.item_description}
-                      </option>
-                    ))}
-                  </select>
-                </td>
-                <td>
-                  <input
-                    className="input"
-                    placeholder="Item description"
-                    value={newLine.item_description}
-                    onChange={(e) => setNewLine((prev) => ({ ...prev, item_description: e.target.value }))}
-                  />
-                </td>
-                <td>
-                  <input
-                    type="number"
-                    step="any"
-                    className="input text-right"
-                    placeholder="Qty"
-                    value={newLine.qty}
-                    onChange={(e) => setNewLine((prev) => ({ ...prev, qty: e.target.value }))}
-                  />
-                </td>
-                <td>
-                  <input
-                    className="input"
-                    placeholder="Unit"
-                    value={newLine.unit}
-                    onChange={(e) => setNewLine((prev) => ({ ...prev, unit: e.target.value }))}
-                  />
-                </td>
-                <td>
-                  <input
-                    type="number"
-                    step="any"
-                    className="input text-right"
-                    placeholder="Unit Price"
-                    value={newLine.unit_price}
-                    onChange={(e) => setNewLine((prev) => ({ ...prev, unit_price: e.target.value }))}
-                  />
-                </td>
-                <td>
-                  <input
-                    type="number"
-                    step="any"
-                    className="input text-right"
-                    placeholder="Amount"
-                    value={newLine.amount}
-                    onChange={(e) => setNewLine((prev) => ({ ...prev, amount: e.target.value }))}
-                  />
-                </td>
-                <td>
-                  <input
-                    type="date"
-                    className="input"
-                    value={newLine.expiration_date}
-                    onChange={(e) => setNewLine((prev) => ({ ...prev, expiration_date: e.target.value }))}
-                  />
-                </td>
-                <td>
-                  <button
-                    type="button"
-                    className="btn-secondary text-xs"
-                    disabled={addingLine}
-                    onClick={handleAddLine}
-                  >
-                    {addingLine ? "Adding…" : "+ Add"}
-                  </button>
-                </td>
-              </tr>
+              {!readOnly && (
+                <tr className="bg-gray-50">
+                  <td>
+                    <select
+                      className="input"
+                      value={newLine.item_id}
+                      onChange={(e) => handleNewLineItemSelect(e.target.value)}
+                      disabled={!form.client_id}
+                    >
+                      <option value="">— Select item —</option>
+                      {availableItems.map((i) => (
+                        <option key={i.id} value={i.id}>
+                          {i.item_code} — {i.item_description}
+                        </option>
+                      ))}
+                    </select>
+                  </td>
+                  <td>
+                    <input
+                      className="input"
+                      placeholder="Item description"
+                      value={newLine.item_description}
+                      onChange={(e) => setNewLine((prev) => ({ ...prev, item_description: e.target.value }))}
+                    />
+                  </td>
+                  <td>
+                    <input
+                      type="number"
+                      step="any"
+                      className="input text-right"
+                      placeholder="Qty"
+                      value={newLine.qty}
+                      onChange={(e) => setNewLine((prev) => ({ ...prev, qty: e.target.value }))}
+                    />
+                  </td>
+                  <td>
+                    <input
+                      className="input"
+                      placeholder="Unit"
+                      value={newLine.unit}
+                      onChange={(e) => setNewLine((prev) => ({ ...prev, unit: e.target.value }))}
+                    />
+                  </td>
+                  <td>
+                    <input
+                      type="number"
+                      step="any"
+                      className="input text-right"
+                      placeholder="Unit Price"
+                      value={newLine.unit_price}
+                      onChange={(e) => setNewLine((prev) => ({ ...prev, unit_price: e.target.value }))}
+                    />
+                  </td>
+                  <td>
+                    <input
+                      type="number"
+                      step="any"
+                      className="input text-right"
+                      placeholder="Amount"
+                      value={newLine.amount}
+                      onChange={(e) => setNewLine((prev) => ({ ...prev, amount: e.target.value }))}
+                    />
+                  </td>
+                  <td>
+                    <input
+                      type="date"
+                      className="input"
+                      value={newLine.expiration_date}
+                      onChange={(e) => setNewLine((prev) => ({ ...prev, expiration_date: e.target.value }))}
+                    />
+                  </td>
+                  <td>
+                    <button
+                      type="button"
+                      className="btn-secondary text-xs"
+                      disabled={addingLine}
+                      onClick={handleAddLine}
+                    >
+                      {addingLine ? "Adding…" : "+ Add"}
+                    </button>
+                  </td>
+                </tr>
+              )}
             </tbody>
           </table>
         </div>

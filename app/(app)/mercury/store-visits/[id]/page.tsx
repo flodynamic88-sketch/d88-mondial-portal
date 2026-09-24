@@ -5,6 +5,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { createClient } from "@/lib/mercury/supabase/client";
 import type { Client, Item, StoreVisitHeader, StoreVisitLine } from "@/lib/mercury/types";
+import { useRole } from "@/lib/mercury/RoleContext";
 
 function formatDate(d: string | null | undefined) {
   if (!d) return "—";
@@ -58,6 +59,8 @@ export default function StoreVisitDetailPage() {
   const params = useParams<{ id: string }>();
   const router = useRouter();
   const id = params.id;
+  const role = useRole();
+  const readOnly = role === "general_manager";
 
   const [record, setRecord] = useState<StoreVisitHeader | null>(null);
   const [lines, setLines] = useState<StoreVisitLine[]>([]);
@@ -123,6 +126,7 @@ export default function StoreVisitDetailPage() {
   }
 
   function startEditing() {
+    if (readOnly) return;
     setForm((record as unknown as Record<string, unknown>) || {});
     setLineDrafts(lines.map(toDraft));
     setNewItemId("");
@@ -139,21 +143,24 @@ export default function StoreVisitDetailPage() {
   }
 
   function updateLineQty(idx: number, qty: string) {
+    if (readOnly) return;
     setLineDrafts((prev) =>
       prev.map((l, i) => (i === idx ? { ...l, qty: qty === "" ? 0 : Number(qty) } : l))
     );
   }
 
   function removeLine(idx: number) {
+    if (readOnly) return;
     setLineDrafts((prev) => prev.map((l, i) => (i === idx ? { ...l, _removed: true } : l)));
   }
 
   function restoreLine(idx: number) {
+    if (readOnly) return;
     setLineDrafts((prev) => prev.map((l, i) => (i === idx ? { ...l, _removed: false } : l)));
   }
 
   function addNewLine() {
-    if (!newItemId) return;
+    if (readOnly || !newItemId) return;
     const item = items.find((i) => i.id === newItemId);
     if (!item) return;
     const client = (item as unknown as { clients?: Pick<Client, "id" | "client_code" | "client_name"> })
@@ -176,7 +183,7 @@ export default function StoreVisitDetailPage() {
   }
 
   async function handleSave() {
-    if (!record) return;
+    if (readOnly || !record) return;
     setSaving(true);
     setError(null);
     const supabase = createClient();
@@ -252,7 +259,7 @@ export default function StoreVisitDetailPage() {
   }
 
   async function handleDelete() {
-    if (!record) return;
+    if (readOnly || !record) return;
     if (!confirm("Delete this store visit and all its lines? This cannot be undone.")) return;
     setDeleting(true);
     const supabase = createClient();
@@ -277,7 +284,10 @@ export default function StoreVisitDetailPage() {
     <div className="space-y-6 max-w-5xl">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div>
-          <h1 className="text-xl font-semibold text-gray-900">Store Visit</h1>
+          <h1 className="text-xl font-semibold text-gray-900">
+            Store Visit
+            {readOnly && <span className="ml-2 text-gray-400 text-sm font-normal">&middot; View only</span>}
+          </h1>
           <p className="text-sm text-gray-500">
             {formatDate(record.visit_date)} &middot; {record.sales_coordinator_name} &middot;{" "}
             {record.branch_name || "—"}
@@ -297,14 +307,16 @@ export default function StoreVisitDetailPage() {
               </button>
             </>
           ) : (
-            <>
-              <button className="btn-secondary" onClick={startEditing}>
-                Edit
-              </button>
-              <button className="btn-secondary text-red-600" onClick={handleDelete} disabled={deleting}>
-                {deleting ? "Deleting…" : "Delete"}
-              </button>
-            </>
+            !readOnly && (
+              <>
+                <button className="btn-secondary" onClick={startEditing}>
+                  Edit
+                </button>
+                <button className="btn-secondary text-red-600" onClick={handleDelete} disabled={deleting}>
+                  {deleting ? "Deleting…" : "Delete"}
+                </button>
+              </>
+            )
           )}
         </div>
       </div>
@@ -537,11 +549,13 @@ export default function StoreVisitDetailPage() {
             placeholder="Optional remarks"
             value={notes}
             onChange={(e) => setNotes(e.target.value)}
+            readOnly={readOnly}
           />
+          {!readOnly && (
           <button
             className="btn-primary"
             onClick={async () => {
-              if (!record) return;
+              if (readOnly || !record) return;
               setSaving(true);
               const supabase = createClient();
               const { error } = await supabase
@@ -559,6 +573,7 @@ export default function StoreVisitDetailPage() {
           >
             {saving ? "Saving…" : "Save Notes"}
           </button>
+          )}
         </div>
       )}
     </div>

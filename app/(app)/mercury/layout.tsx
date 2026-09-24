@@ -5,12 +5,12 @@ import { RoleProvider } from "@/lib/mercury/RoleContext";
 import type { UserProfile } from "@/types/database";
 
 /**
- * Mercury (ported Flo Portal) section -- ADMIN, FLO_ASSOCIATE, and
- * LOGISTICS_OFFICER only.
+ * Mercury (ported Flo Portal) section -- ADMIN, FLO_ASSOCIATE,
+ * LOGISTICS_OFFICER, and MERCURY_ASSOCIATE only.
  *
  * Defense-in-depth route guard: the "Mercury" nav entry is already only
- * ever rendered for ADMIN/FLO_ASSOCIATE/LOGISTICS_OFFICER in
- * components/Sidebar.tsx, but that alone only hides the link -- it does
+ * ever rendered for ADMIN/FLO_ASSOCIATE/LOGISTICS_OFFICER/MERCURY_ASSOCIATE
+ * in components/Sidebar.tsx, but that alone only hides the link -- it does
  * nothing to stop someone who already knows (or guesses/bookmarks) a
  * /mercury/* URL. This layout re-checks the signed-in user's role
  * server-side, straight from Mondial's own user_profiles table (the only
@@ -33,6 +33,16 @@ import type { UserProfile } from "@/types/database";
  * this guard and both per-route Billing/Booklet-Summary guards unaffected
  * (those two only redirect FLO_ASSOCIATE), and migration 0085 opens the
  * flo-schema RLS -- including booklet_invoice_status -- to it as well.
+ *
+ * MERCURY_ASSOCIATE is VIEW-ONLY across all of Mercury, and (like
+ * FLO_ASSOCIATE) has no access at all to Billing/Booklet Summary -- both
+ * hidden here via hideBilling and blocked again at the route layouts. The
+ * RoleProvider below maps it to Mercury's own legacy "general_manager"
+ * role, which is the one role value the ported Mercury pages already treat
+ * as read-only everywhere (MercuryCrudTable and every add/edit entry point
+ * check `role === "general_manager"`) -- search/filtering is untouched by
+ * this, since none of those checks gate search. Migration 0086 backs this
+ * with SELECT-only RLS on the flo schema (no insert/update/delete grants).
  */
 export default async function MercuryLayout({ children }: { children: React.ReactNode }) {
   const supabase = createClient();
@@ -55,27 +65,28 @@ export default async function MercuryLayout({ children }: { children: React.Reac
     !profile ||
     (profile.role !== "ADMIN" &&
       profile.role !== "FLO_ASSOCIATE" &&
-      profile.role !== "LOGISTICS_OFFICER")
+      profile.role !== "LOGISTICS_OFFICER" &&
+      profile.role !== "MERCURY_ASSOCIATE")
   ) {
     redirect("/");
   }
 
   const isFloAssociate = profile.role === "FLO_ASSOCIATE";
+  const isMercuryAssociate = profile.role === "MERCURY_ASSOCIATE";
 
   return (
     // Mercury's ported pages (originally written against Flo Portal's own
     // role system) call useRole() in a few places (e.g. MercuryCrudTable's
-    // readOnly gating). Everyone who reaches this layout is a Mondial
-    // ADMIN, FLO_ASSOCIATE, or LOGISTICS_OFFICER, all of which get full
-    // (non-readOnly) Mercury coverage, so "admin" is the only role Mercury
-    // ever needs to provide here for any of them.
-    <RoleProvider role="admin">
+    // readOnly gating). ADMIN/FLO_ASSOCIATE/LOGISTICS_OFFICER get full
+    // (non-readOnly) Mercury coverage via "admin"; MERCURY_ASSOCIATE gets
+    // "general_manager", the pre-existing read-only role value.
+    <RoleProvider role={isMercuryAssociate ? "general_manager" : "admin"}>
       {/* Break out of the parent (app) layout's max-w-6xl container so
           Mercury's wide tables/reports get the full viewport width instead
           of being squeezed into Mondial's narrower default content column. */}
       <div className="mx-[calc(50%-50vw)] w-screen px-4 sm:px-6 lg:px-8">
         <div className="mx-auto flex w-full max-w-[1800px] items-start gap-6">
-          <MercurySidebar hideBilling={isFloAssociate} />
+          <MercurySidebar hideBilling={isFloAssociate || isMercuryAssociate} />
           <div className="min-w-0 flex-1">{children}</div>
         </div>
       </div>

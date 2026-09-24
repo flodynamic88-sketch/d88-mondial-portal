@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/mercury/supabase/client";
 import type { Branch, Client, IncidentReport, IrClassification } from "@/lib/mercury/types";
 import { IR_CLASSIFICATIONS } from "@/lib/mercury/types";
+import { useRole } from "@/lib/mercury/RoleContext";
 
 function nextIrNumber(existing: IncidentReport[]): string {
   const today = new Date();
@@ -28,6 +29,13 @@ function nextIrNumber(existing: IncidentReport[]): string {
 
 export default function NewIncidentReportPage() {
   const router = useRouter();
+  const role = useRole();
+
+  useEffect(() => {
+    if (role === "general_manager") {
+      router.replace("/mercury/incident-reports");
+    }
+  }, [role, router]);
 
   const [clients, setClients] = useState<Client[]>([]);
   const [branches, setBranches] = useState<Branch[]>([]);

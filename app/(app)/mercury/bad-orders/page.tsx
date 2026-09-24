@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 import { createClient } from "@/lib/mercury/supabase/client";
 import type { BadOrderHeaderFull, Client } from "@/lib/mercury/types";
 import { BAD_ORDER_STATUSES } from "@/lib/mercury/types";
+import { useRole } from "@/lib/mercury/RoleContext";
 
 function peso(n: number | null | undefined) {
   return new Intl.NumberFormat("en-PH", {
@@ -37,6 +38,9 @@ function statusBadgeClass(status: string) {
 const STATUS_TABS = [{ value: "", label: "All" }, ...BAD_ORDER_STATUSES.map((s) => ({ value: s, label: s }))];
 
 export default function BadOrdersPage() {
+  const role = useRole();
+  const canEncode = role !== "general_manager";
+
   const [rows, setRows] = useState<BadOrderHeaderFull[]>([]);
   const [clients, setClients] = useState<Client[]>([]);
   const [statusCounts, setStatusCounts] = useState<Record<string, number>>({});
@@ -120,9 +124,11 @@ export default function BadOrdersPage() {
           <Link href="/mercury/reports/bad-order-report" className="btn-secondary">
             Monthly Report
           </Link>
-          <Link href="/mercury/bad-orders/new" className="btn-primary">
-            + New Bad Order
-          </Link>
+          {canEncode && (
+            <Link href="/mercury/bad-orders/new" className="btn-primary">
+              + New Bad Order
+            </Link>
+          )}
         </div>
       </div>
 

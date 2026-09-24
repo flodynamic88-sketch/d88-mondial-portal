@@ -132,8 +132,8 @@ export default function Sidebar() {
   // "Mercury" (the ported Flo Portal admin section) is appended here --
   // never injected as a static NAV_ITEMS entry -- so it is completely
   // absent from the DOM for every role except ADMIN/FLO_ASSOCIATE/
-  // LOGISTICS_OFFICER, not merely hidden. Direct-URL access is separately
-  // blocked server-side by app/(app)/mercury/layout.tsx.
+  // LOGISTICS_OFFICER/MERCURY_ASSOCIATE, not merely hidden. Direct-URL
+  // access is separately blocked server-side by app/(app)/mercury/layout.tsx.
   //
   // FLO_ASSOCIATE's access is Mercury-only: it is deliberately excluded
   // from every entry in NAV_ITEMS above (none of their `roles` arrays list
@@ -143,11 +143,23 @@ export default function Sidebar() {
   // LOGISTICS_OFFICER was granted full Mercury access on top of its
   // existing Mondial-side nav entries (per explicit request), so it keeps
   // everything above plus this link.
+  //
+  // MERCURY_ASSOCIATE is Mercury-only, same as FLO_ASSOCIATE, but strictly
+  // VIEW-ONLY once inside Mercury (no add/edit/delete, no Billing/Booklet
+  // Summary, no print/export) -- enforced in app/(app)/mercury/layout.tsx
+  // and per-page readOnly checks, not here in the nav.
   const items: NavItem[] =
-    profile?.role === "ADMIN" || profile?.role === "FLO_ASSOCIATE" || profile?.role === "LOGISTICS_OFFICER"
+    profile?.role === "ADMIN" ||
+    profile?.role === "FLO_ASSOCIATE" ||
+    profile?.role === "LOGISTICS_OFFICER" ||
+    profile?.role === "MERCURY_ASSOCIATE"
       ? [
           ...NAV_ITEMS,
-          { href: "/mercury", label: "Mercury", roles: ["ADMIN", "FLO_ASSOCIATE", "LOGISTICS_OFFICER"] },
+          {
+            href: "/mercury",
+            label: "Mercury",
+            roles: ["ADMIN", "FLO_ASSOCIATE", "LOGISTICS_OFFICER", "MERCURY_ASSOCIATE"],
+          },
         ]
       : NAV_ITEMS;
 

@@ -13,6 +13,7 @@ import type {
   IrStatus,
 } from "@/lib/mercury/types";
 import { IR_CLASSIFICATIONS, IR_STATUSES } from "@/lib/mercury/types";
+import { useRole } from "@/lib/mercury/RoleContext";
 
 function statusBadgeClass(status: string) {
   switch (status) {
@@ -33,6 +34,8 @@ export default function IncidentReportDetailPage() {
   const params = useParams<{ id: string }>();
   const router = useRouter();
   const id = params.id;
+  const role = useRole();
+  const readOnly = role === "general_manager";
 
   const [clients, setClients] = useState<Client[]>([]);
   const [branches, setBranches] = useState<Branch[]>([]);
@@ -80,6 +83,7 @@ export default function IncidentReportDetailPage() {
   }
 
   async function handleSave() {
+    if (readOnly) return;
     setSaving(true);
     setError(null);
     const supabase = createClient();
@@ -119,17 +123,20 @@ export default function IncidentReportDetailPage() {
   }
 
   function markEmployeeAcknowledged() {
+    if (readOnly) return;
     set("employee_acknowledged", true);
     set("employee_signed_date", new Date().toISOString().slice(0, 10));
   }
 
   function markReviewed() {
+    if (readOnly) return;
     set("reviewed_by", form.reviewed_by || "Reymar Gapud");
     set("reviewed_date", new Date().toISOString().slice(0, 10));
     if (form.status === "Open") set("status", "Under Review");
   }
 
   async function handleUploadAttachment(e: React.ChangeEvent<HTMLInputElement>) {
+    if (readOnly) return;
     const files = e.target.files;
     if (!files || files.length === 0) return;
 
@@ -181,6 +188,7 @@ export default function IncidentReportDetailPage() {
   }
 
   async function handleDeleteAttachment(att: IncidentReportAttachment) {
+    if (readOnly) return;
     if (!confirm(`Delete attachment "${att.file_name}"?`)) return;
     const supabase = createClient();
     await supabase.storage.from("incident-report-attachments").remove([att.file_path]);
@@ -193,6 +201,7 @@ export default function IncidentReportDetailPage() {
   }
 
   async function handleDelete() {
+    if (readOnly) return;
     if (!confirm("Delete this Incident Report? This cannot be undone.")) return;
     const supabase = createClient();
     const { error } = await supabase.schema("flo").from("incident_reports").delete().eq("id", id);
@@ -220,7 +229,10 @@ export default function IncidentReportDetailPage() {
               {String(form.status || report.status)}
             </span>
           </div>
-          <p className="text-sm text-gray-500">Incident Report detail &amp; monitoring</p>
+          <p className="text-sm text-gray-500">
+            Incident Report detail &amp; monitoring
+            {readOnly && <span className="ml-2 text-gray-400">&middot; View only</span>}
+          </p>
         </div>
         <div className="flex gap-2">
           <Link href={`/mercury/incident-reports/${id}/print`} className="btn-secondary">
@@ -229,9 +241,11 @@ export default function IncidentReportDetailPage() {
           <Link href="/mercury/incident-reports" className="btn-secondary">
             Back to List
           </Link>
-          <button type="button" className="btn-secondary text-red-600" onClick={handleDelete}>
-            Delete
-          </button>
+          {!readOnly && (
+            <button type="button" className="btn-secondary text-red-600" onClick={handleDelete}>
+              Delete
+            </button>
+          )}
         </div>
       </div>
 
@@ -251,6 +265,7 @@ export default function IncidentReportDetailPage() {
               className="input"
               value={(form.incident_date as string) || ""}
               onChange={(e) => set("incident_date", e.target.value)}
+              readOnly={readOnly}
             />
           </div>
           <div>
@@ -260,6 +275,7 @@ export default function IncidentReportDetailPage() {
               className="input"
               value={(form.date_reported as string) || ""}
               onChange={(e) => set("date_reported", e.target.value)}
+              readOnly={readOnly}
             />
           </div>
           <div>
@@ -268,6 +284,7 @@ export default function IncidentReportDetailPage() {
               className="input"
               value={(form.classification as IrClassification) || ""}
               onChange={(e) => set("classification", e.target.value)}
+              disabled={readOnly}
             >
               {IR_CLASSIFICATIONS.map((c) => (
                 <option key={c} value={c}>
@@ -283,6 +300,7 @@ export default function IncidentReportDetailPage() {
                 className="input"
                 value={(form.other_classification as string) || ""}
                 onChange={(e) => set("other_classification", e.target.value)}
+                readOnly={readOnly}
               />
             </div>
           )}
@@ -298,6 +316,7 @@ export default function IncidentReportDetailPage() {
               className="input"
               value={(form.client_id as string) || ""}
               onChange={(e) => set("client_id", e.target.value)}
+              disabled={readOnly}
             >
               <option value="">— None —</option>
               {clients.map((c) => (
@@ -313,6 +332,7 @@ export default function IncidentReportDetailPage() {
               className="input"
               value={(form.branch_id as string) || ""}
               onChange={(e) => set("branch_id", e.target.value)}
+              disabled={readOnly}
             >
               <option value="">— None —</option>
               {branches.map((b) => (
@@ -328,6 +348,7 @@ export default function IncidentReportDetailPage() {
               className="input"
               value={(form.location as string) || ""}
               onChange={(e) => set("location", e.target.value)}
+              readOnly={readOnly}
             />
           </div>
         </div>
@@ -342,6 +363,7 @@ export default function IncidentReportDetailPage() {
               className="input"
               value={(form.employee_name as string) || ""}
               onChange={(e) => set("employee_name", e.target.value)}
+              readOnly={readOnly}
             />
           </div>
           <div>
@@ -350,6 +372,7 @@ export default function IncidentReportDetailPage() {
               className="input"
               value={(form.employee_position as string) || ""}
               onChange={(e) => set("employee_position", e.target.value)}
+              readOnly={readOnly}
             />
           </div>
           <div>
@@ -358,6 +381,7 @@ export default function IncidentReportDetailPage() {
               className="input"
               value={(form.reported_by as string) || ""}
               onChange={(e) => set("reported_by", e.target.value)}
+              readOnly={readOnly}
             />
           </div>
         </div>
@@ -372,6 +396,7 @@ export default function IncidentReportDetailPage() {
             rows={4}
             value={(form.description as string) || ""}
             onChange={(e) => set("description", e.target.value)}
+            readOnly={readOnly}
           />
         </div>
         <div>
@@ -385,6 +410,7 @@ export default function IncidentReportDetailPage() {
             rows={4}
             value={(form.employee_explanation as string) || ""}
             onChange={(e) => set("employee_explanation", e.target.value)}
+            readOnly={readOnly}
           />
         </div>
         <div>
@@ -394,6 +420,7 @@ export default function IncidentReportDetailPage() {
             rows={2}
             value={(form.immediate_action_taken as string) || ""}
             onChange={(e) => set("immediate_action_taken", e.target.value)}
+            readOnly={readOnly}
           />
         </div>
         <div>
@@ -403,6 +430,7 @@ export default function IncidentReportDetailPage() {
             rows={2}
             value={(form.corrective_action as string) || ""}
             onChange={(e) => set("corrective_action", e.target.value)}
+            readOnly={readOnly}
           />
         </div>
         <div>
@@ -412,6 +440,7 @@ export default function IncidentReportDetailPage() {
             rows={2}
             value={(form.preventive_action as string) || ""}
             onChange={(e) => set("preventive_action", e.target.value)}
+            readOnly={readOnly}
           />
         </div>
       </div>
@@ -425,6 +454,7 @@ export default function IncidentReportDetailPage() {
               className="input"
               value={(form.status as IrStatus) || "Open"}
               onChange={(e) => set("status", e.target.value)}
+              disabled={readOnly}
             >
               {IR_STATUSES.map((s) => (
                 <option key={s} value={s}>
@@ -444,6 +474,7 @@ export default function IncidentReportDetailPage() {
                 className="h-4 w-4 rounded border-gray-300"
                 checked={!!form.employee_acknowledged}
                 onChange={(e) => set("employee_acknowledged", e.target.checked)}
+                disabled={readOnly}
               />
               <span className="text-sm text-gray-700">Employee signed the printed IR</span>
             </label>
@@ -454,11 +485,14 @@ export default function IncidentReportDetailPage() {
                 className="input"
                 value={(form.employee_signed_date as string) || ""}
                 onChange={(e) => set("employee_signed_date", e.target.value)}
+                readOnly={readOnly}
               />
             </div>
-            <button type="button" className="btn-secondary text-xs" onClick={markEmployeeAcknowledged}>
-              Mark Acknowledged Today
-            </button>
+            {!readOnly && (
+              <button type="button" className="btn-secondary text-xs" onClick={markEmployeeAcknowledged}>
+                Mark Acknowledged Today
+              </button>
+            )}
           </div>
 
           <div className="rounded-md border border-gray-200 p-4 space-y-3">
@@ -471,6 +505,7 @@ export default function IncidentReportDetailPage() {
                 className="input"
                 value={(form.reviewed_by as string) || ""}
                 onChange={(e) => set("reviewed_by", e.target.value)}
+                readOnly={readOnly}
               />
             </div>
             <div>
@@ -480,11 +515,14 @@ export default function IncidentReportDetailPage() {
                 className="input"
                 value={(form.reviewed_date as string) || ""}
                 onChange={(e) => set("reviewed_date", e.target.value)}
+                readOnly={readOnly}
               />
             </div>
-            <button type="button" className="btn-secondary text-xs" onClick={markReviewed}>
-              Mark Reviewed Today
-            </button>
+            {!readOnly && (
+              <button type="button" className="btn-secondary text-xs" onClick={markReviewed}>
+                Mark Reviewed Today
+              </button>
+            )}
           </div>
         </div>
 
@@ -495,6 +533,7 @@ export default function IncidentReportDetailPage() {
             rows={2}
             value={(form.manager_notes as string) || ""}
             onChange={(e) => set("manager_notes", e.target.value)}
+            readOnly={readOnly}
           />
         </div>
       </div>
@@ -527,47 +566,53 @@ export default function IncidentReportDetailPage() {
                   >
                     View
                   </button>
-                  <button
-                    type="button"
-                    className="text-red-600 hover:underline text-xs font-medium"
-                    onClick={() => handleDeleteAttachment(att)}
-                  >
-                    Delete
-                  </button>
+                  {!readOnly && (
+                    <button
+                      type="button"
+                      className="text-red-600 hover:underline text-xs font-medium"
+                      onClick={() => handleDeleteAttachment(att)}
+                    >
+                      Delete
+                    </button>
+                  )}
                 </div>
               </div>
             ))}
           </div>
         )}
 
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-          <div>
-            <label className="label">Whose explanation is this? (optional)</label>
-            <input
-              className="input"
-              placeholder="e.g. Mark Dejano"
-              value={uploadForName}
-              onChange={(e) => setUploadForName(e.target.value)}
-            />
+        {!readOnly && (
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <div>
+              <label className="label">Whose explanation is this? (optional)</label>
+              <input
+                className="input"
+                placeholder="e.g. Mark Dejano"
+                value={uploadForName}
+                onChange={(e) => setUploadForName(e.target.value)}
+              />
+            </div>
+            <div>
+              <label className="label">Attach File(s)</label>
+              <input
+                type="file"
+                multiple
+                className="input"
+                onChange={handleUploadAttachment}
+                disabled={uploading}
+              />
+            </div>
           </div>
-          <div>
-            <label className="label">Attach File(s)</label>
-            <input
-              type="file"
-              multiple
-              className="input"
-              onChange={handleUploadAttachment}
-              disabled={uploading}
-            />
-          </div>
-        </div>
+        )}
         {uploading && <p className="text-xs text-gray-400">Uploading…</p>}
       </div>
 
       <div className="flex gap-2">
-        <button type="button" className="btn-primary" onClick={handleSave} disabled={saving}>
-          {saving ? "Saving…" : "Save Changes"}
-        </button>
+        {!readOnly && (
+          <button type="button" className="btn-primary" onClick={handleSave} disabled={saving}>
+            {saving ? "Saving…" : "Save Changes"}
+          </button>
+        )}
         <button type="button" className="btn-secondary" onClick={() => router.push("/mercury/incident-reports")}>
           Cancel
         </button>

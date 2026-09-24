@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 import { createClient } from "@/lib/mercury/supabase/client";
 import type { Client, IncidentReport, IrClassification } from "@/lib/mercury/types";
 import { IR_CLASSIFICATIONS } from "@/lib/mercury/types";
+import { useRole } from "@/lib/mercury/RoleContext";
 
 function statusBadgeClass(status: string) {
   switch (status) {
@@ -42,6 +43,9 @@ interface IrRow extends IncidentReport {
 }
 
 export default function IncidentReportsPage() {
+  const role = useRole();
+  const canEncode = role !== "general_manager";
+
   const [rows, setRows] = useState<IrRow[]>([]);
   const [clients, setClients] = useState<Client[]>([]);
   const [statusCounts, setStatusCounts] = useState<Record<string, number>>({});
@@ -126,9 +130,11 @@ export default function IncidentReportsPage() {
           <Link href="/mercury/incident-reports/print" className="btn-secondary">
             Print Blank Form
           </Link>
-          <Link href="/mercury/incident-reports/new" className="btn-primary">
-            + New Incident Report
-          </Link>
+          {canEncode && (
+            <Link href="/mercury/incident-reports/new" className="btn-primary">
+              + New Incident Report
+            </Link>
+          )}
         </div>
       </div>
 

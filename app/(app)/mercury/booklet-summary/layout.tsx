@@ -4,10 +4,11 @@ import type { UserProfile } from "@/types/database";
 
 /**
  * Booklet Summary is part of Mercury's Billing section, excluded for
- * FLO_ASSOCIATE. See app/(app)/mercury/billing/layout.tsx for the full
- * rationale -- same guard, different route, because
- * booklet-summary/page.tsx is also a "use client" page with no server-side
- * role check of its own. ADMIN passes through unchanged.
+ * FLO_ASSOCIATE and MERCURY_ASSOCIATE (view-only everywhere else in Mercury).
+ * See app/(app)/mercury/billing/layout.tsx for the full rationale -- same
+ * guard, different route, because booklet-summary/page.tsx is also a
+ * "use client" page with no server-side role check of its own. ADMIN and
+ * LOGISTICS_OFFICER pass through unchanged.
  */
 export default async function MercuryBookletSummaryLayout({ children }: { children: React.ReactNode }) {
   const supabase = createClient();
@@ -26,7 +27,7 @@ export default async function MercuryBookletSummaryLayout({ children }: { childr
     .eq("id", user.id)
     .maybeSingle<UserProfile>();
 
-  if (profile?.role === "FLO_ASSOCIATE") {
+  if (profile?.role === "FLO_ASSOCIATE" || profile?.role === "MERCURY_ASSOCIATE") {
     redirect("/mercury");
   }
 
