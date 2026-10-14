@@ -78,8 +78,8 @@ export default function BillingPage() {
 
     if (clientId) query = query.eq("client_id", clientId);
     if (billingStatus) query = query.eq("billing_status", billingStatus);
-    if (dateFrom) query = query.gte("invoice_date", dateFrom);
-    if (dateTo) query = query.lte("invoice_date", dateTo);
+    if (dateFrom) query = query.gte("date_of_delivery", dateFrom);
+    if (dateTo) query = query.lte("date_of_delivery", dateTo);
     if (transactionType) query = query.eq("transaction_type", transactionType);
 
     const { data, error } = await query;
@@ -268,7 +268,7 @@ export default function BillingPage() {
           </select>
         </div>
         <div>
-          <label className="label">Invoice Date From</label>
+          <label className="label">Delivered Date From</label>
           <input
             type="date"
             className="input"
@@ -277,7 +277,7 @@ export default function BillingPage() {
           />
         </div>
         <div>
-          <label className="label">Invoice Date To</label>
+          <label className="label">Delivered Date To</label>
           <input
             type="date"
             className="input"
