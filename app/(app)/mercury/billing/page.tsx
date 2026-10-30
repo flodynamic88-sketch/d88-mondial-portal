@@ -223,7 +223,7 @@ export default function BillingPage() {
             {readOnly && <span className="ml-2 text-gray-400">&middot; View only</span>}
           </p>
         </div>
-        {clientId && (
+        {!readOnly && clientId && (
           <button
             className="btn-secondary"
             onClick={() => router.push(`/mercury/billing/soa?clientId=${clientId}`)}

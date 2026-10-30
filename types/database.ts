@@ -18,7 +18,8 @@ export type UserRole =
   | "INVOICING_TEAM"
   | "JMD_ADMIN"
   | "FLO_ASSOCIATE"
-  | "MERCURY_ASSOCIATE";
+  | "MERCURY_ASSOCIATE"
+  | "MERCURY_MERCHANDISER";
 
 export interface UserProfile {
   id: string;

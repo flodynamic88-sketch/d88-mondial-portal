@@ -1,0 +1,24 @@
+-- ============================================================================
+-- Mercury Merchandiser: new role, FULL access (add/edit, no delete) across
+-- the Mercury module, Billing and Booklet Summary are VIEW-ONLY (visible,
+-- but cannot add/edit/delete).
+-- ============================================================================
+-- MERCURY_MERCHANDISER is a Mondial-level role whose entire access is the
+-- Mercury module (app/(app)/mercury/**), same footprint as FLO_ASSOCIATE /
+-- MERCURY_ASSOCIATE -- but unlike those two:
+--   - It CAN add and edit everywhere in Mercury (not just view) -- except
+--     delete, which stays admin-only everywhere, same as every other
+--     non-admin Mercury role.
+--   - Billing and Booklet Summary are NOT hidden -- they stay visible and
+--     readable, just view-only (no set status / generate statement / mark
+--     cancelled), per explicit user decision ("View-only (Recommended)").
+--
+-- This migration only adds the enum value. The RLS grant that actually gives
+-- MERCURY_MERCHANDISER SELECT/INSERT/UPDATE access to the flo schema (and
+-- SELECT-only on booklet_invoice_status) is a separate migration (0090) --
+-- Postgres won't let a new enum value be referenced in the same transaction
+-- it's added in, same reason FLO_ASSOCIATE/JMD_ADMIN/MERCURY_ASSOCIATE were
+-- split across migrations.
+-- ============================================================================
+
+alter type user_role add value if not exists 'MERCURY_MERCHANDISER';

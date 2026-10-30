@@ -43,6 +43,16 @@ import type { UserProfile } from "@/types/database";
  * check `role === "general_manager"`) -- search/filtering is untouched by
  * this, since none of those checks gate search. Migration 0086 backs this
  * with SELECT-only RLS on the flo schema (no insert/update/delete grants).
+ *
+ * MERCURY_MERCHANDISER gets FULL add/edit coverage of Mercury (delete stays
+ * admin-only, same as every other non-admin role) via "admin" here -- unlike
+ * FLO_ASSOCIATE/MERCURY_ASSOCIATE, Billing/Booklet Summary are NOT hidden
+ * (hideBilling stays false for it): those two pages stay visible but
+ * view-only, enforced by a nested RoleProvider in their own route layouts
+ * (app/(app)/mercury/billing/layout.tsx and
+ * app/(app)/mercury/booklet-summary/layout.tsx), per explicit user decision.
+ * Migration 0090 backs this with SELECT+INSERT+UPDATE (no DELETE) RLS on the
+ * flo schema.
  */
 export default async function MercuryLayout({ children }: { children: React.ReactNode }) {
   const supabase = createClient();
@@ -66,7 +76,8 @@ export default async function MercuryLayout({ children }: { children: React.Reac
     (profile.role !== "ADMIN" &&
       profile.role !== "FLO_ASSOCIATE" &&
       profile.role !== "LOGISTICS_OFFICER" &&
-      profile.role !== "MERCURY_ASSOCIATE")
+      profile.role !== "MERCURY_ASSOCIATE" &&
+      profile.role !== "MERCURY_MERCHANDISER")
   ) {
     redirect("/");
   }
@@ -77,9 +88,10 @@ export default async function MercuryLayout({ children }: { children: React.Reac
   return (
     // Mercury's ported pages (originally written against Flo Portal's own
     // role system) call useRole() in a few places (e.g. MercuryCrudTable's
-    // readOnly gating). ADMIN/FLO_ASSOCIATE/LOGISTICS_OFFICER get full
-    // (non-readOnly) Mercury coverage via "admin"; MERCURY_ASSOCIATE gets
-    // "general_manager", the pre-existing read-only role value.
+    // readOnly gating). ADMIN/FLO_ASSOCIATE/LOGISTICS_OFFICER/
+    // MERCURY_MERCHANDISER get full (non-readOnly) Mercury coverage via
+    // "admin"; MERCURY_ASSOCIATE gets "general_manager", the pre-existing
+    // read-only role value.
     <RoleProvider role={isMercuryAssociate ? "general_manager" : "admin"}>
       {/* Break out of the parent (app) layout's max-w-6xl container so
           Mercury's wide tables/reports get the full viewport width instead

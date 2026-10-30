@@ -152,13 +152,14 @@ export default function Sidebar() {
     profile?.role === "ADMIN" ||
     profile?.role === "FLO_ASSOCIATE" ||
     profile?.role === "LOGISTICS_OFFICER" ||
-    profile?.role === "MERCURY_ASSOCIATE"
+    profile?.role === "MERCURY_ASSOCIATE" ||
+    profile?.role === "MERCURY_MERCHANDISER"
       ? [
           ...NAV_ITEMS,
           {
             href: "/mercury",
             label: "Mercury",
-            roles: ["ADMIN", "FLO_ASSOCIATE", "LOGISTICS_OFFICER", "MERCURY_ASSOCIATE"],
+            roles: ["ADMIN", "FLO_ASSOCIATE", "LOGISTICS_OFFICER", "MERCURY_ASSOCIATE", "MERCURY_MERCHANDISER"],
           },
         ]
       : NAV_ITEMS;

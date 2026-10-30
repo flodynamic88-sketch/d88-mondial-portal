@@ -22,8 +22,9 @@ import type { UserProfile } from "@/types/database";
  *
  * Since this layout does NOT sit under `(app)/mercury/layout.tsx`, it does
  * its own defense-in-depth role check here (same roles as
- * `(app)/mercury/layout.tsx` -- ADMIN, FLO_ASSOCIATE, LOGISTICS_OFFICER --
- * straight from Mondial's user_profiles table) rather than inheriting one.
+ * `(app)/mercury/layout.tsx` -- ADMIN, FLO_ASSOCIATE, LOGISTICS_OFFICER,
+ * MERCURY_MERCHANDISER -- straight from Mondial's user_profiles table)
+ * rather than inheriting one.
  *
  * This was left ADMIN-only when FLO_ASSOCIATE (migration 0052) and later
  * LOGISTICS_OFFICER (migration 0085) were opened up to the rest of Mercury,
@@ -35,6 +36,14 @@ import type { UserProfile } from "@/types/database";
  * re-guard themselves in their own nested layout.tsx, same pattern as
  * app/(app)/mercury/billing/layout.tsx and
  * app/(app)/mercury/booklet-summary/layout.tsx.
+ *
+ * MERCURY_MERCHANDISER (migration 0089/0090) gets full Mercury access minus
+ * delete, Billing/Booklet Summary view-only -- "full access" includes
+ * printing delivery/dispatch/incident/stock slips, so it's added here too.
+ * Its own Billing/Booklet-Summary view-only carve-out is enforced in
+ * app/mercury/billing/soa/page.tsx (supplementary user_profiles check) and
+ * app/mercury/billing/layout.tsx / app/mercury/reports/booklet-summary/
+ * layout.tsx, same as the (app)-tree pattern.
  */
 export default async function MercuryPrintLayout({ children }: { children: React.ReactNode }) {
   const supabase = createClient();
@@ -57,7 +66,8 @@ export default async function MercuryPrintLayout({ children }: { children: React
     !profile ||
     (profile.role !== "ADMIN" &&
       profile.role !== "FLO_ASSOCIATE" &&
-      profile.role !== "LOGISTICS_OFFICER")
+      profile.role !== "LOGISTICS_OFFICER" &&
+      profile.role !== "MERCURY_MERCHANDISER")
   ) {
     redirect("/");
   }

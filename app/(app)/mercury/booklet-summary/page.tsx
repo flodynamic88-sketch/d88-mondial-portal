@@ -16,6 +16,7 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { createClient } from "@/lib/mercury/supabase/client";
+import { useRole } from "@/lib/mercury/RoleContext";
 import type { BookletInvoiceStatus, Client, DeliveryHeaderFull } from "@/lib/mercury/types";
 
 function peso(n: number | null | undefined) {
@@ -41,6 +42,9 @@ function parseInvoiceNumber(v: string | null | undefined): number | null {
 }
 
 export default function BookletSummaryPage() {
+  const role = useRole();
+  const readOnly = role === "general_manager";
+
   const [clients, setClients] = useState<Client[]>([]);
   const [clientId, setClientId] = useState("");
   const [bookletIndex, setBookletIndex] = useState(0); // 0 = first booklet (start..start+size-1)
@@ -278,18 +282,28 @@ export default function BookletSummaryPage() {
                         </td>
                         <td className="px-3 py-1.5 text-right text-gray-300">—</td>
                         <td className="px-3 py-1.5">
-                          <select
-                            className="input text-xs py-1"
-                            value={c ? "Cancelled" : ""}
-                            disabled={isSaving}
-                            onChange={(e) => {
-                              if (e.target.value === "Cancelled") markCancelled(s.invoiceNumber);
-                              else unmarkCancelled(s.invoiceNumber);
-                            }}
-                          >
-                            <option value="">Blank</option>
-                            <option value="Cancelled">Cancelled</option>
-                          </select>
+                          {readOnly ? (
+                            c ? (
+                              <span className="inline-block rounded-full bg-gray-100 px-2 py-0.5 text-xs text-gray-600">
+                                Cancelled
+                              </span>
+                            ) : (
+                              <span className="text-xs text-gray-400">Blank</span>
+                            )
+                          ) : (
+                            <select
+                              className="input text-xs py-1"
+                              value={c ? "Cancelled" : ""}
+                              disabled={isSaving}
+                              onChange={(e) => {
+                                if (e.target.value === "Cancelled") markCancelled(s.invoiceNumber);
+                                else unmarkCancelled(s.invoiceNumber);
+                              }}
+                            >
+                              <option value="">Blank</option>
+                              <option value="Cancelled">Cancelled</option>
+                            </select>
+                          )}
                         </td>
                       </>
                     )}

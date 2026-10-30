@@ -15,6 +15,7 @@
 import { Suspense, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/mercury/supabase/client";
+import { createClient as createMondialClient } from "@/lib/supabase/client";
 import type { Client, DeliveryHeaderFull, UserRole } from "@/lib/mercury/types";
 import { billingStatusBadgeClass, transactionTypeBadgeClass } from "@/lib/mercury/statusColors";
 
@@ -58,12 +59,18 @@ function StatementOfAccountContent() {
   const [rows, setRows] = useState<DeliveryHeaderFull[]>([]);
   const [client, setClient] = useState<Client | null>(null);
   const [role, setRole] = useState<UserRole | null>(null);
+  // MERCURY_MERCHANDISER lives in Mondial's own public.user_profiles table,
+  // not flo.profiles (the legacy role store this page otherwise reads from
+  // below) -- checked separately and OR'd into readOnly so this page
+  // recognizes it without disturbing the flo.profiles-based check for every
+  // other role.
+  const [isMercuryMerchandiser, setIsMercuryMerchandiser] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [selected, setSelected] = useState<Set<string>>(new Set());
 
-  const readOnly = role === "general_manager";
+  const readOnly = role === "general_manager" || isMercuryMerchandiser;
 
   async function load() {
     if (!clientId) {
@@ -107,6 +114,14 @@ function StatementOfAccountContent() {
       if (!user) return;
       const { data } = await supabase.schema("flo").from("profiles").select("role").eq("id", user.id).single();
       if (data) setRole((data as { role: UserRole }).role);
+
+      const mondial = createMondialClient();
+      const { data: mondialProfile } = await mondial
+        .from("user_profiles")
+        .select("role")
+        .eq("id", user.id)
+        .maybeSingle();
+      if (mondialProfile?.role === "MERCURY_MERCHANDISER") setIsMercuryMerchandiser(true);
     }
     loadRole();
   }, []);

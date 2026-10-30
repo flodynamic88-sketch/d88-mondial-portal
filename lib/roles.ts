@@ -11,6 +11,7 @@ export const ROLE_LABELS: Record<UserRole, string> = {
   JMD_ADMIN: "JMD Admin",
   FLO_ASSOCIATE: "Flo Associate",
   MERCURY_ASSOCIATE: "Mercury Associate",
+  MERCURY_MERCHANDISER: "Mercury Merchandiser",
 };
 
 export const ALL_ROLES: UserRole[] = [
@@ -24,4 +25,5 @@ export const ALL_ROLES: UserRole[] = [
   "JMD_ADMIN",
   "FLO_ASSOCIATE",
   "MERCURY_ASSOCIATE",
+  "MERCURY_MERCHANDISER",
 ];
