@@ -117,6 +117,43 @@ const NAV_ITEMS: NavItem[] = [
     ],
   },
   { href: "/admin/users", label: "User Management", roles: ["ADMIN"] },
+  // VAS (Value Added Service) -- separate department that bundles/kits
+  // promo items on request from Mondial Sales. Own `vas` Postgres schema
+  // (see migration 0092), own nav section, flat entries like every other
+  // module (unlike Mercury, which is a ported sub-app with its own internal
+  // sidebar, so it gets a single conditional link instead -- see below).
+  // VAS_MANAGER: full access (create/edit/delete). VAS_OFFICER: encode only
+  // (create/edit, no delete) -- enforced per-page, not here in the nav.
+  {
+    href: "/vas/items",
+    label: "VAS Item Master",
+    roles: ["ADMIN", "VAS_MANAGER", "VAS_OFFICER"],
+  },
+  {
+    href: "/vas/kits",
+    label: "VAS Kit/BOM",
+    roles: ["ADMIN", "VAS_MANAGER", "VAS_OFFICER"],
+  },
+  {
+    href: "/vas/memos",
+    label: "VAS Memos",
+    roles: ["ADMIN", "VAS_MANAGER", "VAS_OFFICER"],
+  },
+  {
+    href: "/vas/production",
+    label: "VAS Production",
+    roles: ["ADMIN", "VAS_MANAGER", "VAS_OFFICER"],
+  },
+  {
+    href: "/vas/stock",
+    label: "VAS Stock Ledger",
+    roles: ["ADMIN", "VAS_MANAGER", "VAS_OFFICER"],
+  },
+  {
+    href: "/vas/warehouse-transfer",
+    label: "VAS Warehouse Transfer",
+    roles: ["ADMIN", "VAS_MANAGER", "VAS_OFFICER"],
+  },
 ];
 
 export default function Sidebar() {
