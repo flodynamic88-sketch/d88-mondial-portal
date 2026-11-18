@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import RequireRole from "@/components/RequireRole";
 import VasCrudTable, { VasCrudColumn } from "@/components/vas/VasCrudTable";
 import { useAuth } from "@/components/AuthProvider";
@@ -194,6 +194,17 @@ export default function VasMemosPage() {
   const [kits, setKits] = useState<VasKitBom[]>([]);
   const [selectedMemo, setSelectedMemo] = useState<VasMemo | null>(null);
   const [refreshKey, setRefreshKey] = useState(0);
+  const editorRef = useRef<HTMLDivElement>(null);
+
+  // The Kit Lines editor renders below the whole table rather than inline
+  // next to the clicked row, so it can land below the fold on long lists --
+  // scroll it into view as soon as it mounts so "Kit Lines" doesn't look like
+  // it did nothing.
+  useEffect(() => {
+    if (selectedMemo && editorRef.current) {
+      editorRef.current.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+  }, [selectedMemo]);
 
   useEffect(() => {
     const supabase = createClient();
@@ -245,7 +256,9 @@ export default function VasMemosPage() {
           )}
         />
         {selectedMemo && (
-          <MemoItemsEditor memo={selectedMemo} kits={kits} canDelete={canDelete} onClose={() => setSelectedMemo(null)} />
+          <div ref={editorRef}>
+            <MemoItemsEditor memo={selectedMemo} kits={kits} canDelete={canDelete} onClose={() => setSelectedMemo(null)} />
+          </div>
         )}
       </div>
     </RequireRole>
