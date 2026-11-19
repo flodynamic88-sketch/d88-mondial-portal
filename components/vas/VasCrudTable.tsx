@@ -254,18 +254,29 @@ export default function VasCrudTable<T extends { id: string }>({
                     ))}
                   </select>
                 ) : col.type === "fk" ? (
-                  <select
-                    className="input"
-                    value={(form[col.key] as string) ?? ""}
-                    onChange={(e) => setForm({ ...form, [col.key]: e.target.value })}
-                  >
-                    {!col.required && <option value="">— None —</option>}
-                    {col.fkOptions?.map((opt) => (
-                      <option key={opt.value} value={opt.value}>
-                        {opt.label}
-                      </option>
-                    ))}
-                  </select>
+                  <>
+                    <select
+                      className="input"
+                      value={(form[col.key] as string) ?? ""}
+                      onChange={(e) => setForm({ ...form, [col.key]: e.target.value })}
+                    >
+                      {!col.required && <option value="">— None —</option>}
+                      {col.fkOptions?.map((opt) => (
+                        <option key={opt.value} value={opt.value}>
+                          {opt.label}
+                        </option>
+                      ))}
+                    </select>
+                    {/* An empty fkOptions list renders a <select> with zero
+                        choices -- clicking it opens a blank dropdown, which
+                        reads to users as "the field doesn't work" rather
+                        than "there's nothing to pick yet". Spell that out. */}
+                    {(!col.fkOptions || col.fkOptions.length === 0) && (
+                      <p className="mt-1 text-xs text-amber-600">
+                        No options yet — add one first, then come back here.
+                      </p>
+                    )}
+                  </>
                 ) : col.type === "textarea" ? (
                   <textarea
                     className="input"

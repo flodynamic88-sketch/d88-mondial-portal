@@ -201,6 +201,18 @@ export default function VasKitsPage() {
   const [selectedKit, setSelectedKit] = useState<VasKitBom | null>(null);
   const [refreshKey, setRefreshKey] = useState(0);
 
+  // Quick-add for the Finished Bundle item. The "Finished Bundle" dropdown
+  // below is sourced from items already tagged FINISHED_GOOD in Item
+  // Master -- if none exist yet, that <select> renders with zero <option>s,
+  // which looks broken ("ayaw mapindot") rather than merely empty. This lets
+  // a Finished Good (with its item code) be created right here instead of
+  // having to go set it up on a separate page first.
+  const [newItemCode, setNewItemCode] = useState("");
+  const [newItemDesc, setNewItemDesc] = useState("");
+  const [newItemUom, setNewItemUom] = useState("");
+  const [newItemError, setNewItemError] = useState<string | null>(null);
+  const [savingNewItem, setSavingNewItem] = useState(false);
+
   useEffect(() => {
     const supabase = createClient();
     supabase
@@ -219,6 +231,32 @@ export default function VasKitsPage() {
     [items]
   );
 
+  async function handleCreateFinishedGood() {
+    setNewItemError(null);
+    if (!newItemCode.trim()) {
+      setNewItemError("Item Code is required.");
+      return;
+    }
+    setSavingNewItem(true);
+    const supabase = createClient();
+    const { error } = await supabase.schema("vas").from("items").insert({
+      item_code: newItemCode.trim(),
+      item_description: newItemDesc.trim() || null,
+      item_type: "FINISHED_GOOD",
+      uom: newItemUom.trim() || null,
+      is_active: true,
+    });
+    setSavingNewItem(false);
+    if (error) {
+      setNewItemError(error.message);
+      return;
+    }
+    setNewItemCode("");
+    setNewItemDesc("");
+    setNewItemUom("");
+    setRefreshKey((k) => k + 1);
+  }
+
   const columns: VasCrudColumn<VasKitBom>[] = [
     { key: "kit_no", label: "Kit No.", required: true },
     { key: "finished_item_id", label: "Finished Bundle", type: "fk", fkOptions: finishedGoodOptions, required: true },
@@ -230,10 +268,53 @@ export default function VasKitsPage() {
     <RequireRole roles={["ADMIN", "VAS_MANAGER", "VAS_OFFICER"]}>
       <div className="space-y-4">
         <p className="text-sm text-gray-500">
-          One row per Kit No. (exactly as written on Sales&apos; memo). Set up the finished bundle item
-          first in Item Master (as a Finished Good), then define its BOM — which Component item(s) and
-          how many of each go into one unit.
+          One row per Kit No. (exactly as written on Sales&apos; memo). The finished bundle item needs to
+          exist first (as a Finished Good) before it shows up in the dropdown below — use the quick-add
+          here, or set it up in Item Master, then define its BOM — which Component item(s) and how many
+          of each go into one unit.
         </p>
+
+        <div className="card p-5 space-y-3">
+          <h2 className="text-sm font-semibold text-gray-700">Quick-add Finished Bundle Item</h2>
+          <p className="text-xs text-gray-500">
+            {finishedGoodOptions.length === 0
+              ? "No Finished Bundle items exist yet, which is why the dropdown below has nothing to pick. Add one here first."
+              : "Need another Finished Bundle item? Add its item code here — it'll appear in the dropdown below right away."}
+          </p>
+          {newItemError && (
+            <div className="rounded-md bg-red-50 border border-red-200 px-3 py-2 text-sm text-red-700">
+              {newItemError}
+            </div>
+          )}
+          <div className="flex flex-wrap items-end gap-3">
+            <div>
+              <label className="label">
+                Item Code<span className="text-red-500"> *</span>
+              </label>
+              <input
+                className="input w-40"
+                value={newItemCode}
+                onChange={(e) => setNewItemCode(e.target.value)}
+              />
+            </div>
+            <div>
+              <label className="label">Item Description</label>
+              <input
+                className="input w-64"
+                value={newItemDesc}
+                onChange={(e) => setNewItemDesc(e.target.value)}
+              />
+            </div>
+            <div>
+              <label className="label">UOM</label>
+              <input className="input w-24" value={newItemUom} onChange={(e) => setNewItemUom(e.target.value)} />
+            </div>
+            <button className="btn-primary" onClick={handleCreateFinishedGood} disabled={savingNewItem}>
+              {savingNewItem ? "Saving…" : "+ Add Finished Bundle Item"}
+            </button>
+          </div>
+        </div>
+
         <VasCrudTable
           tableName="kit_boms"
           title="VAS Kit / BOM"
