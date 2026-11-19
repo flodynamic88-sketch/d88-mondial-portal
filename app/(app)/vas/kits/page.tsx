@@ -237,11 +237,15 @@ export default function VasKitsPage() {
       setNewItemError("Item Code is required.");
       return;
     }
+    if (!newItemDesc.trim()) {
+      setNewItemError("Item Description is required.");
+      return;
+    }
     setSavingNewItem(true);
     const supabase = createClient();
     const { error } = await supabase.schema("vas").from("items").insert({
       item_code: newItemCode.trim(),
-      item_description: newItemDesc.trim() || null,
+      item_description: newItemDesc.trim(),
       item_type: "FINISHED_GOOD",
       uom: newItemUom.trim() || null,
       is_active: true,
@@ -298,7 +302,9 @@ export default function VasKitsPage() {
               />
             </div>
             <div>
-              <label className="label">Item Description</label>
+              <label className="label">
+                Item Description<span className="text-red-500"> *</span>
+              </label>
               <input
                 className="input w-64"
                 value={newItemDesc}
