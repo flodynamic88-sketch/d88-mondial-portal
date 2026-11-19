@@ -93,6 +93,10 @@ export default function VasStockPage() {
       setError("Please fill in Item, Qty, and Date.");
       return;
     }
+    if (movementType === "CONSUMABLE_USED" && !allocBatchId) {
+      setError("Please select the Kitting Project (Batch) this consumable usage is for.");
+      return;
+    }
     const absQty = Math.abs(Number(qty));
     let signedQty = absQty;
     if (movementType === "CONSUMABLE_USED") signedQty = -absQty;
@@ -227,9 +231,11 @@ export default function VasStockPage() {
             </div>
             {movementType === "CONSUMABLE_USED" && (
               <div className="sm:col-span-2 lg:col-span-4">
-                <label className="label">Used For (Batch/Project) — optional</label>
+                <label className="label">
+                  Used For (Kitting Project / Batch)<span className="text-red-500"> *</span>
+                </label>
                 <select className="input" value={allocBatchId} onChange={(e) => setAllocBatchId(e.target.value)}>
-                  <option value="">— Not allocated to a specific batch —</option>
+                  <option value="">— Select Kitting Project / Batch —</option>
                   {batchOptions.map((b) => (
                     <option key={b.batch_id} value={b.batch_id}>
                       {b.memo_no} · Batch {b.batch_no} · Kit {b.kit_no}
@@ -237,8 +243,9 @@ export default function VasStockPage() {
                   ))}
                 </select>
                 <p className="mt-1 text-xs text-gray-400">
-                  Tag which bundle/kitting project this consumable usage is for, so usage can be
-                  accounted per project. Leave blank for general/unassigned usage.
+                  Required — select which bundle/kitting project this consumable usage (e.g. tape) is
+                  for, so the cost of every consumable taken out is always accounted to a specific
+                  project.
                 </p>
               </div>
             )}
