@@ -13,7 +13,6 @@ const columns: VasCrudColumn<VasItem>[] = [
   { key: "item_type", label: "Item Type", type: "select", options: ITEM_TYPE_OPTIONS, required: true },
   { key: "uom", label: "UOM" },
   { key: "is_active", label: "Active", type: "boolean" },
-  { key: "created_at", label: "Created", hideInTable: true },
 ];
 
 const emptyRow: Omit<VasItem, "id"> = {
