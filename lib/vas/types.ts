@@ -29,6 +29,9 @@ export interface VasItem {
   item_type: VasItemType;
   uom: string | null;
   is_active: boolean;
+  /** Cost per unit (component/consumable), used to compute material and
+   *  consumable cost per batch on vas.v_production_progress. */
+  unit_cost: number;
   created_at: string;
 }
 
@@ -38,6 +41,9 @@ export interface VasKitBom {
   finished_item_id: string;
   description: string | null;
   is_active: boolean;
+  /** Amount charged to the client per finished unit of this kit -- drives
+   *  Revenue (and Profit) on vas.v_production_progress. */
+  selling_price_per_unit: number;
   created_by: string | null;
   created_at: string;
 }
@@ -75,6 +81,9 @@ export interface VasProductionBatch {
   batch_date: string;
   memo_item_id: string;
   manpower_count: number | null;
+  /** Manpower cost for this batch, factored into total_cost/profit on
+   *  vas.v_production_progress. */
+  manpower_cost: number;
   qty_produced: number;
   status: VasBatchStatus;
   remarks: string | null;
@@ -129,6 +138,7 @@ export interface VasProductionProgress {
   batch_no: string;
   batch_date: string;
   manpower_count: number | null;
+  manpower_cost: number;
   qty_produced: number;
   status: VasBatchStatus;
   remarks: string | null;
@@ -138,8 +148,31 @@ export interface VasProductionProgress {
   kit_no: string;
   kit_description: string | null;
   finished_item_id: string;
+  selling_price_per_unit: number;
   memo_id: string;
   memo_no: string;
   client_name: string;
   cumulative_qty_to_date: number;
+  /** This batch's own material cost (BOM components x unit_cost x qty_produced). */
+  material_cost: number;
+  /** Consumables allocated specifically to this batch (CONSUMABLE_ALLOCATION movements x unit_cost). */
+  consumable_cost: number;
+  /** material_cost + consumable_cost + manpower_cost for this batch. */
+  total_cost: number;
+  /** selling_price_per_unit x qty_produced for this batch. */
+  revenue: number;
+  /** revenue - total_cost for this batch. */
+  profit: number;
+  /** Running material_cost across all batches on this memo line, as of this batch_date. */
+  cumulative_material_cost: number;
+  /** Running consumable_cost across all batches on this memo line, as of this batch_date. */
+  cumulative_consumable_cost: number;
+  /** Running manpower_cost across all batches on this memo line, as of this batch_date. */
+  cumulative_manpower_cost: number;
+  /** Running total_cost across all batches on this memo line, as of this batch_date. */
+  cumulative_total_cost: number;
+  /** Running revenue across all batches on this memo line, as of this batch_date. */
+  cumulative_revenue: number;
+  /** Running profit across all batches on this memo line, as of this batch_date. */
+  cumulative_profit: number;
 }

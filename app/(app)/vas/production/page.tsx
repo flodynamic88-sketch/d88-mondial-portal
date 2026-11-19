@@ -15,6 +15,7 @@ const emptyBatch: Omit<VasProductionBatch, "id"> = {
   batch_date: "",
   memo_item_id: "",
   manpower_count: null,
+  manpower_cost: 0,
   qty_produced: 0,
   status: "IN_PROGRESS",
   remarks: null,
@@ -22,6 +23,9 @@ const emptyBatch: Omit<VasProductionBatch, "id"> = {
   created_at: "",
   updated_at: "",
 };
+
+const peso = (n: number) =>
+  `₱${n.toLocaleString("en-PH", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
 interface MemoItemOption {
   id: string;
@@ -82,6 +86,7 @@ export default function VasProductionPage() {
     { key: "batch_date", label: "Batch Date", type: "date", required: true },
     { key: "memo_item_id", label: "Memo / Kit Line", type: "fk", fkOptions: memoItemFkOptions, required: true },
     { key: "manpower_count", label: "Manpower", type: "number" },
+    { key: "manpower_cost", label: "Manpower Cost", type: "number" },
     { key: "qty_produced", label: "Qty Produced", type: "number", required: true },
     { key: "status", label: "Status", type: "select", options: BATCH_STATUS_OPTIONS },
     { key: "remarks", label: "Remarks", type: "textarea" },
@@ -169,6 +174,55 @@ export default function VasProductionPage() {
               {latestPerLine.length === 0 && (
                 <tr>
                   <td colSpan={5} className="text-sm text-gray-400">
+                    No production logged yet.
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+
+        <div className="card overflow-x-auto">
+          <div className="border-b border-gray-100 p-4">
+            <h2 className="text-sm font-semibold text-gray-700">Cost &amp; Profit per Kit Line (running total)</h2>
+            <p className="mt-1 text-xs text-gray-400">
+              Total Cost = Material (BOM components × Unit Cost) + Consumables allocated to this line&apos;s
+              batches + Manpower Cost. Revenue = Selling Price/Unit × qty produced to date. Set Unit Cost on
+              Item Master, Selling Price/Unit on Kit/BOM, and Manpower Cost per batch above for these to
+              compute.
+            </p>
+          </div>
+          <table className="table-base">
+            <thead>
+              <tr>
+                <th>TSP No.</th>
+                <th>Kit No.</th>
+                <th>Material Cost</th>
+                <th>Consumable Cost</th>
+                <th>Manpower Cost</th>
+                <th>Total Cost</th>
+                <th>Revenue</th>
+                <th>Profit</th>
+              </tr>
+            </thead>
+            <tbody>
+              {latestPerLine.map((row) => (
+                <tr key={row.memo_item_id}>
+                  <td>{row.memo_no}</td>
+                  <td>{row.kit_no}</td>
+                  <td>{peso(row.cumulative_material_cost ?? 0)}</td>
+                  <td>{peso(row.cumulative_consumable_cost ?? 0)}</td>
+                  <td>{peso(row.cumulative_manpower_cost ?? 0)}</td>
+                  <td className="font-medium">{peso(row.cumulative_total_cost ?? 0)}</td>
+                  <td>{peso(row.cumulative_revenue ?? 0)}</td>
+                  <td className={(row.cumulative_profit ?? 0) < 0 ? "text-red-600 font-medium" : "text-green-700 font-medium"}>
+                    {peso(row.cumulative_profit ?? 0)}
+                  </td>
+                </tr>
+              ))}
+              {latestPerLine.length === 0 && (
+                <tr>
+                  <td colSpan={8} className="text-sm text-gray-400">
                     No production logged yet.
                   </td>
                 </tr>

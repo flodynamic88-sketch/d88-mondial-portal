@@ -11,6 +11,7 @@ const emptyKit: Omit<VasKitBom, "id"> = {
   kit_no: "",
   finished_item_id: "",
   description: null,
+  selling_price_per_unit: 0,
   is_active: true,
   created_by: null,
   created_at: "",
@@ -265,6 +266,7 @@ export default function VasKitsPage() {
     { key: "kit_no", label: "Kit No.", required: true },
     { key: "finished_item_id", label: "Finished Bundle", type: "fk", fkOptions: finishedGoodOptions, required: true },
     { key: "description", label: "Description" },
+    { key: "selling_price_per_unit", label: "Selling Price / Unit", type: "number" },
     { key: "is_active", label: "Active", type: "boolean" },
   ];
 
@@ -275,7 +277,8 @@ export default function VasKitsPage() {
           One row per Kit No. (exactly as written on Sales&apos; memo). The finished bundle item needs to
           exist first (as a Finished Good) before it shows up in the dropdown below — use the quick-add
           here, or set it up in Item Master, then define its BOM — which Component item(s) and how many
-          of each go into one unit.
+          of each go into one unit. Selling Price / Unit is the amount charged to the client per finished
+          piece — it drives the Revenue and Profit figures on the Production page.
         </p>
 
         <div className="card p-5 space-y-3">
