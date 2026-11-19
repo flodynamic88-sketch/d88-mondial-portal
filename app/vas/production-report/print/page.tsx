@@ -166,7 +166,6 @@ function ProductionReportPrintContent() {
           {/* Letterhead */}
           <div className="flex items-start justify-between gap-6 pb-5 mb-6 border-b border-gray-200">
             <div className="flex items-start gap-3">
-              <img src="/logo-icon.png" alt="Dynamic88" className="h-12 w-12 shrink-0" />
               <div>
                 <div className="text-xl font-bold text-brand-dark">Dynamic88 Solutions</div>
                 <div className="text-xs font-medium text-gray-500 mt-0.5">
