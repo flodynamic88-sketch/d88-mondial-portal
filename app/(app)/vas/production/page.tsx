@@ -149,7 +149,7 @@ export default function VasProductionPage() {
           <table className="table-base">
             <thead>
               <tr>
-                <th>Memo No.</th>
+                <th>TSP No.</th>
                 <th>Kit No.</th>
                 <th>Target Qty</th>
                 <th>Produced to Date</th>

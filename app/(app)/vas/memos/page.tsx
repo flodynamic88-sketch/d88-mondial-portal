@@ -9,6 +9,15 @@ import type { VasKitBom, VasMemo, VasMemoItem } from "@/lib/vas/types";
 
 const MEMO_STATUS_OPTIONS = ["OPEN", "IN_PROGRESS", "COMPLETED", "CANCELLED"];
 
+// Kit list used by the Kit Lines editor below -- extended with the linked
+// finished item's own item_description (not kit_boms.description, which is
+// a separate free-text field that's often left blank) so a kit line reads
+// as e.g. "KIT-001 — Shampoo 200ml + Conditioner 100ml Bundle" and the VAS
+// Officer can tell at a glance which finished bundle it is.
+type KitWithItem = VasKitBom & {
+  finished_item: { item_code: string; item_description: string } | null;
+};
+
 const emptyMemo: Omit<VasMemo, "id"> = {
   memo_no: "",
   memo_date: "",
@@ -26,7 +35,7 @@ function MemoItemsEditor({
   onClose,
 }: {
   memo: VasMemo;
-  kits: VasKitBom[];
+  kits: KitWithItem[];
   canDelete: boolean;
   onClose: () => void;
 }) {
@@ -38,7 +47,9 @@ function MemoItemsEditor({
 
   const kitLabel = (id: string) => {
     const k = kits.find((k) => k.id === id);
-    return k ? `${k.kit_no}${k.description ? " — " + k.description : ""}` : id;
+    if (!k) return id;
+    const desc = k.finished_item?.item_description || k.description;
+    return `${k.kit_no}${desc ? " — " + desc : ""}`;
   };
 
   async function load() {
@@ -102,7 +113,7 @@ function MemoItemsEditor({
     <div className="card p-5 space-y-4">
       <div className="flex items-center justify-between">
         <h2 className="text-sm font-semibold text-gray-700">
-          Kit Lines for Memo {memo.memo_no} — {memo.client_name}
+          Kit Lines for TSP {memo.memo_no} — {memo.client_name}
         </h2>
         <button className="btn-secondary" onClick={onClose}>
           Close
@@ -168,12 +179,15 @@ function MemoItemsEditor({
           <label className="label">Add Kit</label>
           <select className="input w-64" value={newKitId} onChange={(e) => setNewKitId(e.target.value)}>
             <option value="">— Select Kit No. —</option>
-            {kits.map((k) => (
-              <option key={k.id} value={k.id}>
-                {k.kit_no}
-                {k.description ? ` — ${k.description}` : ""}
-              </option>
-            ))}
+            {kits.map((k) => {
+              const desc = k.finished_item?.item_description || k.description;
+              return (
+                <option key={k.id} value={k.id}>
+                  {k.kit_no}
+                  {desc ? ` — ${desc}` : ""}
+                </option>
+              );
+            })}
           </select>
         </div>
         <div>
@@ -191,7 +205,7 @@ function MemoItemsEditor({
 export default function VasMemosPage() {
   const profile = useAuth();
   const canDelete = profile?.role === "ADMIN" || profile?.role === "VAS_MANAGER";
-  const [kits, setKits] = useState<VasKitBom[]>([]);
+  const [kits, setKits] = useState<KitWithItem[]>([]);
   const [selectedMemo, setSelectedMemo] = useState<VasMemo | null>(null);
   const [refreshKey, setRefreshKey] = useState(0);
   const editorRef = useRef<HTMLDivElement>(null);
@@ -211,15 +225,15 @@ export default function VasMemosPage() {
     supabase
       .schema("vas")
       .from("kit_boms")
-      .select("*")
+      .select("*, finished_item:finished_item_id(item_code, item_description)")
       .eq("is_active", true)
       .order("kit_no")
-      .then(({ data }) => setKits((data as VasKitBom[]) || []));
+      .then(({ data }) => setKits((data as unknown as KitWithItem[]) || []));
   }, [refreshKey]);
 
   const columns: VasCrudColumn<VasMemo>[] = useMemo(
     () => [
-      { key: "memo_no", label: "Memo No." },
+      { key: "memo_no", label: "TSP No." },
       { key: "memo_date", label: "Memo Date", type: "date", required: true },
       { key: "client_name", label: "Client", required: true },
       { key: "requested_by", label: "Requested By" },
@@ -233,9 +247,9 @@ export default function VasMemosPage() {
       <div className="space-y-4">
         <p className="text-sm text-gray-500">
           Encode the memo exactly as written on the physical paper from Mondial Sales. If the memo
-          itself has a Memo No., type it in as-is — if it doesn&apos;t, leave Memo No. blank and one
-          will be auto-generated (e.g. VAS-00001). Then add each Kit No. + Qty requested as a line
-          under it.
+          itself has a TSP No., type it in as-is — if it doesn&apos;t, leave TSP No. blank and one
+          will be auto-generated (e.g. VAS-00001). TSP No. can always be edited later. Then add each
+          Kit No. + Qty requested as a line under it.
         </p>
         <VasCrudTable
           tableName="memos"

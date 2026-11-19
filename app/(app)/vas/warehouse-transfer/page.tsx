@@ -9,11 +9,12 @@ import type { VasItem, VasProductionProgress, VasWarehouseTransfer } from "@/lib
 
 export default function VasWarehouseTransferPage() {
   const profile = useAuth();
-  // Deliberately no delete here: a transfer row drives an automatic
-  // TRANSFERRED_OUT stock movement (vas.record_warehouse_transfer trigger),
-  // and there is no reversing delete-trigger -- same reasoning as the Stock
-  // Ledger page only allowing deletion of reference_type = 'MANUAL' rows.
   const canAdd = profile?.role === "ADMIN" || profile?.role === "VAS_MANAGER" || profile?.role === "VAS_OFFICER";
+  // Deleting a transfer now also reverses its automatic TRANSFERRED_OUT
+  // stock movement (vas.cleanup_transfer_stock_movements delete trigger,
+  // see migration 0094), so this can follow the same ADMIN/VAS_MANAGER-only
+  // delete rule used everywhere else in VAS.
+  const canDelete = profile?.role === "ADMIN" || profile?.role === "VAS_MANAGER";
 
   const [items, setItems] = useState<VasItem[]>([]);
   const [progress, setProgress] = useState<VasProductionProgress[]>([]);
@@ -115,6 +116,18 @@ export default function VasWarehouseTransferPage() {
     load();
   }
 
+  async function handleDeleteTransfer(id: string) {
+    if (!canDelete) return;
+    if (!confirm("Delete this transfer? This cannot be undone.")) return;
+    const supabase = createClient();
+    const { error } = await supabase.schema("vas").from("warehouse_transfers").delete().eq("id", id);
+    if (error) {
+      setError(error.message);
+      return;
+    }
+    load();
+  }
+
   return (
     <RequireRole roles={["ADMIN", "VAS_MANAGER", "VAS_OFFICER"]}>
       <div className="space-y-4">
@@ -143,7 +156,7 @@ export default function VasWarehouseTransferPage() {
                 <tr>
                   <th>Batch No.</th>
                   <th>Batch Date</th>
-                  <th>Memo No.</th>
+                  <th>TSP No.</th>
                   <th>Kit No.</th>
                   <th>Qty Produced</th>
                   <th>Already Transferred</th>
@@ -186,7 +199,7 @@ export default function VasWarehouseTransferPage() {
                   <option value="">— Select Batch —</option>
                   {batchRows.map((b) => (
                     <option key={b.batch_id} value={b.batch_id}>
-                      {b.batch_no} · {b.memo_no} · Kit {b.kit_no} (balance {b.balance})
+                      {b.memo_no} · Batch {b.batch_no} · Kit {b.kit_no} (balance {b.balance})
                     </option>
                   ))}
                 </select>
@@ -237,12 +250,14 @@ export default function VasWarehouseTransferPage() {
             <thead>
               <tr>
                 <th>Date</th>
+                <th>TSP No.</th>
                 <th>Batch</th>
                 <th>Qty Transferred</th>
                 <th>Endorsed By</th>
                 <th>Received By</th>
                 <th>Remarks</th>
                 <th>Slip</th>
+                {canDelete && <th>Actions</th>}
               </tr>
             </thead>
             <tbody>
@@ -251,6 +266,7 @@ export default function VasWarehouseTransferPage() {
                 return (
                   <tr key={t.id}>
                     <td>{t.transfer_date}</td>
+                    <td>{batch?.memo_no ?? ""}</td>
                     <td>{batch ? `${batch.batch_no} · Kit ${batch.kit_no}` : t.batch_id}</td>
                     <td>{t.qty_transferred}</td>
                     <td>{t.endorsed_by ?? ""}</td>
@@ -264,12 +280,22 @@ export default function VasWarehouseTransferPage() {
                         Print
                       </Link>
                     </td>
+                    {canDelete && (
+                      <td>
+                        <button
+                          className="text-red-600 hover:underline text-xs font-medium"
+                          onClick={() => handleDeleteTransfer(t.id)}
+                        >
+                          Delete
+                        </button>
+                      </td>
+                    )}
                   </tr>
                 );
               })}
               {transfers.length === 0 && (
                 <tr>
-                  <td colSpan={7} className="text-sm text-gray-400">
+                  <td colSpan={canDelete ? 9 : 8} className="text-sm text-gray-400">
                     No transfers yet.
                   </td>
                 </tr>

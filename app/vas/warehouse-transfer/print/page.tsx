@@ -182,7 +182,7 @@ function WarehouseTransferPrintContent() {
                 <span className="font-medium">{batch?.batch_no ?? "—"}</span>
               </div>
               <div className="flex justify-between gap-2">
-                <span className="text-gray-500">Memo No.</span>
+                <span className="text-gray-500">TSP No.</span>
                 <span className="font-medium">{memo?.memo_no ?? "—"}</span>
               </div>
               <div className="flex justify-between gap-2">

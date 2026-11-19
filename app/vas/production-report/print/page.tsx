@@ -192,7 +192,7 @@ function ProductionReportPrintContent() {
           <table className="w-full text-left border-collapse mb-2 text-sm">
             <thead>
               <tr className="bg-brand-light text-brand-dark">
-                <th className="py-2 px-3 rounded-l-md font-semibold text-xs uppercase">Memo No.</th>
+                <th className="py-2 px-3 rounded-l-md font-semibold text-xs uppercase">TSP No.</th>
                 <th className="py-2 px-3 font-semibold text-xs uppercase">Bundle (Kit)</th>
                 <th className="py-2 px-3 text-right font-semibold text-xs uppercase">Target Qty</th>
                 <th className="py-2 px-3 text-right font-semibold text-xs uppercase">Completed Today</th>
