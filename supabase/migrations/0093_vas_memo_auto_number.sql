@@ -16,9 +16,14 @@
 
 create sequence if not exists vas.memo_seq;
 
+-- SECURITY DEFINER so the calling role (authenticated, via RLS) doesn't need
+-- direct USAGE grants on vas.memo_seq -- same reasoning as
+-- public.set_transmittal_no() in 0012_transmittals.sql.
 create or replace function vas.set_memo_no()
 returns trigger
 language plpgsql
+security definer
+set search_path = vas, public
 as $$
 begin
   if new.memo_no is not null and btrim(new.memo_no) <> '' then
