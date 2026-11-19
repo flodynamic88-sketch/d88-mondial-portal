@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import RequireRole from "@/components/RequireRole";
 import { useAuth } from "@/components/AuthProvider";
 import { createClient } from "@/lib/vas/supabase/client";
-import type { VasItem, VasStockBalance, VasStockMovement } from "@/lib/vas/types";
+import type { VasItem, VasProductionProgress, VasStockBalance, VasStockMovement } from "@/lib/vas/types";
 
 // Manual stock-in and day-based consumable usage logging. CONSUMED/PRODUCED/
 // TRANSFERRED_OUT movement types are posted automatically by database
@@ -19,6 +19,7 @@ export default function VasStockPage() {
   const [items, setItems] = useState<VasItem[]>([]);
   const [balances, setBalances] = useState<VasStockBalance[]>([]);
   const [movements, setMovements] = useState<VasStockMovement[]>([]);
+  const [batches, setBatches] = useState<VasProductionProgress[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
@@ -28,11 +29,12 @@ export default function VasStockPage() {
   const [qty, setQty] = useState("");
   const [movementDate, setMovementDate] = useState(() => new Date().toISOString().slice(0, 10));
   const [remarks, setRemarks] = useState("");
+  const [allocBatchId, setAllocBatchId] = useState("");
 
   async function load() {
     setLoading(true);
     const supabase = createClient();
-    const [itemsRes, balanceRes, movementsRes] = await Promise.all([
+    const [itemsRes, balanceRes, movementsRes, batchesRes] = await Promise.all([
       supabase.schema("vas").from("items").select("*").order("item_code"),
       supabase.schema("vas").from("v_stock_balance").select("*").order("item_code"),
       supabase
@@ -42,10 +44,16 @@ export default function VasStockPage() {
         .order("movement_date", { ascending: false })
         .order("created_at", { ascending: false })
         .limit(200),
+      supabase
+        .schema("vas")
+        .from("v_production_progress")
+        .select("*")
+        .order("batch_date", { ascending: false }),
     ]);
     setItems((itemsRes.data as VasItem[]) || []);
     setBalances((balanceRes.data as VasStockBalance[]) || []);
     setMovements((movementsRes.data as VasStockMovement[]) || []);
+    setBatches((batchesRes.data as VasProductionProgress[]) || []);
     setLoading(false);
   }
 
@@ -56,6 +64,27 @@ export default function VasStockPage() {
   const itemLabel = (id: string) => {
     const it = items.find((i) => i.id === id);
     return it ? `${it.item_code} — ${it.item_description}` : id;
+  };
+
+  // De-duplicated list of batches (one row per batch_id, latest progress row
+  // wins) for the "Used For (Batch/Project)" allocation dropdown.
+  const batchOptions = useMemo(() => {
+    const byBatch = new Map<string, VasProductionProgress>();
+    for (const row of batches) byBatch.set(row.batch_id, row);
+    return Array.from(byBatch.values()).sort((a, b) => (a.batch_date < b.batch_date ? 1 : -1));
+  }, [batches]);
+
+  const batchLabel = (id: string | null) => {
+    if (!id) return "";
+    const b = batches.find((row) => row.batch_id === id);
+    return b ? `${b.memo_no} · Batch ${b.batch_no} · Kit ${b.kit_no}` : id;
+  };
+
+  const referenceLabel = (m: VasStockMovement) => {
+    if (m.reference_type === "CONSUMABLE_ALLOCATION" && m.reference_id) {
+      return `Allocated — ${batchLabel(m.reference_id)}`;
+    }
+    return m.reference_type;
   };
 
   async function handleAddMovement() {
@@ -69,13 +98,16 @@ export default function VasStockPage() {
     if (movementType === "CONSUMABLE_USED") signedQty = -absQty;
     if (movementType === "CORRECTION") signedQty = Number(qty); // can be + or -
 
+    const allocate = movementType === "CONSUMABLE_USED" && allocBatchId;
+
     setSaving(true);
     const supabase = createClient();
     const { error } = await supabase.schema("vas").from("stock_movements").insert({
       item_id: itemId,
       movement_type: movementType,
       qty: signedQty,
-      reference_type: "MANUAL",
+      reference_type: allocate ? "CONSUMABLE_ALLOCATION" : "MANUAL",
+      reference_id: allocate ? allocBatchId : null,
       movement_date: movementDate,
       remarks: remarks || null,
     });
@@ -87,6 +119,7 @@ export default function VasStockPage() {
     setItemId("");
     setQty("");
     setRemarks("");
+    setAllocBatchId("");
     load();
   }
 
@@ -192,6 +225,23 @@ export default function VasStockPage() {
                 onChange={(e) => setMovementDate(e.target.value)}
               />
             </div>
+            {movementType === "CONSUMABLE_USED" && (
+              <div className="sm:col-span-2 lg:col-span-4">
+                <label className="label">Used For (Batch/Project) — optional</label>
+                <select className="input" value={allocBatchId} onChange={(e) => setAllocBatchId(e.target.value)}>
+                  <option value="">— Not allocated to a specific batch —</option>
+                  {batchOptions.map((b) => (
+                    <option key={b.batch_id} value={b.batch_id}>
+                      {b.memo_no} · Batch {b.batch_no} · Kit {b.kit_no}
+                    </option>
+                  ))}
+                </select>
+                <p className="mt-1 text-xs text-gray-400">
+                  Tag which bundle/kitting project this consumable usage is for, so usage can be
+                  accounted per project. Leave blank for general/unassigned usage.
+                </p>
+              </div>
+            )}
             <div className="sm:col-span-2 lg:col-span-4">
               <label className="label">Remarks</label>
               <input className="input" value={remarks} onChange={(e) => setRemarks(e.target.value)} />
@@ -225,11 +275,11 @@ export default function VasStockPage() {
                   <td>{itemLabel(m.item_id)}</td>
                   <td>{m.movement_type}</td>
                   <td className={m.qty < 0 ? "text-red-600" : "text-green-700"}>{m.qty}</td>
-                  <td>{m.reference_type}</td>
+                  <td>{referenceLabel(m)}</td>
                   <td>{m.remarks ?? ""}</td>
                   {canDelete && (
                     <td>
-                      {m.reference_type === "MANUAL" && (
+                      {(m.reference_type === "MANUAL" || m.reference_type === "CONSUMABLE_ALLOCATION") && (
                         <button
                           className="text-red-600 hover:underline text-xs font-medium"
                           onClick={() => handleDeleteMovement(m.id)}
