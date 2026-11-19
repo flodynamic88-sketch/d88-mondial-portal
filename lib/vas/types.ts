@@ -81,8 +81,13 @@ export interface VasProductionBatch {
   batch_date: string;
   memo_item_id: string;
   manpower_count: number | null;
-  /** Manpower cost for this batch, factored into total_cost/profit on
-   *  vas.v_production_progress. */
+  /** Rate per person per day, e.g. 700. Defaults to 700 on new rows. */
+  rate_per_manpower_day: number;
+  /** Number of days this batch's manpower worked. Defaults to 1. */
+  manpower_days: number;
+  /** Generated column: manpower_count x rate_per_manpower_day x manpower_days.
+   *  Read-only -- never sent on insert/update, Postgres computes it.
+   *  Factored into total_cost/profit on vas.v_production_progress. */
   manpower_cost: number;
   qty_produced: number;
   status: VasBatchStatus;

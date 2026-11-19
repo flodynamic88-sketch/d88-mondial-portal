@@ -15,6 +15,8 @@ const emptyBatch: Omit<VasProductionBatch, "id"> = {
   batch_date: "",
   memo_item_id: "",
   manpower_count: null,
+  rate_per_manpower_day: 700,
+  manpower_days: 1,
   manpower_cost: 0,
   qty_produced: 0,
   status: "IN_PROGRESS",
@@ -85,8 +87,10 @@ export default function VasProductionPage() {
     { key: "batch_no", label: "Batch No.", required: true },
     { key: "batch_date", label: "Batch Date", type: "date", required: true },
     { key: "memo_item_id", label: "Memo / Kit Line", type: "fk", fkOptions: memoItemFkOptions, required: true },
-    { key: "manpower_count", label: "Manpower", type: "number" },
-    { key: "manpower_cost", label: "Manpower Cost", type: "number" },
+    { key: "manpower_count", label: "Manpower (# of people)", type: "number" },
+    { key: "rate_per_manpower_day", label: "Rate per Tao/Day (₱)", type: "number" },
+    { key: "manpower_days", label: "# of Days", type: "number" },
+    { key: "manpower_cost", label: "Manpower Cost (auto-computed)", type: "number", computed: true },
     { key: "qty_produced", label: "Qty Produced", type: "number", required: true },
     { key: "status", label: "Status", type: "select", options: BATCH_STATUS_OPTIONS },
     { key: "remarks", label: "Remarks", type: "textarea" },
@@ -187,9 +191,9 @@ export default function VasProductionPage() {
             <h2 className="text-sm font-semibold text-gray-700">Cost &amp; Profit per Kit Line (running total)</h2>
             <p className="mt-1 text-xs text-gray-400">
               Total Cost = Material (BOM components × Unit Cost) + Consumables allocated to this line&apos;s
-              batches + Manpower Cost. Revenue = Selling Price/Unit × qty produced to date. Set Unit Cost on
-              Item Master, Selling Price/Unit on Kit/BOM, and Manpower Cost per batch above for these to
-              compute.
+              batches + Manpower Cost. Manpower Cost auto-computes per batch as Manpower × Rate per
+              Tao/Day × # of Days (default ₱700/day). Revenue = Selling Price/Unit × qty produced to date.
+              Set Unit Cost on Item Master and Selling Price/Unit on Kit/BOM for these to compute.
             </p>
           </div>
           <table className="table-base">

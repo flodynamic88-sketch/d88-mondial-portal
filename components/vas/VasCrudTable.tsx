@@ -21,6 +21,10 @@ export interface VasCrudColumn<T> {
   fkOptions?: { value: string; label: string }[];
   required?: boolean;
   hideInTable?: boolean;
+  /** Read-only, server-computed value (e.g. a generated column). Shown in
+   *  the table but never rendered as an input in the Add/Edit form, and
+   *  never included in the insert/update payload. */
+  computed?: boolean;
 }
 
 interface VasCrudTableProps<T extends { id: string }> {
@@ -130,6 +134,7 @@ export default function VasCrudTable<T extends { id: string }>({
 
     const payload: Record<string, unknown> = {};
     for (const col of columns) {
+      if (col.computed) continue;
       let v = form[col.key];
       if (col.type === "number") {
         v = v === "" || v === null || v === undefined ? null : Number(v);
@@ -224,7 +229,7 @@ export default function VasCrudTable<T extends { id: string }>({
             {editingId === "new" ? "Add New Record" : "Edit Record"}
           </h2>
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            {columns.map((col) => (
+            {columns.filter((col) => !col.computed).map((col) => (
               <div key={col.key}>
                 <label className="label">
                   {col.label}
