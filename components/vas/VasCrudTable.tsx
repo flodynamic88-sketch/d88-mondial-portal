@@ -260,7 +260,15 @@ export default function VasCrudTable<T extends { id: string }>({
                       value={(form[col.key] as string) ?? ""}
                       onChange={(e) => setForm({ ...form, [col.key]: e.target.value })}
                     >
-                      {!col.required && <option value="">— None —</option>}
+                      {/* Always render a blank placeholder, even when required.
+                          Without it, a <select> whose value ("") matches none
+                          of its <option>s falls back to displaying the first
+                          real option -- so the dropdown LOOKS like something
+                          is picked while form state is still "", and Save
+                          rejects it with "Please fill in: ..." for a field
+                          that visually appears filled in. The "select" type
+                          above already does this unconditionally; match it. */}
+                      <option value="">{col.required ? "— Select —" : "— None —"}</option>
                       {col.fkOptions?.map((opt) => (
                         <option key={opt.value} value={opt.value}>
                           {opt.label}
