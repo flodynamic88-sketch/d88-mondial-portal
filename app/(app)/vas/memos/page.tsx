@@ -219,7 +219,7 @@ export default function VasMemosPage() {
 
   const columns: VasCrudColumn<VasMemo>[] = useMemo(
     () => [
-      { key: "memo_no", label: "Memo No.", required: true },
+      { key: "memo_no", label: "Memo No." },
       { key: "memo_date", label: "Memo Date", type: "date", required: true },
       { key: "client_name", label: "Client", required: true },
       { key: "requested_by", label: "Requested By" },
@@ -232,8 +232,10 @@ export default function VasMemosPage() {
     <RequireRole roles={["ADMIN", "VAS_MANAGER", "VAS_OFFICER"]}>
       <div className="space-y-4">
         <p className="text-sm text-gray-500">
-          Encode the memo exactly as written on the physical paper from Mondial Sales — Memo No. is
-          free text, not auto-generated. Then add each Kit No. + Qty requested as a line under it.
+          Encode the memo exactly as written on the physical paper from Mondial Sales. If the memo
+          itself has a Memo No., type it in as-is — if it doesn&apos;t, leave Memo No. blank and one
+          will be auto-generated (e.g. VAS-00001). Then add each Kit No. + Qty requested as a line
+          under it.
         </p>
         <VasCrudTable
           tableName="memos"
